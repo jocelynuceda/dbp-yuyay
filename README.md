@@ -71,8 +71,46 @@ Cada feature: `entity/ repository/ service/ controller/ dto/ mapper/`.
 | POST | `/api/v1/auth/refresh` | rota el refresh token |
 | POST | `/api/v1/auth/logout` | 204, revoca el refresh |
 | GET / PATCH | `/api/v1/users/me` | perfil propio |
-
-(El resto se documenta a medida que se implementa.)
+| GET | `/api/v1/health-categories` | catálogo fijo: ALLERGY, CONDITION, MEDICATION, IMMUNIZATION, EPISODE |
+| POST | `/api/v1/care-subjects/{subjectId}/health-entries` | 201, crea entrada + versión 1 (`CREATED`) |
+| GET | `/api/v1/care-subjects/{subjectId}/health-entries` | lista entradas activas; filtro opcional `?category=ALLERGY` |
+| GET | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}` | detalle + última versión |
+| GET | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}/versions` | historial completo de versiones (inmutable) |
+| PATCH | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}` | 200, crea nueva versión (`UPDATED`) |
+| DELETE | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}` | 204, delete + versión (`DELETED`) |
 
 ## Variables de entorno
 Ver `.env.example`: `DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET, JWT_ACCESS_EXPIRATION_MINUTES, JWT_REFRESH_EXPIRATION_DAYS, APP_BASE_URL, CORS_ALLOWED_ORIGINS, RESEND_API_KEY, MAIL_FROM`.
+
+
+## Modelo de versionado (health)
+
+`HealthEntry` es la cabecera (careSubject, categoría, autor, timestamps). El contenido real vive en `HealthEntryVersion`, que **nunca se modifica**: cada edición añade una nueva versión con `changeType = UPDATED`; e
+l borrado añade una versión `DELETED` y marca `deletedAt` en la cabecera (soft delete). El historial completo queda disponible en `GET .../versions`.
+
+## Ejemplos rápidos (PowerShell)
+
+```powershell
+# 1. Login
+$body = @{ email = "test@test.com"; password = "Password123!" } | ConvertTo-Json
+$token = (Invoke-RestMethod -Uri "http://localhost:8080/api/v1/auth/login" `
+    -Method POST -ContentType "application/json" -Body $body).accessToken
+
+$h = @{ Authorization = "Bearer $token" }
+
+# 2. Listar categorías
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/health-categories" -Headers $h
+
+# 3. Crear entrada de salud
+$entry = @{
+    categoryCode    = "ALLERGY"
+    title           = "Alergia a la penicilina"
+    details         = "Reacción cutánea severa"
+    confidenceLevel = "CONFIRMED"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/care-subjects/1/health-entries" `
+    -Method POST -ContentType "application/json" -Headers $h -Body $entry
+
+# 4. Ver historial de versiones
+Invoke-RestMethod -Uri "http://localhost:8080/api/v1/care-subjects/1/health-entries/1/versions" -Headers $h
