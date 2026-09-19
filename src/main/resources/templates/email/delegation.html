@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Acceso temporal a Yuyay</title>
+</head>
+<body>
+<h2>Acceso temporal a Yuyay</h2>
+
+<p>
+    Se ha generado un acceso temporal para consultar información de
+    <strong th:text="${careSubjectName}">persona a cargo</strong>.
+</p>
+
+<p>
+    <a th:href="${shareLink}">Abrir acceso</a>
+</p>
+
+<p>
+    Este acceso es temporal y dejará de funcionar cuando expire.
+</p>
+
+<p>Yuyay</p>
+</body>
+</html>
