@@ -63,7 +63,8 @@ Cada feature: `entity/ repository/ service/ controller/ dto/ mapper/`.
 4. Controller `@RestController @RequestMapping("/api/v1/<recurso-plural>")` con `@Valid`.
 5. Test de integración (`@SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test")`): éxito + 400 + 403.
 
-## Endpoints implementados
+### Autenticación
+
 | Método | Ruta | Descripción |
 |---|---|---|
 | POST | `/api/v1/auth/register` | 201, devuelve access + refresh |
@@ -71,46 +72,86 @@ Cada feature: `entity/ repository/ service/ controller/ dto/ mapper/`.
 | POST | `/api/v1/auth/refresh` | rota el refresh token |
 | POST | `/api/v1/auth/logout` | 204, revoca el refresh |
 | GET / PATCH | `/api/v1/users/me` | perfil propio |
+
+### Cuidado (CareSubject y relaciones)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/v1/care-subjects` | 201, crea la persona cuidada; el creador queda como PRINCIPAL ACTIVE |
+| GET | `/api/v1/care-subjects` | lista los CareSubject a los que el usuario tiene acceso ACTIVE |
+| GET | `/api/v1/care-subjects/{id}` | detalle con el rol del usuario actual |
+| PATCH | `/api/v1/care-subjects/{id}` | actualiza nombre, fecha de nacimiento y notas |
+| DELETE | `/api/v1/care-subjects/{id}` | 204, solo PRINCIPAL |
+| POST | `/api/v1/care-subjects/{subjectId}/relationships` | 201, invita a un cuidador por email (solo PRINCIPAL) |
+| GET | `/api/v1/care-subjects/{subjectId}/relationships` | lista las relaciones del sujeto (cualquier miembro con acceso) |
+| GET | `/api/v1/me/relationships/pending` | invitaciones pendientes del usuario actual |
+| POST | `/api/v1/me/relationships/{relationshipId}/accept` | 200, acepta una invitación |
+| DELETE | `/api/v1/care-subjects/{subjectId}/relationships/{relationshipId}` | 204, revoca una relación (solo PRINCIPAL; no puede revocar al PRINCIPAL) |
+
+### Salud (HealthEntry)
+
+| Método | Ruta | Descripción |
+|---|---|---|
 | GET | `/api/v1/health-categories` | catálogo fijo: ALLERGY, CONDITION, MEDICATION, IMMUNIZATION, EPISODE |
 | POST | `/api/v1/care-subjects/{subjectId}/health-entries` | 201, crea entrada + versión 1 (`CREATED`) |
 | GET | `/api/v1/care-subjects/{subjectId}/health-entries` | lista entradas activas; filtro opcional `?category=ALLERGY` |
 | GET | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}` | detalle + última versión |
 | GET | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}/versions` | historial completo de versiones (inmutable) |
 | PATCH | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}` | 200, crea nueva versión (`UPDATED`) |
-| DELETE | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}` | 204, delete + versión (`DELETED`) |
+| DELETE | `/api/v1/care-subjects/{subjectId}/health-entries/{entryId}` | 204, soft delete + versión (`DELETED`) |
 
-## Variables de entorno
-Ver `.env.example`: `DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET, JWT_ACCESS_EXPIRATION_MINUTES, JWT_REFRESH_EXPIRATION_DAYS, APP_BASE_URL, CORS_ALLOWED_ORIGINS, RESEND_API_KEY, MAIL_FROM`.
+(El resto se documenta a medida que se implementa.)
 
 
-## Modelo de versionado (health)
+## Modelos clave
 
-`HealthEntry` es la cabecera (careSubject, categoría, autor, timestamps). El contenido real vive en `HealthEntryVersion`, que **nunca se modifica**: cada edición añade una nueva versión con `changeType = UPDATED`; e
-l borrado añade una versión `DELETED` y marca `deletedAt` en la cabecera (soft delete). El historial completo queda disponible en `GET .../versions`.
+### Roles y estados de cuidado
 
-## Ejemplos rápidos (PowerShell)
+| Concepto | Valores |
+|---|---|
+| CareRole | `PRINCIPAL` (dueño del sujeto, único) · `CAREGIVER` |
+| CareStatus | `PENDING` · `ACTIVE` · `REVOKED` |
+| ChangeType | `CREATED` · `UPDATED` · `DELETED` |
+| Confidence | `CONFIRMED` · `UNCERTAIN` |
+| AccessAction | `VIEW` · `CREATE` · `UPDATE` · `DELETE` · `OPEN_HANDOFF_LINK` · `EXCHANGE_DELEGATION` |
 
-```powershell
-# 1. Login
-$body = @{ email = "test@test.com"; password = "Password123!" } | ConvertTo-Json
-$token = (Invoke-RestMethod -Uri "http://localhost:8080/api/v1/auth/login" `
-    -Method POST -ContentType "application/json" -Body $body).accessToken
+- Al crear un `CareSubject`, el usuario autenticado queda automáticamente como
+  `PRINCIPAL` con `status = ACTIVE`.
+- Las invitaciones se crean como `PENDING`; el invitado las acepta vía
+  `/me/relationships/{id}/accept`.
 
-$h = @{ Authorization = "Bearer $token" }
+### Versionado de salud
 
-# 2. Listar categorías
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/health-categories" -Headers $h
+`HealthEntry` es la cabecera (careSubject, categoría, autor, timestamps). El
+contenido real vive en `HealthEntryVersion`, que **nunca se modifica**:
 
-# 3. Crear entrada de salud
-$entry = @{
-    categoryCode    = "ALLERGY"
-    title           = "Alergia a la penicilina"
-    details         = "Reacción cutánea severa"
-    confidenceLevel = "CONFIRMED"
-} | ConvertTo-Json
+- Cada edición añade una nueva versión con `changeType = UPDATED`.
+- El borrado añade una versión `DELETED` y marca `deletedAt` en la cabecera
+  (soft delete).
+- El historial completo queda disponible en `GET .../versions`.
 
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/care-subjects/1/health-entries" `
-    -Method POST -ContentType "application/json" -Headers $h -Body $entry
 
-# 4. Ver historial de versiones
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/care-subjects/1/health-entries/1/versions" -Headers $h
+## Códigos de estado
+
+| Código | Significado |
+|---|---|
+| 200 OK | Consulta o actualización exitosa |
+| 201 Created | Recurso creado (POST) |
+| 204 No Content | Eliminación exitosa (DELETE) |
+| 400 Bad Request | Validación fallida del body |
+| 401 Unauthorized | Token inválido o expirado |
+| 403 Forbidden | Sin acceso al CareSubject o sin rol requerido |
+| 404 Not Found | Recurso no existe |
+| 409 Conflict | Recurso duplicado |
+| 500 Server Error | Error inesperado |
+
+
+## Pendientes por implementar
+
+| Feature | Rutas por definir |
+|---|---|
+| Delegation | `/api/v1/care-subjects/{id}/delegations`, `/api/v1/delegations/exchange` |
+| Consultation | `/api/v1/care-subjects/{id}/consultations` |
+| Handoff | `/api/v1/care-subjects/{id}/handoffs`, `/api/v1/handoffs/{id}/sessions` |
+| Notification | `/api/v1/me/notifications` |
+| Audit | `/api/v1/care-subjects/{id}/access-logs` |
