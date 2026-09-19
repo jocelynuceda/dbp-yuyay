@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Invitación a Yuyay</title>
+</head>
+<body>
+<h2>Invitación a Yuyay</h2>
+
+<p>
+    Has sido invitado a participar como cuidador de
+    <strong th:text="${careSubjectName}">persona a cargo</strong>.
+</p>
+
+<p>
+    <a th:href="${invitationLink}">Aceptar invitación</a>
+</p>
+
+<p>Yuyay</p>
+</body>
+</html>
