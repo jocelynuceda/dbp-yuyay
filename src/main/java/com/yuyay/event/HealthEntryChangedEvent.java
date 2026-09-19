@@ -1,5 +1,10 @@
 package com.yuyay.event;
 
-import com.yuyay.health.entity.ChangeType;
-
-public record HealthEntryChangedEvent(Long healthEntryId, Long careSubjectId, Long changedByUserId, ChangeType changeType) {}
+public record HealthEntryChangedEvent(
+        Long healthEntryId,
+        Long careSubjectId,
+        Long actorUserId,
+        String action,
+        String changeDescription,
+        String careSubjectName
+) {}
