@@ -40,7 +40,7 @@ public class NotificationListener {
             for (CareRelationship rel : cuidadores) {
                 var destinatario = rel.getUser();
                 if (destinatario.getId().equals(event.actorUserId())) {
-                    continue;   // el autor del cambio no se notifica a sí mismo
+                    continue;
                 }
 
                 notificationRepository.save(Notification.builder()
@@ -51,7 +51,6 @@ public class NotificationListener {
                         .body(event.changeDescription())
                         .build());
 
-                // el correo no debe tumbar la notificación ya guardada
                 try {
                     emailService.sendTemplate(
                             destinatario.getEmail(),
@@ -66,7 +65,7 @@ public class NotificationListener {
                 }
             }
         } catch (Exception e) {
-            log.error("Fallo procesando HealthEntryChangedEvent {}", event, e);   // nunca relanzar
+            log.error("Fallo procesando HealthEntryChangedEvent {}", event, e);
         }
     }
 }

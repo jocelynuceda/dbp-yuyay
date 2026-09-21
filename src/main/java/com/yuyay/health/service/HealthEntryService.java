@@ -16,7 +16,9 @@ import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
+import com.yuyay.event.HealthEntryChangedEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,8 +39,7 @@ public class HealthEntryService {
     private final HealthEntryVersionMapper versionMapper;
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
-
-    // ---------- CREATE ----------
+    private final ApplicationEventPublisher eventPublisher;
 
     public HealthEntryResponse create(Long subjectId, HealthEntryCreateRequest req) {
         Long meId = currentUserService.getCurrentUserId();
@@ -71,10 +72,9 @@ public class HealthEntryService {
                 .build();
         versionRepo.save(v1);
 
+        publishChange(entry, me, ChangeType.CREATED, v1.getTitle());
         return entryMapper.toResponse(entry, versionMapper.toResponse(v1));
     }
-
-    // ---------- READ ----------
 
     @Transactional(readOnly = true)
     public List<HealthEntryResponse> list(Long subjectId, String categoryCode) {
@@ -128,8 +128,6 @@ public class HealthEntryService {
                 .toList();
     }
 
-    // ---------- UPDATE ----------
-
     public HealthEntryResponse update(Long subjectId, Long entryId, HealthEntryUpdateRequest req) {
         Long meId = currentUserService.getCurrentUserId();
         User me = loadUser(meId);
@@ -159,10 +157,9 @@ public class HealthEntryService {
                 .build();
         versionRepo.save(v);
 
+        publishChange(entry, me, ChangeType.UPDATED, v.getTitle());
         return entryMapper.toResponse(entry, versionMapper.toResponse(v));
     }
-
-    // ---------- DELETE (soft + versión DELETED) ----------
 
     public void delete(Long subjectId, Long entryId) {
         Long meId = currentUserService.getCurrentUserId();
@@ -196,9 +193,23 @@ public class HealthEntryService {
         versionRepo.save(v);
 
         entry.setDeletedAt(Instant.now());
+        publishChange(entry, me, ChangeType.DELETED, last.getTitle());
     }
 
-    // ---------- HELPERS ----------
+    private void publishChange(HealthEntry entry, User actor, ChangeType type, String title) {
+        String description = switch (type) {
+            case CREATED -> "%s registró \"%s\" (%s)".formatted(actor.getName(), title, entry.getCategory().getName());
+            case UPDATED -> "%s actualizó \"%s\" (%s)".formatted(actor.getName(), title, entry.getCategory().getName());
+            case DELETED -> "%s eliminó \"%s\" (%s)".formatted(actor.getName(), title, entry.getCategory().getName());
+        };
+        eventPublisher.publishEvent(new HealthEntryChangedEvent(
+                entry.getId(),
+                entry.getCareSubject().getId(),
+                actor.getId(),
+                type.name(),
+                description,
+                entry.getCareSubject().getName()));
+    }
 
     private User loadUser(Long id) {
         return userRepo.findById(id)

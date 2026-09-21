@@ -15,7 +15,9 @@ import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
+import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
+import com.yuyay.health.repository.HealthEntryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,11 +33,10 @@ public class CareSubjectService {
     private final CareSubjectRepository subjectRepo;
     private final CareRelationshipRepository relationshipRepo;
     private final UserRepository userRepo;
+    private final HealthEntryRepository healthEntryRepo;
     private final CareSubjectMapper mapper;
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
-
-    // ---------- CREATE ----------
 
     public CareSubjectResponse create(CareSubjectCreateRequest req) {
         Long meId = currentUserService.getCurrentUserId();
@@ -44,7 +45,6 @@ public class CareSubjectService {
         CareSubject subject = mapper.toEntity(req);
         subjectRepo.save(subject);
 
-        // El creador queda automáticamente como PRINCIPAL ACTIVE
         CareRelationship ownerRelationship = CareRelationship.builder()
                 .user(me)
                 .careSubject(subject)
@@ -56,8 +56,6 @@ public class CareSubjectService {
 
         return mapper.toResponse(subject, CareRole.PRINCIPAL);
     }
-
-    // ---------- READ ----------
 
     @Transactional(readOnly = true)
     public List<CareSubjectResponse> listMine() {
@@ -89,8 +87,6 @@ public class CareSubjectService {
         return mapper.toResponse(cs, role);
     }
 
-    // ---------- UPDATE ----------
-
     public CareSubjectResponse update(Long subjectId, CareSubjectUpdateRequest req) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireAccess(meId, subjectId);
@@ -109,17 +105,16 @@ public class CareSubjectService {
         return mapper.toResponse(cs, role);
     }
 
-    // ---------- DELETE (solo PRINCIPAL) ----------
-
     public void delete(Long subjectId) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireRole(meId, subjectId, CareRole.PRINCIPAL);
 
         CareSubject cs = loadSubject(subjectId);
+        if (healthEntryRepo.existsByCareSubjectId(subjectId)) {
+            throw new InvalidOperationException("No se puede eliminar una persona con historial de salud");
+        }
         subjectRepo.delete(cs);
     }
-
-    // ---------- HELPERS ----------
 
     private User loadUser(Long id) {
         return userRepo.findById(id)

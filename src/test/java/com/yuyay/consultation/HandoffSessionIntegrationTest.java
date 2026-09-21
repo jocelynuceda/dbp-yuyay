@@ -8,6 +8,7 @@ import com.yuyay.consultation.repository.HandoffRepository;
 import com.yuyay.consultation.repository.HandoffSessionRepository;
 import com.yuyay.consultation.service.HandoffSessionService;
 import com.yuyay.event.AccessRecordedEvent;
+import com.yuyay.event.listener.AccessLogListener;
 import com.yuyay.security.TokenHasher;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +53,9 @@ class HandoffSessionIntegrationTest {
 
     @MockitoBean
     HandoffRepository handoffRepository;
+
+    @MockitoBean
+    AccessLogListener accessLogListener;
 
     @Test
     void openingHandoffPublishesAccessRecordedEvent() {
