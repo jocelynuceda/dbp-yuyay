@@ -32,4 +32,6 @@ public interface HealthEntryRepository extends JpaRepository<HealthEntry, Long> 
     List<HealthEntry> findByIdInAndCareSubjectId(Collection<Long> ids, Long careSubjectId);
 
     boolean existsByCareSubjectId(Long careSubjectId);
+
+    long countByDeletedAtIsNull();
 }

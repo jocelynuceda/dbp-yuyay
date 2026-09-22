@@ -26,4 +26,8 @@ public interface CareRelationshipRepository extends JpaRepository<CareRelationsh
     List<CareRelationship> findByUserIdAndStatus(Long userId, CareStatus status);
 
     long countByCareSubjectIdAndStatusAndRole(Long careSubjectId, CareStatus status, CareRole role);
+
+    long countByStatus(CareStatus status);
+
+    long countByUserIdAndStatus(Long userId, CareStatus status);
 }

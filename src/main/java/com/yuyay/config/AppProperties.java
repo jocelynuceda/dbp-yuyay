@@ -9,9 +9,11 @@ public record AppProperties(
         Jwt jwt,
         String baseUrl,
         Cors cors,
-        Mail mail
+        Mail mail,
+        Admin admin
 ) {
     public record Jwt(String secret, long accessExpirationMinutes, long refreshExpirationDays) {}
     public record Cors(List<String> allowedOrigins) {}
     public record Mail(String from, String resendApiKey) {}
+    public record Admin(String email, String password, String name) {}
 }
