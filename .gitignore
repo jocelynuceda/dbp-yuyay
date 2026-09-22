@@ -29,3 +29,6 @@ build/
 .vscode/
 
 .env
+login.json
+register.json
+body.json

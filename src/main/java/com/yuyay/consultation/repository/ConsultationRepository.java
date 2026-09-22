@@ -9,6 +9,11 @@ import java.util.Optional;
 public interface ConsultationRepository extends JpaRepository<Consultation, Long> {
     List<Consultation> findByCareSubjectIdOrderByDateDesc(Long careSubjectId);
 
+    List<Consultation> findByCareSubjectIdAndIdGreaterThanOrderByIdAsc(
+            Long careSubjectId,
+            Long sinceId
+    );
+
     Optional<Consultation> findFirstByCareSubjectIdOrderByDateDesc(Long careSubjectId);
 
     Optional<Consultation> findByIdAndCareSubjectId(Long id, Long careSubjectId);
