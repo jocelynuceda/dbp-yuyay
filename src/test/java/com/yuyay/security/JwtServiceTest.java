@@ -16,7 +16,8 @@ class JwtServiceTest {
             new AppProperties.Jwt("test-secret-test-secret-test-secret-0123456789", 60, 7),
             "http://localhost:8080",
             new AppProperties.Cors(List.of("http://localhost:3000")),
-            new AppProperties.Mail("Yuyay <test@test>", "")));
+            new AppProperties.Mail("Yuyay <test@test>", ""),
+            new AppProperties.Admin("admin@yuyay.app", "Admin12345", "Administrador")));
 
     @Test
     void generatesAndParsesUserToken() {
@@ -50,7 +51,8 @@ class JwtServiceTest {
     @Test
     void rejectsShortSecret() {
         assertThatThrownBy(() -> new JwtService(new AppProperties(
-                new AppProperties.Jwt("corto", 60, 7), "", new AppProperties.Cors(List.of()), new AppProperties.Mail("", ""))))
+                new AppProperties.Jwt("corto", 60, 7), "", new AppProperties.Cors(List.of()), new AppProperties.Mail("", ""),
+                new AppProperties.Admin("admin@yuyay.app", "Admin12345", "Administrador"))))
                 .isInstanceOf(IllegalStateException.class);
     }
 }
