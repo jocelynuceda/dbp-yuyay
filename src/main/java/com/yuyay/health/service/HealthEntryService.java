@@ -2,6 +2,7 @@ package com.yuyay.health.service;
 
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.repository.CareSubjectRepository;
+import com.yuyay.exception.InvalidHealthEntryException;
 import com.yuyay.exception.ResourceNotFoundException;
 import com.yuyay.health.dto.*;
 import com.yuyay.health.entity.*;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -49,6 +51,7 @@ public class HealthEntryService {
 
         HealthCategory cat = categoryRepo.findByCode(req.categoryCode())
                 .orElseThrow(() -> new HealthCategoryNotFoundException(req.categoryCode()));
+        requireDoseOnlyForMedication(cat, req.dose(), req.frequency());
 
         HealthEntry entry = HealthEntry.builder()
                 .careSubject(cs)
@@ -137,6 +140,7 @@ public class HealthEntryService {
                 .filter(e -> e.getCareSubject().getId().equals(subjectId))
                 .filter(e -> !e.isDeleted())
                 .orElseThrow(() -> new HealthEntryNotFoundException(entryId));
+        requireDoseOnlyForMedication(entry.getCategory(), req.dose(), req.frequency());
 
         int next = versionRepo.findFirstByHealthEntryIdOrderByVersionNumberDesc(entryId)
                 .map(v -> v.getVersionNumber() + 1)
@@ -209,6 +213,16 @@ public class HealthEntryService {
                 type.name(),
                 description,
                 entry.getCareSubject().getName()));
+    }
+
+    private void requireDoseOnlyForMedication(HealthCategory category, String dose, String frequency) {
+        if (HealthCategory.MEDICATION.equals(category.getCode())) {
+            return;
+        }
+        if (StringUtils.hasText(dose) || StringUtils.hasText(frequency)) {
+            throw new InvalidHealthEntryException(
+                    "Dosis y frecuencia solo aplican a la categoría " + HealthCategory.MEDICATION);
+        }
     }
 
     private User loadUser(Long id) {
