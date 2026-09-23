@@ -123,6 +123,10 @@
     {
       "key": "validUntil",
       "value": ""
+    },
+    {
+      "key": "adminId",
+      "value": ""
     }
   ],
   "item": [
@@ -5157,7 +5161,8 @@
                 "exec": [
                   "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
                   "pm.collectionVariables.set(\"adminToken\", pm.response.json().accessToken);",
-                  "pm.test(\"Rol ADMIN\", () => pm.expect(pm.response.json().user.role).to.eql(\"ADMIN\"));"
+                  "pm.test(\"Rol ADMIN\", () => pm.expect(pm.response.json().user.role).to.eql(\"ADMIN\"));",
+                  "pm.collectionVariables.set(\"adminId\", pm.response.json().user.id);"
                 ]
               }
             }
@@ -5447,7 +5452,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/users/1/role",
+              "raw": "{{baseUrl}}/api/v1/admin/users/{{adminId}}/role",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -5456,7 +5461,7 @@
                 "v1",
                 "admin",
                 "users",
-                "1",
+                "{{adminId}}",
                 "role"
               ]
             },
