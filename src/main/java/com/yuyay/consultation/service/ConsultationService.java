@@ -1,5 +1,10 @@
 package com.yuyay.consultation.service;
 
+import com.yuyay.health.dto.HealthEntryVersionResponse;
+import com.yuyay.health.mapper.HealthEntryVersionMapper;
+import com.yuyay.health.repository.HealthEntryVersionRepository;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.repository.CareSubjectRepository;
@@ -32,6 +37,8 @@ public class ConsultationService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
     private final ConsultationMapper consultationMapper;
+    private final HealthEntryVersionRepository healthEntryVersionRepository;
+    private final HealthEntryVersionMapper healthEntryVersionMapper;
 
     public ConsultationDetailDTO create(
             Long careSubjectId,
@@ -147,21 +154,30 @@ public class ConsultationService {
 
 
     @Transactional(readOnly = true)
-    public List<ConsultationResponseDTO> changes(
+    public List<HealthEntryVersionResponse> changes(
             Long careSubjectId,
             Long sinceConsultationId
     ) {
         Long currentUserId = currentUserService.getCurrentUserId();
-
         authorizationService.requireAccess(currentUserId, careSubjectId);
 
-        return consultationRepository
-                .findByCareSubjectIdAndIdGreaterThanOrderByIdAsc(
-                        careSubjectId,
-                        sinceConsultationId
-                )
+        // 1. Buscar la consulta de referencia para obtener su fecha
+        Consultation consultation = consultationRepository
+                .findByIdAndCareSubjectId(sinceConsultationId, careSubjectId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Consulta no encontrada"));
+
+        // 2. Convertir LocalDate -> Instant (inicio del día en UTC)
+        Instant since = consultation.getDate()
+                .atStartOfDay(ZoneOffset.UTC)
+                .toInstant();
+
+        // 3. Buscar los cambios de salud desde esa fecha y mapear
+        return healthEntryVersionRepository
+                .findChangesSince(careSubjectId, since)
                 .stream()
-                .map(consultationMapper::toResponse)
+                .map(healthEntryVersionMapper::toResponse)
                 .toList();
     }
+
 }

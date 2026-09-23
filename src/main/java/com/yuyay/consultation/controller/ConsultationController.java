@@ -5,6 +5,7 @@ import com.yuyay.consultation.dto.ConsultationResponseDTO;
 import com.yuyay.consultation.dto.CreateConsultationDTO;
 import com.yuyay.consultation.dto.UpdateConsultationDTO;
 import com.yuyay.consultation.service.ConsultationService;
+import com.yuyay.health.dto.HealthEntryVersionResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -59,7 +60,7 @@ public class ConsultationController {
     }
 
     @GetMapping("/care-subjects/{careSubjectId}/consultations/changes")
-    public List<ConsultationResponseDTO> changes(
+    public List<HealthEntryVersionResponse> changes(
             @PathVariable Long careSubjectId,
             @RequestParam(defaultValue = "0") Long sinceConsultationId
     ) {
