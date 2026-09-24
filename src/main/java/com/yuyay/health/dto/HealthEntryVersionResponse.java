@@ -18,5 +18,6 @@ public record HealthEntryVersionResponse(
         ConfidenceLevel confidenceLevel,
         String notes,
         UserSummary declaredBy,
-        Instant declaredAt
+        Instant declaredAt,
+        Long sourceAttachmentId
 ) {}

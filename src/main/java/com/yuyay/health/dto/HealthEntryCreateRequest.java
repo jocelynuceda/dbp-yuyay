@@ -15,5 +15,6 @@ public record HealthEntryCreateRequest(
         @Size(max = 60) String frequency,
         LocalDate occurredOn,
         @NotNull ConfidenceLevel confidenceLevel,
-        String notes
+        String notes,
+        Long sourceAttachmentId
 ) {}

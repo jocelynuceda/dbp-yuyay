@@ -127,6 +127,10 @@
     {
       "key": "adminId",
       "value": ""
+    },
+    {
+      "key": "attachmentId",
+      "value": ""
     }
   ],
   "item": [
@@ -6229,6 +6233,449 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "15. Attachments (OCR con Textract)",
+      "description": "Captura de documentos con la cámara y extracción de texto con Amazon Textract (DetectDocumentText). Flujo: subir (201, PENDING) → consultar hasta DONE → el cuidador confirma el dato con sourceAttachmentId. Requiere AWS_S3_BUCKET y credenciales de AWS (en EC2, el rol del Learner Lab).",
+      "item": [
+        {
+          "name": "Subir documento para OCR",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Foto de la receta: JPG, PNG o PDF de una página, máximo 10 MB."
+                },
+                {
+                  "key": "consultationId",
+                  "value": "{{consultationId}}",
+                  "type": "text",
+                  "disabled": true,
+                  "description": "Opcional: consulta de la que salió el documento."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}",
+                "attachments"
+              ]
+            },
+            "description": "Sube la foto que capturó la cámara del celular. El archivo se guarda en S3 privado y la respuesta llega de inmediato con ocrStatus=PENDING: Textract procesa la imagen en segundo plano (evento AttachmentUploadedEvent + listener @Async). El OCR nunca crea un registro de salud por sí solo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"OCR encolado\", () => pm.expect(b.ocrStatus).to.eql(\"PENDING\"));",
+                  "pm.collectionVariables.set(\"attachmentId\", b.id);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": [],
+                      "description": "Foto de la receta: JPG, PNG o PDF de una página, máximo 10 MB."
+                    },
+                    {
+                      "key": "consultationId",
+                      "value": "{{consultationId}}",
+                      "type": "text",
+                      "disabled": true,
+                      "description": "Opcional: consulta de la que salió el documento."
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "attachments"
+                  ]
+                },
+                "description": "Sube la foto que capturó la cámara del celular. El archivo se guarda en S3 privado y la respuesta llega de inmediato con ocrStatus=PENDING: Textract procesa la imagen en segundo plano (evento AttachmentUploadedEvent + listener @Async). El OCR nunca crea un registro de salud por sí solo."
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 12,\n  \"careSubjectId\": 7,\n  \"consultationId\": null,\n  \"uploadedById\": 3,\n  \"uploadedByName\": \"Ana Quispe\",\n  \"originalFilename\": \"receta.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"sizeBytes\": 245812,\n  \"ocrStatus\": \"PENDING\",\n  \"ocrText\": null,\n  \"ocrError\": null,\n  \"uploadedAt\": \"2026-09-24T21:10:04.512Z\",\n  \"ocrCompletedAt\": null\n}"
+            },
+            {
+              "name": "400 formato no soportado",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": [],
+                      "description": "Foto de la receta: JPG, PNG o PDF de una página, máximo 10 MB."
+                    },
+                    {
+                      "key": "consultationId",
+                      "value": "{{consultationId}}",
+                      "type": "text",
+                      "disabled": true,
+                      "description": "Opcional: consulta de la que salió el documento."
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "attachments"
+                  ]
+                },
+                "description": "Sube la foto que capturó la cámara del celular. El archivo se guarda en S3 privado y la respuesta llega de inmediato con ocrStatus=PENDING: Textract procesa la imagen en segundo plano (evento AttachmentUploadedEvent + listener @Async). El OCR nunca crea un registro de salud por sí solo."
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-24T21:11:00Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"Formato no soportado: usa JPG, PNG o PDF de una página\",\n  \"path\": \"/api/v1/care-subjects/7/attachments\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Consultar adjunto y texto OCR",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments/{{attachmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}",
+                "attachments",
+                "{{attachmentId}}"
+              ]
+            },
+            "description": "Consulta el estado del OCR. Se repite hasta que ocrStatus deje de ser PENDING: DONE trae el texto detectado por Textract, línea por línea; FAILED trae el motivo en ocrError."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Tiene estado de OCR\", () => pm.expect(pm.response.json().ocrStatus).to.be.oneOf([\"PENDING\",\"DONE\",\"FAILED\"]));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 DONE",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments/{{attachmentId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "attachments",
+                    "{{attachmentId}}"
+                  ]
+                },
+                "description": "Consulta el estado del OCR. Se repite hasta que ocrStatus deje de ser PENDING: DONE trae el texto detectado por Textract, línea por línea; FAILED trae el motivo en ocrError."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 12,\n  \"careSubjectId\": 7,\n  \"consultationId\": null,\n  \"uploadedById\": 3,\n  \"uploadedByName\": \"Ana Quispe\",\n  \"originalFilename\": \"receta.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"sizeBytes\": 245812,\n  \"ocrStatus\": \"DONE\",\n  \"ocrText\": \"Hospital Nacional Edgardo Rebagliati\\nMetformina 850 mg\\n1 tableta cada 12 horas\",\n  \"ocrError\": null,\n  \"uploadedAt\": \"2026-09-24T21:10:04.512Z\",\n  \"ocrCompletedAt\": \"2026-09-24T21:10:06.118Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Listar adjuntos de la persona",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}",
+                "attachments"
+              ]
+            },
+            "description": "Documentos de la persona, del más reciente al más antiguo. Solo cuidadores con relación ACTIVE."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Es lista\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "attachments"
+                  ]
+                },
+                "description": "Documentos de la persona, del más reciente al más antiguo. Solo cuidadores con relación ACTIVE."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": 12,\n    \"careSubjectId\": 7,\n    \"consultationId\": null,\n    \"uploadedById\": 3,\n    \"uploadedByName\": \"Ana Quispe\",\n    \"originalFilename\": \"receta.jpg\",\n    \"contentType\": \"image/jpeg\",\n    \"sizeBytes\": 245812,\n    \"ocrStatus\": \"DONE\",\n    \"ocrText\": \"Hospital Nacional Edgardo Rebagliati\\nMetformina 850 mg\\n1 tableta cada 12 horas\",\n    \"ocrError\": null,\n    \"uploadedAt\": \"2026-09-24T21:10:04.512Z\",\n    \"ocrCompletedAt\": \"2026-09-24T21:10:06.118Z\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Reintentar OCR fallido",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments/{{attachmentId}}/ocr-retry",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}",
+                "attachments",
+                "{{attachmentId}}",
+                "ocr-retry"
+              ]
+            },
+            "description": "Vuelve a encolar el OCR de un adjunto en estado FAILED (por ejemplo, si expiraron las credenciales temporales de AWS). Responde 202; si el OCR no falló, 409."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"202 o 409\", () => pm.expect(pm.response.code).to.be.oneOf([202,409]));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "202 Accepted",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments/{{attachmentId}}/ocr-retry",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "attachments",
+                    "{{attachmentId}}",
+                    "ocr-retry"
+                  ]
+                },
+                "description": "Vuelve a encolar el OCR de un adjunto en estado FAILED (por ejemplo, si expiraron las credenciales temporales de AWS). Responde 202; si el OCR no falló, 409."
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 12,\n  \"careSubjectId\": 7,\n  \"consultationId\": null,\n  \"uploadedById\": 3,\n  \"uploadedByName\": \"Ana Quispe\",\n  \"originalFilename\": \"receta.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"sizeBytes\": 245812,\n  \"ocrStatus\": \"PENDING\",\n  \"ocrText\": null,\n  \"ocrError\": null,\n  \"uploadedAt\": \"2026-09-24T21:10:04.512Z\",\n  \"ocrCompletedAt\": null\n}"
+            },
+            {
+              "name": "409 el OCR no falló",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/attachments/{{attachmentId}}/ocr-retry",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "attachments",
+                    "{{attachmentId}}",
+                    "ocr-retry"
+                  ]
+                },
+                "description": "Vuelve a encolar el OCR de un adjunto en estado FAILED (por ejemplo, si expiraron las credenciales temporales de AWS). Responde 202; si el OCR no falló, 409."
+              },
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-24T21:12:00Z\",\n  \"status\": 409,\n  \"error\": \"Conflict\",\n  \"message\": \"Solo se puede reintentar un OCR que falló\",\n  \"path\": \"/api/v1/care-subjects/7/attachments/12/ocr-retry\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Confirmar dato a partir del documento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryCode\": \"MEDICATION\",\n  \"title\": \"Metformina\",\n  \"dose\": \"850 mg\",\n  \"frequency\": \"cada 12 horas\",\n  \"confidenceLevel\": \"CONFIRMED\",\n  \"sourceAttachmentId\": {{attachmentId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}",
+                "health-entries"
+              ]
+            },
+            "description": "El cuidador lee el texto extraído y registra el dato a mano. sourceAttachmentId enlaza esta versión con la foto que la respalda; si el adjunto es de otra persona responde 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Enlazado a su evidencia\", () => pm.expect(pm.response.json().latestVersion.sourceAttachmentId).to.eql(Number(pm.collectionVariables.get(\"attachmentId\"))));"
                 ]
               }
             }
