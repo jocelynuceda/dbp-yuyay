@@ -1,5 +1,7 @@
 package com.yuyay.health.service;
 
+import com.yuyay.attachment.entity.Attachment;
+import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.audit.entity.AccessAction;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.repository.CareSubjectRepository;
@@ -36,6 +38,7 @@ public class HealthEntryService {
 
     private final HealthEntryRepository entryRepo;
     private final HealthEntryVersionRepository versionRepo;
+    private final AttachmentRepository attachmentRepo;
     private final HealthCategoryRepository categoryRepo;
     private final CareSubjectRepository careSubjectRepo;
     private final UserRepository userRepo;
@@ -74,6 +77,7 @@ public class HealthEntryService {
                 .confidenceLevel(req.confidenceLevel())
                 .notes(req.notes())
                 .declaredBy(me)
+                .sourceAttachment(resolveSourceAttachment(subjectId, req.sourceAttachmentId()))
                 .build();
         versionRepo.save(v1);
 
@@ -223,6 +227,12 @@ public class HealthEntryService {
 
     private void recordAccess(Long subjectId, Long userId, AccessAction action, Long entryId) {
         eventPublisher.publishEvent(AccessRecordedEvent.byUser(subjectId, userId, action, "HEALTH_ENTRY", entryId));
+    }
+
+    private Attachment resolveSourceAttachment(Long subjectId, Long attachmentId) {
+        if (attachmentId == null) return null;
+        return attachmentRepo.findByIdAndCareSubjectId(attachmentId, subjectId)
+                .orElseThrow(() -> new InvalidHealthEntryException("El adjunto no existe o no pertenece a esta persona"));
     }
 
     private void requireDoseOnlyForMedication(HealthCategory category, String dose, String frequency) {

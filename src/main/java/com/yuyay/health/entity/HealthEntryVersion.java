@@ -1,5 +1,6 @@
 package com.yuyay.health.entity;
 
+import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.user.entity.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -66,6 +67,10 @@ public class HealthEntryVersion {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "declared_by", nullable = false)
     private User declaredBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_attachment_id")
+    private Attachment sourceAttachment;
 
     @Column(nullable = false, updatable = false)
     private Instant declaredAt;

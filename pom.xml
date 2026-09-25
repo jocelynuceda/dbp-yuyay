@@ -20,9 +20,30 @@
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>3.1.1</springdoc.version>
         <resend.version>4.25.0</resend.version>
+        <awssdk.version>2.54.13</awssdk.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${awssdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>textract</artifactId>
+        </dependency>
         <!-- Web + JPA + validación -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
