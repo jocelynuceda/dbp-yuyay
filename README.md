@@ -292,7 +292,7 @@ El sistema publica cuatro eventos de dominio, todos definidos como `record` inmu
 | `UserRegisteredEvent` | `AuthService.register` | `EmailListener` | Envía el correo de bienvenida |
 | `CaregiverInvitedEvent` | `CareRelationshipService.invite` | `EmailListener` | Envía el correo de invitación |
 | `DelegationCreatedEvent` | `DelegationService.create` | `EmailListener` | Envía el enlace de acceso temporal al delegado |
-| `AccessRecordedEvent` | Apertura de un enlace, canje de delegación y lecturas del delegado | `AccessLogListener` | Inserta la entrada en la bitácora |
+| `AccessRecordedEvent` | `HealthEntryService` (crear, ver, editar, borrar), apertura de un enlace, canje de delegación y lecturas del delegado | `AccessLogListener` | Inserta la entrada en la bitácora |
 
 Los listeners se anotan con `@TransactionalEventListener(phase = AFTER_COMMIT)`, `@Async` y `@Transactional(propagation = REQUIRES_NEW)`, sobre un `ThreadPoolTaskExecutor` dedicado en `AsyncConfig`.
 
