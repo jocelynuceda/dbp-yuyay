@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Bienvenida a Yuyay</title>
+</head>
+<body>
+<h2>Te damos la bienvenida a Yuyay</h2>
+
+<p>
+    Hola <strong th:text="${userName}">usuario</strong>, tu cuenta ya está creada.
+</p>
+
+<p>
+    Desde ahora puedes registrar a las personas que cuidas, invitar a otros
+    cuidadores y compartir su información de salud de forma segura.
+</p>
+
+<p>
+    <a th:href="${appLink}">Entrar a Yuyay</a>
+</p>
+
+<p>Yuyay</p>
+</body>
+</html>

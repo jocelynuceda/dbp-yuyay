@@ -4,6 +4,7 @@ import com.yuyay.auth.dto.AuthResponseDTO;
 import com.yuyay.auth.dto.LoginRequestDTO;
 import com.yuyay.auth.dto.RegisterRequestDTO;
 import com.yuyay.config.AppProperties;
+import com.yuyay.event.UserRegisteredEvent;
 import com.yuyay.exception.DuplicateEmailException;
 import com.yuyay.exception.InvalidCredentialsException;
 import com.yuyay.exception.InvalidTokenException;
@@ -16,6 +17,7 @@ import com.yuyay.user.mapper.UserMapper;
 import com.yuyay.user.repository.RefreshTokenRepository;
 import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final UserMapper userMapper;
     private final AppProperties properties;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public AuthResponseDTO register(RegisterRequestDTO dto) {
@@ -45,6 +48,7 @@ public class AuthService {
                 .role(Role.USER)
                 .build();
         userRepository.save(user);
+        eventPublisher.publishEvent(new UserRegisteredEvent(user.getId()));
         return issueTokens(user);
     }
 

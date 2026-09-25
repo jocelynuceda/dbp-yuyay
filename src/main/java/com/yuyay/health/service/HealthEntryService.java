@@ -2,6 +2,7 @@ package com.yuyay.health.service;
 
 import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.repository.AttachmentRepository;
+import com.yuyay.audit.entity.AccessAction;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.repository.CareSubjectRepository;
 import com.yuyay.exception.InvalidHealthEntryException;
@@ -19,6 +20,7 @@ import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
+import com.yuyay.event.AccessRecordedEvent;
 import com.yuyay.event.HealthEntryChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -80,6 +82,7 @@ public class HealthEntryService {
         versionRepo.save(v1);
 
         publishChange(entry, me, ChangeType.CREATED, v1.getTitle());
+        recordAccess(subjectId, meId, AccessAction.CREATE, entry.getId());
         return entryMapper.toResponse(entry, versionMapper.toResponse(v1));
     }
 
@@ -117,6 +120,7 @@ public class HealthEntryService {
                 .findFirstByHealthEntryIdOrderByVersionNumberDesc(entryId)
                 .orElse(null);
 
+        recordAccess(subjectId, meId, AccessAction.VIEW, entryId);
         return entryMapper.toResponse(entry,
                 latest == null ? null : versionMapper.toResponse(latest));
     }
@@ -166,6 +170,7 @@ public class HealthEntryService {
         versionRepo.save(v);
 
         publishChange(entry, me, ChangeType.UPDATED, v.getTitle());
+        recordAccess(subjectId, meId, AccessAction.UPDATE, entryId);
         return entryMapper.toResponse(entry, versionMapper.toResponse(v));
     }
 
@@ -202,6 +207,7 @@ public class HealthEntryService {
 
         entry.setDeletedAt(Instant.now());
         publishChange(entry, me, ChangeType.DELETED, last.getTitle());
+        recordAccess(subjectId, meId, AccessAction.DELETE, entryId);
     }
 
     private void publishChange(HealthEntry entry, User actor, ChangeType type, String title) {
@@ -217,6 +223,10 @@ public class HealthEntryService {
                 type.name(),
                 description,
                 entry.getCareSubject().getName()));
+    }
+
+    private void recordAccess(Long subjectId, Long userId, AccessAction action, Long entryId) {
+        eventPublisher.publishEvent(AccessRecordedEvent.byUser(subjectId, userId, action, "HEALTH_ENTRY", entryId));
     }
 
     private Attachment resolveSourceAttachment(Long subjectId, Long attachmentId) {

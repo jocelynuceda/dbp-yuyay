@@ -71,7 +71,7 @@ El costo es directo: prescripciones duplicadas, interacciones no detectadas y ex
 | **Resumen de traspaso** | El cuidador que sabe arma una pantalla única con el motivo de la cita, las preguntas que quiere hacer y las versiones exactas de los datos que eligió mostrar. |
 | **Enlace temporal del resumen** | Se comparte por un enlace que funciona sin cuenta, con fecha tope y ventana de minutos desde la primera apertura. Quien lo abre declara su nombre y rol, y queda registrado. |
 | **Delegaciones** | Acceso temporal para alguien sin cuenta, limitado a categorías concretas y con vencimiento. El enlace se canjea una sola vez por un token de sesión con permisos restringidos. |
-| **Notificaciones y correo** | Todos los cuidadores se enteran de los cambios; las invitaciones y delegaciones llegan por correo con plantillas HTML. |
+| **Notificaciones y correo** | Todos los cuidadores se enteran de los cambios; la bienvenida al registrarse, las invitaciones y las delegaciones llegan por correo con plantillas HTML. |
 | **Bitácora de accesos** | Registro inmutable de quién vio o modificó qué y cuándo, incluidos los accesos anónimos por enlace. |
 | **Administración** | Rol global `ADMIN` con endpoints propios para gestionar usuarios y consultar estadísticas del sistema. |
 
@@ -284,14 +284,15 @@ El filtrado ocurre **a nivel de consulta**, no del DTO: los listados no usan `fi
 
 ## 7. Eventos y asincronía
 
-El sistema publica cuatro eventos de dominio, todos definidos como `record` inmutables que transportan únicamente identificadores:
+El sistema publica cinco eventos de dominio, todos definidos como `record` inmutables que transportan únicamente identificadores:
 
 | Evento | Se publica en | Listener | Efecto |
 | --- | --- | --- | --- |
 | `HealthEntryChangedEvent` | `HealthEntryService` al crear, editar o eliminar | `NotificationListener` | Crea una notificación para cada cuidador activo distinto del autor y le envía un correo |
+| `UserRegisteredEvent` | `AuthService.register` | `EmailListener` | Envía el correo de bienvenida |
 | `CaregiverInvitedEvent` | `CareRelationshipService.invite` | `EmailListener` | Envía el correo de invitación |
 | `DelegationCreatedEvent` | `DelegationService.create` | `EmailListener` | Envía el enlace de acceso temporal al delegado |
-| `AccessRecordedEvent` | Apertura de un enlace, canje de delegación y lecturas del delegado | `AccessLogListener` | Inserta la entrada en la bitácora |
+| `AccessRecordedEvent` | `HealthEntryService` (crear, ver, editar, borrar), apertura de un enlace, canje de delegación y lecturas del delegado | `AccessLogListener` | Inserta la entrada en la bitácora |
 
 Los listeners se anotan con `@TransactionalEventListener(phase = AFTER_COMMIT)`, `@Async` y `@Transactional(propagation = REQUIRES_NEW)`, sobre un `ThreadPoolTaskExecutor` dedicado en `AsyncConfig`.
 
@@ -321,9 +322,9 @@ La API queda en `http://localhost:8080` y su estado en `/actuator/health`. Las p
 
 **Variables de entorno:** `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_ACCESS_EXPIRATION_MINUTES`, `JWT_REFRESH_EXPIRATION_DAYS`, `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `RESEND_API_KEY`, `MAIL_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`.
 
-**Documentación de la API:** `postman_collection.json` (raíz) contiene 93 peticiones en 14 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`.
+**Documentación de la API:** `postman_collection.json` (raíz) contiene 101 peticiones en 14 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`. La especificación **OpenAPI** se genera automáticamente y se explora en `/swagger-ui.html`, con autenticación JWT desde el propio navegador.
 
-**Despliegue:** backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia.
+**Despliegue:** backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
 
 ---
 
@@ -331,7 +332,7 @@ La API queda en `http://localhost:8080` y su estado en `/actuator/health`. Las p
 
 ### Logros
 
-Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta y delegar accesos acotados. Son 14 entidades JPA, 42 DTOs, 52 endpoints, 13 excepciones personalizadas y 4 eventos con procesamiento asíncrono, cubiertos por pruebas de integración que validan tanto el éxito como la autorización denegada.
+Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta y delegar accesos acotados. Son 14 entidades JPA, 42 DTOs, 52 endpoints, 13 excepciones personalizadas y 5 eventos con procesamiento asíncrono, cubiertos por pruebas de integración que validan tanto el éxito como la autorización denegada.
 
 ### Aprendizajes clave
 
