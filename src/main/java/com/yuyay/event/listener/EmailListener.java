@@ -7,7 +7,10 @@ import com.yuyay.care.repository.DelegationRepository;
 import com.yuyay.config.AppProperties;
 import com.yuyay.event.CaregiverInvitedEvent;
 import com.yuyay.event.DelegationCreatedEvent;
+import com.yuyay.event.UserRegisteredEvent;
 import com.yuyay.notification.email.EmailService;
+import com.yuyay.user.entity.User;
+import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -27,6 +30,7 @@ public class EmailListener {
     private final EmailService emailService;
     private final CareRelationshipRepository careRelationshipRepository;
     private final DelegationRepository delegationRepository;
+    private final UserRepository userRepository;
     private final AppProperties appProperties;
 
     @Async("eventExecutor")
@@ -83,6 +87,32 @@ public class EmailListener {
                     ));
         } catch (Exception e) {
             log.error("Fallo enviando enlace de delegacion {}", event.delegationId(), e);
+        }
+    }
+
+    @Async("eventExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onUserRegistered(UserRegisteredEvent event) {
+        try {
+            User user = userRepository
+                    .findById(event.userId())
+                    .orElse(null);
+            if (user == null) {
+                log.warn("User {} no encontrado", event.userId());
+                return;
+            }
+
+            emailService.sendTemplate(
+                    user.getEmail(),
+                    "Te damos la bienvenida a Yuyay",
+                    "welcome",
+                    Map.of(
+                            "userName", user.getName(),
+                            "appLink", appProperties.baseUrl()
+                    ));
+        } catch (Exception e) {
+            log.error("Fallo enviando bienvenida al usuario {}", event.userId(), e);
         }
     }
 }
