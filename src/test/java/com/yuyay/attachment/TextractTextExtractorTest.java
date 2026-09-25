@@ -9,8 +9,10 @@ import software.amazon.awssdk.services.textract.model.Block;
 import software.amazon.awssdk.services.textract.model.BlockType;
 import software.amazon.awssdk.services.textract.model.DetectDocumentTextRequest;
 import software.amazon.awssdk.services.textract.model.DetectDocumentTextResponse;
+import software.amazon.awssdk.services.textract.model.UnsupportedDocumentException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -38,5 +40,26 @@ class TextractTextExtractorTest {
         verify(client).detectDocumentText(captor.capture());
         assertEquals("yuyay-bucket", captor.getValue().document().s3Object().bucket());
         assertEquals("care-subjects/7/receta.jpg", captor.getValue().document().s3Object().name());
+    }
+
+    @Test
+    void returnsEmptyTextWhenNothingIsDetected() {
+        TextractClient client = mock(TextractClient.class);
+        when(client.detectDocumentText(any(DetectDocumentTextRequest.class)))
+                .thenReturn(DetectDocumentTextResponse.builder()
+                        .blocks(Block.builder().blockType(BlockType.PAGE).build()).build());
+
+        TextractTextExtractor extractor = new TextractTextExtractor(client, new AwsProperties("us-east-1", "yuyay-bucket"));
+        assertEquals("", extractor.extractText("care-subjects/7/en-blanco.jpg"));
+    }
+
+    @Test
+    void propagatesTextractErrorsSoTheListenerMarksFailed() {
+        TextractClient client = mock(TextractClient.class);
+        when(client.detectDocumentText(any(DetectDocumentTextRequest.class)))
+                .thenThrow(UnsupportedDocumentException.builder().message("Request has unsupported document format").build());
+
+        TextractTextExtractor extractor = new TextractTextExtractor(client, new AwsProperties("us-east-1", "yuyay-bucket"));
+        assertThrows(UnsupportedDocumentException.class, () -> extractor.extractText("care-subjects/7/varias-paginas.pdf"));
     }
 }
