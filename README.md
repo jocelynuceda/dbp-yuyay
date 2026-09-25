@@ -71,7 +71,7 @@ El costo es directo: prescripciones duplicadas, interacciones no detectadas y ex
 | **Resumen de traspaso** | El cuidador que sabe arma una pantalla única con el motivo de la cita, las preguntas que quiere hacer y las versiones exactas de los datos que eligió mostrar. |
 | **Enlace temporal del resumen** | Se comparte por un enlace que funciona sin cuenta, con fecha tope y ventana de minutos desde la primera apertura. Quien lo abre declara su nombre y rol, y queda registrado. |
 | **Delegaciones** | Acceso temporal para alguien sin cuenta, limitado a categorías concretas y con vencimiento. El enlace se canjea una sola vez por un token de sesión con permisos restringidos. |
-| **Notificaciones y correo** | Todos los cuidadores se enteran de los cambios; las invitaciones y delegaciones llegan por correo con plantillas HTML. |
+| **Notificaciones y correo** | Todos los cuidadores se enteran de los cambios; la bienvenida al registrarse, las invitaciones y las delegaciones llegan por correo con plantillas HTML. |
 | **Bitácora de accesos** | Registro inmutable de quién vio o modificó qué y cuándo, incluidos los accesos anónimos por enlace. |
 | **Administración** | Rol global `ADMIN` con endpoints propios para gestionar usuarios y consultar estadísticas del sistema. |
 
@@ -289,6 +289,7 @@ El sistema publica cuatro eventos de dominio, todos definidos como `record` inmu
 | Evento | Se publica en | Listener | Efecto |
 | --- | --- | --- | --- |
 | `HealthEntryChangedEvent` | `HealthEntryService` al crear, editar o eliminar | `NotificationListener` | Crea una notificación para cada cuidador activo distinto del autor y le envía un correo |
+| `UserRegisteredEvent` | `AuthService.register` | `EmailListener` | Envía el correo de bienvenida |
 | `CaregiverInvitedEvent` | `CareRelationshipService.invite` | `EmailListener` | Envía el correo de invitación |
 | `DelegationCreatedEvent` | `DelegationService.create` | `EmailListener` | Envía el enlace de acceso temporal al delegado |
 | `AccessRecordedEvent` | Apertura de un enlace, canje de delegación y lecturas del delegado | `AccessLogListener` | Inserta la entrada en la bitácora |
