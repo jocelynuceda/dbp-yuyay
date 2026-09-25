@@ -73,15 +73,16 @@ El costo es directo: prescripciones duplicadas, interacciones no detectadas y ex
 | **Delegaciones** | Acceso temporal para alguien sin cuenta, limitado a categorías concretas y con vencimiento. El enlace se canjea una sola vez por un token de sesión con permisos restringidos. |
 | **Notificaciones y correo** | Todos los cuidadores se enteran de los cambios; la bienvenida al registrarse, las invitaciones y las delegaciones llegan por correo con plantillas HTML. |
 | **Bitácora de accesos** | Registro inmutable de quién vio o modificó qué y cuándo, incluidos los accesos anónimos por enlace. |
+| **Adjuntos con OCR** | El cuidador sube la foto de una receta o un resultado de laboratorio; el archivo se guarda en almacenamiento externo y el texto se extrae de forma asíncrona. La extracción nunca crea un registro por sí sola: propone el texto y el cuidador decide. |
 | **Administración** | Rol global `ADMIN` con endpoints propios para gestionar usuarios y consultar estadísticas del sistema. |
 
 ### Tecnologías utilizadas
 
-Java 17 y **Spring Boot 4.1.1** (Web MVC, Data JPA con Hibernate 7, Security 7, Bean Validation), **PostgreSQL 16**, **MapStruct**, **Lombok**, **JJWT**, **Thymeleaf** para plantillas de correo y **Resend** como servicio de envío. El entorno local usa **Docker Compose**, la integración continua **GitHub Actions** y el despliegue **AWS (EC2 + RDS)**. Las pruebas usan JUnit 5, MockMvc y H2 en memoria.
+Java 17 y **Spring Boot 4.1.1** (Web MVC, Data JPA con Hibernate 7, Security 7, Bean Validation), **PostgreSQL 16**, **MapStruct**, **Lombok**, **JJWT**, **Thymeleaf** para plantillas de correo y **Resend** como servicio de envío. Los adjuntos se almacenan en **AWS S3** y su texto se extrae con **AWS Textract**. El entorno local usa **Docker Compose**, la integración continua **GitHub Actions** y el despliegue **AWS (EC2 + RDS)**. Las pruebas usan JUnit 5, MockMvc y H2 en memoria.
 
 ### Arquitectura
 
-El proyecto se organiza **por funcionalidad** (`auth`, `user`, `care`, `health`, `consultation`, `notification`, `audit`, `admin`), y dentro de cada una respeta las capas **Controller → Service → Repository**: los controladores reciben y devuelven DTOs validados, los servicios concentran reglas de negocio, autorización y transacciones, y los repositorios extienden `JpaRepository`. Las dependencias se inyectan por constructor y ninguna entidad JPA se expone en una respuesta HTTP.
+El proyecto se organiza **por funcionalidad** (`auth`, `user`, `care`, `health`, `consultation`, `attachment`, `notification`, `audit`, `admin`), y dentro de cada una respeta las capas **Controller → Service → Repository**: los controladores reciben y devuelven DTOs validados, los servicios concentran reglas de negocio, autorización y transacciones, y los repositorios extienden `JpaRepository`. Las dependencias se inyectan por constructor y ninguna entidad JPA se expone en una respuesta HTTP.
 
 ---
 
@@ -107,6 +108,9 @@ erDiagram
     HEALTH_ENTRY_VERSION ||--o{ HANDOFF_ITEM : "incluida en"
     HANDOFF ||--o{ HANDOFF_SESSION : "se comparte por"
     USER ||--o{ NOTIFICATION : "recibe"
+    CARE_SUBJECT ||--o{ ATTACHMENT : "documenta"
+    CONSULTATION |o--o{ ATTACHMENT : "respalda"
+    USER ||--o{ ATTACHMENT : "sube"
     CARE_SUBJECT ||--o{ ACCESS_LOG : "auditado en"
     USER |o--o{ ACCESS_LOG : "actor"
     DELEGATION |o--o{ ACCESS_LOG : "actor"
@@ -213,6 +217,20 @@ erDiagram
         timestamp first_opened_at
         timestamp revoked_at
     }
+    ATTACHMENT {
+        bigint id PK
+        bigint care_subject_id FK
+        bigint consultation_id FK
+        bigint uploaded_by FK
+        varchar original_filename
+        varchar content_type
+        bigint size_bytes
+        varchar storage_key
+        enum ocr_status "PENDING | COMPLETED | FAILED"
+        text ocr_text
+        timestamp uploaded_at
+        timestamp ocr_completed_at
+    }
     NOTIFICATION {
         bigint id PK
         bigint user_id FK
@@ -242,7 +260,7 @@ erDiagram
 
 **HealthCategory** es el catálogo de tipos de dato (`ALLERGY`, `CONDITION`, `MEDICATION`, `IMMUNIZATION`, `EPISODE`). **HealthEntry** es solo la cabecera —persona, categoría, autor— y no contiene el dato clínico: ese contenido vive en **HealthEntryVersion**, inmutable, donde cada edición inserta una versión nueva con número correlativo, tipo de cambio, nivel de confianza y autor. Esa separación cumple la promesa del producto: reconstruir qué se declaró en cada momento y quién lo hizo.
 
-**Consultation** registra una visita médica. **Handoff** es el resumen de una cita y **HandoffItem** lo vincula con las **versiones** elegidas, no con la cabecera, de modo que queda congelado aunque el dato cambie; **HandoffSession** es el enlace temporal para compartirlo. **Delegation** otorga acceso a alguien sin cuenta y se relaciona con `HealthCategory` por un `@ManyToMany` real (tabla `delegation_categories`), porque el alcance es una lista sin atributos propios. **Notification** y **AccessLog** cierran el modelo: avisos por usuario y bitácora inmutable con tres actores posibles.
+**Consultation** registra una visita médica. **Handoff** es el resumen de una cita y **HandoffItem** lo vincula con las **versiones** elegidas, no con la cabecera, de modo que queda congelado aunque el dato cambie; **HandoffSession** es el enlace temporal para compartirlo. **Delegation** otorga acceso a alguien sin cuenta y se relaciona con `HealthCategory` por un `@ManyToMany` real (tabla `delegation_categories`), porque el alcance es una lista sin atributos propios. **Attachment** guarda la referencia al archivo subido —su clave en el almacenamiento, tipo, tamaño y el estado de la extracción de texto— asociado a la persona y, opcionalmente, a una consulta. **Notification** y **AccessLog** cierran el modelo: avisos por usuario y bitácora inmutable con tres actores posibles.
 
 Las relaciones son `FetchType.LAZY` para no cargar historiales completos en cada consulta, y el `cascade` se decidió caso por caso: `Handoff` es dueño de sus items y sesiones y `CareSubject` de sus relaciones y consultas, pero **no** hay cascade hacia `HealthEntry` ni `AccessLog`, porque el historial y la auditoría no deben desaparecer como efecto colateral. Los borrados de salud son lógicos (`deleted_at`).
 
@@ -250,7 +268,7 @@ Las relaciones son `FetchType.LAZY` para no cargar historiales completos en cada
 
 ## 5. Manejo de errores
 
-Toda excepción de negocio hereda de `YuyayException`, que lleva asociado su `HttpStatus`. Existen 13 personalizadas: `ResourceNotFoundException`, `DuplicateEmailException`, `InvalidCredentialsException`, `InvalidTokenException`, `ForbiddenCareSubjectAccessException`, `DuplicateCareRelationshipException`, `InvalidCareRelationshipException`, `InvalidHealthEntryException`, `InvalidHandoffException`, `HandoffSessionExpiredException`, `InvalidDelegationException`, `DelegationExpiredException` e `InvalidOperationException`.
+Toda excepción de negocio hereda de `YuyayException`, que lleva asociado su `HttpStatus`. Existen 20 personalizadas, 13 transversales y 7 propias de cada módulo (`CareSubjectNotFoundException`, `AttachmentNotFoundException`, etc.): `ResourceNotFoundException`, `DuplicateEmailException`, `InvalidCredentialsException`, `InvalidTokenException`, `ForbiddenCareSubjectAccessException`, `DuplicateCareRelationshipException`, `InvalidCareRelationshipException`, `InvalidHealthEntryException`, `InvalidHandoffException`, `HandoffSessionExpiredException`, `InvalidDelegationException`, `DelegationExpiredException` e `InvalidOperationException`.
 
 Un único `@RestControllerAdvice` las traduce, junto con las de Spring (`MethodArgumentNotValidException`, `HttpMessageNotReadableException`, `DataIntegrityViolationException`, `AccessDeniedException`, `NoResourceFoundException`), al formato `ErrorResponseDTO` con `timestamp`, `status`, `error`, `message`, `path` y, en validaciones, los campos inválidos. Los errores del filtro de seguridad se escriben igual desde `JwtAuthenticationEntryPoint` y `JwtAccessDeniedHandler`, así el cliente nunca recibe una página HTML.
 
@@ -284,7 +302,7 @@ El filtrado ocurre **a nivel de consulta**, no del DTO: los listados no usan `fi
 
 ## 7. Eventos y asincronía
 
-El sistema publica cinco eventos de dominio, todos definidos como `record` inmutables que transportan únicamente identificadores:
+El sistema publica seis eventos de dominio, todos definidos como `record` inmutables que transportan únicamente identificadores:
 
 | Evento | Se publica en | Listener | Efecto |
 | --- | --- | --- | --- |
@@ -292,6 +310,7 @@ El sistema publica cinco eventos de dominio, todos definidos como `record` inmut
 | `UserRegisteredEvent` | `AuthService.register` | `EmailListener` | Envía el correo de bienvenida |
 | `CaregiverInvitedEvent` | `CareRelationshipService.invite` | `EmailListener` | Envía el correo de invitación |
 | `DelegationCreatedEvent` | `DelegationService.create` | `EmailListener` | Envía el enlace de acceso temporal al delegado |
+| `AttachmentUploadedEvent` | `AttachmentService.upload` | `AttachmentListener` | Extrae el texto del archivo y actualiza su estado |
 | `AccessRecordedEvent` | `HealthEntryService` (crear, ver, editar, borrar), apertura de un enlace, canje de delegación y lecturas del delegado | `AccessLogListener` | Inserta la entrada en la bitácora |
 
 Los listeners se anotan con `@TransactionalEventListener(phase = AFTER_COMMIT)`, `@Async` y `@Transactional(propagation = REQUIRES_NEW)`, sobre un `ThreadPoolTaskExecutor` dedicado en `AsyncConfig`.
@@ -322,9 +341,9 @@ La API queda en `http://localhost:8080` y su estado en `/actuator/health`. Las p
 
 **Variables de entorno:** `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_ACCESS_EXPIRATION_MINUTES`, `JWT_REFRESH_EXPIRATION_DAYS`, `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `RESEND_API_KEY`, `MAIL_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`.
 
-**Documentación de la API:** `postman_collection.json` (raíz) contiene 101 peticiones en 14 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`. La especificación **OpenAPI** se genera automáticamente y se explora en `/swagger-ui.html`, con autenticación JWT desde el propio navegador.
+**Documentación de la API:** `postman_collection.json` (raíz) contiene 106 peticiones en 15 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`. La especificación **OpenAPI** se genera automáticamente y se explora en `/swagger-ui.html`, con autenticación JWT desde el propio navegador.
 
-**Despliegue:** backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
+**Despliegue:** la API está publicada en **http://34.193.16.240:8080** (estado en `/actuator/health`, documentación en `/swagger-ui.html`). Backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
 
 ---
 
@@ -332,7 +351,7 @@ La API queda en `http://localhost:8080` y su estado en `/actuator/health`. Las p
 
 ### Logros
 
-Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta y delegar accesos acotados. Son 14 entidades JPA, 42 DTOs, 52 endpoints, 13 excepciones personalizadas y 5 eventos con procesamiento asíncrono, cubiertos por pruebas de integración que validan tanto el éxito como la autorización denegada.
+Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta y delegar accesos acotados. Son 15 entidades JPA, 43 DTOs, 56 endpoints, 20 excepciones personalizadas y 6 eventos con procesamiento asíncrono, cubiertos por pruebas de integración que validan tanto el éxito como la autorización denegada.
 
 ### Aprendizajes clave
 
@@ -340,7 +359,7 @@ El aprendizaje central fue distinguir **autenticación** de **autorización cont
 
 ### Trabajo futuro
 
-Quedan planteadas tres extensiones: adjuntar documentos con extracción de texto por OCR, de modo que el cuidador confirme el dato antes de registrarlo; notas de voz con transcripción al salir de la consulta; y notificaciones push a la aplicación móvil. En lo técnico, migrar el esquema a Flyway y paginar todos los listados.
+Quedan planteadas dos extensiones de producto: notas de voz con transcripción al salir de la consulta y notificaciones push a la aplicación móvil. Sobre los adjuntos ya implementados, el siguiente paso es convertir el texto extraído en una sugerencia estructurada que el cuidador acepte con un toque. En lo técnico, migrar el esquema a Flyway y paginar todos los listados.
 
 ---
 
