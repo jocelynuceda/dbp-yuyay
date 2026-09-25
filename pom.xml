@@ -18,6 +18,7 @@
         <java.version>17</java.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <springdoc.version>3.1.1</springdoc.version>
         <resend.version>4.25.0</resend.version>
     </properties>
 
@@ -68,6 +69,12 @@
             <groupId>com.resend</groupId>
             <artifactId>resend-java</artifactId>
             <version>${resend.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
 
         <!-- Observabilidad -->

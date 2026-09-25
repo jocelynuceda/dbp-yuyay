@@ -284,7 +284,7 @@ El filtrado ocurre **a nivel de consulta**, no del DTO: los listados no usan `fi
 
 ## 7. Eventos y asincronía
 
-El sistema publica cuatro eventos de dominio, todos definidos como `record` inmutables que transportan únicamente identificadores:
+El sistema publica cinco eventos de dominio, todos definidos como `record` inmutables que transportan únicamente identificadores:
 
 | Evento | Se publica en | Listener | Efecto |
 | --- | --- | --- | --- |
@@ -322,9 +322,9 @@ La API queda en `http://localhost:8080` y su estado en `/actuator/health`. Las p
 
 **Variables de entorno:** `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_ACCESS_EXPIRATION_MINUTES`, `JWT_REFRESH_EXPIRATION_DAYS`, `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `RESEND_API_KEY`, `MAIL_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`.
 
-**Documentación de la API:** `postman_collection.json` (raíz) contiene 93 peticiones en 14 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`.
+**Documentación de la API:** `postman_collection.json` (raíz) contiene 101 peticiones en 14 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`. La especificación **OpenAPI** se genera automáticamente y se explora en `/swagger-ui.html`, con autenticación JWT desde el propio navegador.
 
-**Despliegue:** backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia.
+**Despliegue:** backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
 
 ---
 
@@ -332,7 +332,7 @@ La API queda en `http://localhost:8080` y su estado en `/actuator/health`. Las p
 
 ### Logros
 
-Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta y delegar accesos acotados. Son 14 entidades JPA, 42 DTOs, 52 endpoints, 13 excepciones personalizadas y 4 eventos con procesamiento asíncrono, cubiertos por pruebas de integración que validan tanto el éxito como la autorización denegada.
+Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta y delegar accesos acotados. Son 14 entidades JPA, 42 DTOs, 52 endpoints, 13 excepciones personalizadas y 5 eventos con procesamiento asíncrono, cubiertos por pruebas de integración que validan tanto el éxito como la autorización denegada.
 
 ### Aprendizajes clave
 

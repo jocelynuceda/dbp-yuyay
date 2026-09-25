@@ -127,6 +127,14 @@
     {
       "key": "adminId",
       "value": ""
+    },
+    {
+      "key": "tempConsultationId",
+      "value": ""
+    },
+    {
+      "key": "tempHandoffId",
+      "value": ""
     }
   ],
   "item": [
@@ -3372,6 +3380,118 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "Registrar consulta temporal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/consultations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}",
+                "consultations"
+              ]
+            },
+            "description": "Se crea para demostrar el borrado sin afectar la consulta usada en el resto del flujo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-08-01\",\n  \"reason\": \"Consulta de prueba para el borrado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"tempConsultationId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Borrar consulta",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/consultations/{{tempConsultationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "consultations",
+                "{{tempConsultationId}}"
+              ]
+            },
+            "description": "Solo el cuidador PRINCIPAL puede borrar una consulta."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consulta borrada → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/consultations/{{tempConsultationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "consultations",
+                "{{tempConsultationId}}"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -3624,6 +3744,95 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "Crear resumen temporal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/handoffs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}",
+                "handoffs"
+              ]
+            },
+            "description": "Se crea aparte para probar el borrado sin tocar el resumen que se comparte más adelante.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Resumen de prueba para el borrado\",\n  \"healthEntryIds\": [\n    1\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.request.body.raw = JSON.stringify({reason: \"Resumen de prueba para el borrado\", healthEntryIds: [Number(pm.collectionVariables.get(\"healthEntryId\"))]});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"tempHandoffId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Borrar resumen",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/handoffs/{{tempHandoffId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "handoffs",
+                "{{tempHandoffId}}"
+              ]
+            },
+            "description": "Al borrar el resumen se borran sus items y sus enlaces (cascade), pero no las versiones de salud."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -4183,6 +4392,50 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "[Enfermera] Ver un registro permitido por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/delegate/health-entries/{{healthEntryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "delegate",
+                "health-entries",
+                "{{healthEntryId}}"
+              ]
+            },
+            "description": "El registro pertenece a una categoría delegada: se permite y queda registrado en la bitácora.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{delegateToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Es de la categoría delegada\", () => pm.expect(pm.response.json().categoryCode).to.eql(\"MEDICATION\"));"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "[Enfermera] Categoría fuera del alcance → 403",
@@ -6234,6 +6487,123 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "Revocar a un cuidador",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/relationships/{{relationshipId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}",
+                "relationships",
+                "{{relationshipId}}"
+              ]
+            },
+            "description": "Solo el PRINCIPAL puede revocar. Se deja al final porque a partir de aquí Bruno pierde el acceso."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[Bruno] Tras ser revocado → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "care-subjects",
+                "{{careSubjectId}}"
+              ]
+            },
+            "description": "El token de Bruno sigue siendo válido, pero su CareRelationship ya no está activa: el permiso se verifica en cada llamada.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{brunoAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}"
+                  ]
+                },
+                "description": "El token de Bruno sigue siendo válido, pero su CareRelationship ya no está activa: el permiso se verifica en cada llamada.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{brunoAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-25T15:00:00Z\",\n  \"status\": 403,\n  \"error\": \"Forbidden\",\n  \"message\": \"No tienes acceso a esta persona\",\n  \"path\": \"/api/v1/care-subjects/1\",\n  \"fieldErrors\": null\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
