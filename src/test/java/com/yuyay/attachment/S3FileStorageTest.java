@@ -8,9 +8,11 @@ import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -53,5 +55,26 @@ class S3FileStorageTest {
         FileStorageException ex = assertThrows(FileStorageException.class,
                 () -> storage.store("k.jpg", new byte[]{1}, "image/jpeg"));
         assertEquals("No se pudo guardar el archivo", ex.getMessage());
+    }
+
+    @Test
+    void deletesObjectFromConfiguredBucket() {
+        S3FileStorage storage = new S3FileStorage(client, new AwsProperties("us-east-1", "yuyay-bucket"));
+
+        storage.delete("care-subjects/7/abc.jpg");
+
+        ArgumentCaptor<DeleteObjectRequest> captor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+        verify(client).deleteObject(captor.capture());
+        assertEquals("yuyay-bucket", captor.getValue().bucket());
+        assertEquals("care-subjects/7/abc.jpg", captor.getValue().key());
+    }
+
+    @Test
+    void deleteFailureDoesNotHideTheOriginalError() {
+        when(client.deleteObject(any(DeleteObjectRequest.class)))
+                .thenThrow(SdkClientException.create("Unable to execute HTTP request"));
+        S3FileStorage storage = new S3FileStorage(client, new AwsProperties("us-east-1", "yuyay-bucket"));
+
+        assertDoesNotThrow(() -> storage.delete("care-subjects/7/abc.jpg"));
     }
 }
