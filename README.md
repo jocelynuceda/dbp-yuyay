@@ -54,7 +54,7 @@ La información clínica de una persona dependiente vive fragmentada y sin dueñ
 
 ### Justificación
 
-El costo es directo: prescripciones duplicadas, interacciones no detectadas y exámenes repetidos. Yuyay no pretende ser una historia clínica ni reemplazar el criterio médico: es un **registro declarativo** que no garantiza que un dato sea verdadero, sino **quién lo declaró, cuándo y si alguien lo modificó**. Por eso cada dato lleva un nivel de confianza explícito (`CONFIRMED` o `UNCERTAIN`): registrar una duda es más honesto que forzar una certeza inexistente.
+El costo es directo: prescripciones duplicadas, interacciones no detectadas y exámenes repetidos. Yuyay no pretende ser una historia clínica ni reemplazar el criterio médico: es un **registro declarativo** que no garantiza que un dato sea verdadero, sino **quién lo declaró, cuándo y si alguien lo modificó**. Por eso cada dato lleva un nivel de confianza explícito (`CONFIRMED` o `UNCERTAIN`).
 
 ---
 
@@ -271,7 +271,7 @@ Las relaciones son `FetchType.LAZY` para no cargar historiales completos, y el `
 
 Toda excepción de negocio hereda de `YuyayException`, que lleva asociado su `HttpStatus`. Existen 20 personalizadas: 13 transversales (`ResourceNotFoundException`, `DuplicateEmailException`, `InvalidTokenException`, `ForbiddenCareSubjectAccessException`, `HandoffSessionExpiredException`, `DelegationExpiredException`, `InvalidOperationException`…) y 7 propias de cada módulo.
 
-Un único `@RestControllerAdvice` las traduce, junto con las de Spring (`MethodArgumentNotValidException`, `HttpMessageNotReadableException`, `DataIntegrityViolationException`, `AccessDeniedException`), al formato `ErrorResponseDTO` con `timestamp`, `status`, `error`, `message`, `path` y los campos inválidos. Los errores del filtro de seguridad se escriben igual desde `JwtAuthenticationEntryPoint` y `JwtAccessDeniedHandler`, así el cliente nunca recibe una página HTML.
+Un único `@RestControllerAdvice` las traduce, junto con las de Spring (`MethodArgumentNotValidException`, `HttpMessageNotReadableException`, `DataIntegrityViolationException`, `AccessDeniedException`), al formato `ErrorResponseDTO` con `timestamp`, `status`, `error`, `message`, `path` y los campos inválidos. Los errores del filtro de seguridad se escriben igual desde `JwtAuthenticationEntryPoint` y `JwtAccessDeniedHandler`.
 
 Centralizarlo evita repetir `try/catch` en cada controlador, garantiza que el mismo fallo responda siempre igual e impide filtrar detalles internos: los errores no controlados responden 500 genérico y el detalle queda en el log. Los códigos usados son 200, 201, 202, 204, 400, 401, 403, 404, 409, 410 y 500.
 
@@ -344,7 +344,7 @@ La API queda en `http://localhost:8080`; las pruebas (`./mvnw test`) usan H2 y n
 
 **Documentación de la API:** `postman_collection.json` (raíz) contiene 106 peticiones en 15 carpetas, con ejemplos de respuesta, variables automáticas y casos de error por cada código HTTP; los entornos están en `postman/`.
 
-**Despliegue:** la API está publicada en **http://34.193.16.240:8080** — documentación interactiva en **http://34.193.16.240:8080/swagger-ui.html** y estado en `/actuator/health`. La instancia corre sobre un laboratorio de AWS Academy, por lo que responde solo mientras el laboratorio está activo. Backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
+**Despliegue:** la API está en **http://34.193.16.240:8080** — documentación en **/swagger-ui.html** y estado en `/actuator/health`. Corre sobre un laboratorio de AWS Academy, por lo que responde solo mientras el laboratorio está activo. Backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
 
 ---
 
@@ -352,15 +352,17 @@ La API queda en `http://localhost:8080`; las pruebas (`./mvnw test`) usan H2 y n
 
 ### Logros
 
-Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta, delegar accesos acotados y adjuntar documentos con extracción de texto. Son 15 entidades, 43 DTOs, 56 endpoints, 20 excepciones y 6 eventos asíncronos, con pruebas de integración que validan el éxito y la autorización denegada.
+Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta, delegar accesos acotados y adjuntar documentos con extracción de texto. Son 15 entidades, 43 DTOs, 56 endpoints, 20 excepciones y 6 eventos asíncronos, con pruebas de integración de éxito y de autorización denegada.
 
 ### Aprendizajes clave
 
-El aprendizaje central fue distinguir **autenticación** de **autorización contextual**: la intuición era modelar "cuidador de Pedro" como un rol del token, y el diseño correcto resultó el opuesto —el token dice quién eres y la base de datos a qué tienes acceso en cada llamada—. El segundo fue el manejo de transacciones con eventos: un listener asíncrono debe correr tras el commit y abrir su propia transacción. El tercero: el versionado inmutable resultó más simple y más fiel al problema que actualizar registros.
+El aprendizaje central fue distinguir **autenticación** de **autorización contextual**: la intuición era modelar "cuidador de Pedro" como un rol del token, y el diseño correcto resultó el opuesto —el token dice quién eres y la base de datos a qué tienes acceso—. El segundo fue el manejo de transacciones con eventos: un listener asíncrono debe correr tras el commit y abrir su propia transacción. El tercero: el versionado inmutable resultó más fiel al problema que actualizar registros.
 
 ### Trabajo futuro
 
-Quedan dos extensiones de producto: notas de voz con transcripción y notificaciones push a la aplicación móvil. Sobre los adjuntos, el siguiente paso es convertir el texto extraído en una sugerencia estructurada que el cuidador acepte con un toque. En lo técnico, migrar el esquema a Flyway y paginar todos los listados.
+La extracción tiene una limitación conocida: Textract reconoce manuscrito solo en inglés, así que las recetas **impresas** en español se leen bien pero las notas a mano no. Es la razón de fondo por la que la confirmación del cuidador es obligatoria; resolverlo requeriría un modelo de visión-lenguaje ajustado a caligrafía en español.
+
+Quedan además dos extensiones de producto: notas de voz con transcripción y notificaciones push. En lo técnico, migrar el esquema a Flyway y paginar todos los listados.
 
 ---
 
