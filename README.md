@@ -39,10 +39,10 @@ Cuando varios familiares se turnan para cuidar a una persona con una condición 
 
 ### Objetivos del proyecto
 
-1. Mantener la información de salud compartida entre los cuidadores, con trazabilidad de quién declaró cada dato y cuándo.
-2. Generar un resumen de traspaso que el acompañante muestre al médico en segundos, sin que este instale ni registre nada.
+1. Compartir la información de salud entre los cuidadores, con trazabilidad de quién declaró cada dato y cuándo.
+2. Generar un resumen de traspaso que el acompañante muestre al médico en segundos, sin que este instale nada.
 3. Delegar acceso temporal y limitado a terceros sin cuenta, como una enfermera contratada por una semana.
-4. Garantizar que ningún endpoint exponga información fuera del alcance del rol o de la delegación vigente.
+4. Evitar que un endpoint exponga información fuera del alcance del rol o de la delegación vigente.
 
 ---
 
@@ -50,7 +50,7 @@ Cuando varios familiares se turnan para cuidar a una persona con una condición 
 
 ### Descripción del problema
 
-La información clínica de una persona dependiente vive fragmentada y sin dueño: las historias clínicas no se comparten entre establecimientos y están pensadas para el personal de salud, no para la familia que administra el día a día. El cuidador que acompaña responde de memoria e introduce errores en datos sensibles como dosis y alergias.
+La información clínica de una persona dependiente vive fragmentada y sin dueño: las historias clínicas no se comparten entre establecimientos y están pensadas para el personal de salud, no para la familia. El cuidador que acompaña responde de memoria e introduce errores en datos sensibles como dosis y alergias.
 
 ### Justificación
 
@@ -82,7 +82,7 @@ Java 17 y **Spring Boot 4.1.1** (Web MVC, Data JPA con Hibernate 7, Security 7, 
 
 ### Arquitectura
 
-El proyecto se organiza **por funcionalidad** (`auth`, `user`, `care`, `health`, `consultation`, `attachment`, `notification`, `audit`, `admin`), y cada una respeta las capas **Controller → Service → Repository**: los controladores reciben y devuelven DTOs validados, los servicios concentran reglas de negocio, autorización y transacciones. Las dependencias se inyectan por constructor y ninguna entidad se expone en una respuesta HTTP.
+El proyecto se organiza **por funcionalidad** (`auth`, `user`, `care`, `health`, `consultation`, `attachment`, `notification`, `audit`, `admin`), y cada una respeta las capas **Controller → Service → Repository**. Las dependencias se inyectan por constructor y ninguna entidad se expone en una respuesta HTTP.
 
 ---
 
@@ -265,13 +265,13 @@ erDiagram
 
 **Consultation** registra una visita médica. **Handoff** es el resumen de una cita y **HandoffItem** lo vincula con las **versiones** elegidas, de modo que queda congelado aunque el dato cambie; **HandoffSession** es el enlace temporal para compartirlo. **Delegation** otorga acceso a alguien sin cuenta y se relaciona con `HealthCategory` por un `@ManyToMany` real. **Attachment** guarda el archivo subido —clave de almacenamiento, tipo, tamaño y estado de la extracción de texto—. **Notification** y **AccessLog** cierran el modelo: avisos por usuario y bitácora inmutable con tres actores posibles.
 
-Las relaciones son `FetchType.LAZY` para no cargar historiales completos en cada consulta, y el `cascade` se decidió caso por caso: `Handoff` es dueño de sus items y sesiones y `CareSubject` de sus relaciones y consultas, pero **no** hay cascade hacia `HealthEntry` ni `AccessLog`, porque el historial y la auditoría no deben desaparecer como efecto colateral. Los borrados de salud son lógicos (`deleted_at`).
+Las relaciones son `FetchType.LAZY` para no cargar historiales completos, y el `cascade` se decidió caso por caso: `Handoff` es dueño de sus items y sesiones y `CareSubject` de sus relaciones y consultas, pero **no** hay cascade hacia `HealthEntry` ni `AccessLog`, porque el historial y la auditoría no deben desaparecer como efecto colateral. Los borrados de salud son lógicos (`deleted_at`).
 
 ## 5. Manejo de errores
 
-Toda excepción de negocio hereda de `YuyayException`, que lleva asociado su `HttpStatus`. Existen 20 personalizadas, 13 transversales y 7 propias de cada módulo (`CareSubjectNotFoundException`, `AttachmentNotFoundException`, etc.): `ResourceNotFoundException`, `DuplicateEmailException`, `InvalidCredentialsException`, `InvalidTokenException`, `ForbiddenCareSubjectAccessException`, `DuplicateCareRelationshipException`, `InvalidCareRelationshipException`, `InvalidHealthEntryException`, `InvalidHandoffException`, `HandoffSessionExpiredException`, `InvalidDelegationException`, `DelegationExpiredException` e `InvalidOperationException`.
+Toda excepción de negocio hereda de `YuyayException`, que lleva asociado su `HttpStatus`. Existen 20 personalizadas: 13 transversales (`ResourceNotFoundException`, `DuplicateEmailException`, `InvalidTokenException`, `ForbiddenCareSubjectAccessException`, `HandoffSessionExpiredException`, `DelegationExpiredException`, `InvalidOperationException`…) y 7 propias de cada módulo.
 
-Un único `@RestControllerAdvice` las traduce, junto con las de Spring (`MethodArgumentNotValidException`, `HttpMessageNotReadableException`, `DataIntegrityViolationException`, `AccessDeniedException`, `NoResourceFoundException`), al formato `ErrorResponseDTO` con `timestamp`, `status`, `error`, `message`, `path` y, en validaciones, los campos inválidos. Los errores del filtro de seguridad se escriben igual desde `JwtAuthenticationEntryPoint` y `JwtAccessDeniedHandler`, así el cliente nunca recibe una página HTML.
+Un único `@RestControllerAdvice` las traduce, junto con las de Spring (`MethodArgumentNotValidException`, `HttpMessageNotReadableException`, `DataIntegrityViolationException`, `AccessDeniedException`), al formato `ErrorResponseDTO` con `timestamp`, `status`, `error`, `message`, `path` y los campos inválidos. Los errores del filtro de seguridad se escriben igual desde `JwtAuthenticationEntryPoint` y `JwtAccessDeniedHandler`, así el cliente nunca recibe una página HTML.
 
 Centralizarlo evita repetir `try/catch` en cada controlador, garantiza que el mismo fallo responda siempre igual e impide filtrar detalles internos: los errores no controlados responden 500 genérico y el detalle queda en el log. Los códigos usados son 200, 201, 202, 204, 400, 401, 403, 404, 409, 410 y 500.
 
@@ -281,7 +281,7 @@ Centralizarlo evita repetir `try/catch` en cada controlador, garantiza que el mi
 
 ### Seguridad de los datos
 
-Las contraseñas se almacenan con **BCrypt** (factor 12) y nunca salen en una respuesta. La autenticación es **sin estado**: el login entrega un *access token* JWT de 60 minutos y un *refresh token* opaco de 7 días del que solo se guarda su **SHA-256**; cada uso lo rota y revoca el anterior, así un token filtrado sirve una sola vez. Los tokens de enlaces y delegaciones reciben igual tratamiento: se generan con `SecureRandom`, se entregan una única vez y en la base queda su hash. Todos los secretos vienen de variables de entorno.
+Las contraseñas se almacenan con **BCrypt** (factor 12) y nunca salen en una respuesta. La autenticación es **sin estado**: el login entrega un *access token* JWT de 60 minutos y un *refresh token* opaco de 7 días del que solo se guarda su **SHA-256**; cada uso lo rota y revoca el anterior, así un token filtrado sirve una vez. Los tokens de enlaces y delegaciones se generan con `SecureRandom`, se entregan una única vez y en la base queda su hash. Los secretos vienen de variables de entorno.
 
 ### Autorización en dos niveles
 
@@ -299,7 +299,7 @@ El filtrado ocurre **a nivel de consulta**, no del DTO: los listados no usan `fi
 
 **Archivos maliciosos:** los adjuntos se validan por firma real del archivo, no por su extensión, antes de subirse al almacenamiento.
 
-**Enumeración de usuarios:** el login responde igual ante correo inexistente y contraseña incorrecta, y los enlaces públicos responden 404 sin revelar si el token existió.
+**Enumeración de usuarios:** el login responde igual ante correo inexistente y contraseña incorrecta, y los enlaces públicos responden 404 sin revelar si el token existió alguna vez.
 
 ## 7. Eventos y asincronía
 
@@ -314,17 +314,17 @@ El sistema publica seis eventos de dominio, todos definidos como `record` inmuta
 | `AttachmentUploadedEvent` | `AttachmentService.upload` | `AttachmentListener` | Extrae el texto del archivo y actualiza su estado |
 | `AccessRecordedEvent` | `HealthEntryService` (crear, ver, editar, borrar), apertura de un enlace, canje de delegación y lecturas del delegado | `AccessLogListener` | Inserta la entrada en la bitácora |
 
-Los listeners se anotan con `@TransactionalEventListener(phase = AFTER_COMMIT)`, `@Async` y `@Transactional(propagation = REQUIRES_NEW)`, sobre un `ThreadPoolTaskExecutor` dedicado en `AsyncConfig`.
+Los listeners usan `@TransactionalEventListener(phase = AFTER_COMMIT)`, `@Async` y `@Transactional(propagation = REQUIRES_NEW)` sobre un `ThreadPoolTaskExecutor` propio.
 
-La asincronía no es decorativa: enviar un correo por un servicio externo puede tardar o fallar, y **no debe bloquear ni revertir** la operación del cuidador; quien registra un cambio de dosis recibe su 200 de inmediato y el correo sale después. `AFTER_COMMIT` garantiza que el listener solo corra si la transacción original terminó bien, evitando notificar cambios deshechos, y `REQUIRES_NEW` es necesario porque, al ejecutarse tras el commit y en otro hilo, necesita su propia transacción para escribir. Cada listener captura sus excepciones sin relanzarlas, así una caída del proveedor de correo nunca afecta a la API.
+La asincronía no es decorativa: enviar un correo o extraer texto de una imagen puede tardar o fallar, y **no debe bloquear ni revertir** la operación del cuidador; quien registra un cambio recibe su 200 de inmediato. `AFTER_COMMIT` garantiza que el listener solo corra si la transacción terminó bien, evitando notificar cambios deshechos, y `REQUIRES_NEW` le da su propia transacción para escribir desde otro hilo. Cada listener captura sus excepciones sin relanzarlas, así una caída del proveedor externo nunca afecta a la API.
 
 ---
 
 ## 8. GitHub y gestión del proyecto
 
-El trabajo se organizó con *issues* etiquetados (`feature`, `fix`, `test`, `docs`, `infra`), agrupados en *milestones* por fecha de entrega y asignados según el módulo responsable: seguridad y delegaciones, dominio de cuidado, salud y consultas, eventos y traspaso, e infraestructura.
+El trabajo se organizó con *issues* etiquetados (`feature`, `fix`, `test`, `docs`, `infra`), agrupados en *milestones* por fecha de entrega y asignados según el módulo responsable de cada integrante.
 
-El flujo de ramas es GitFlow simplificado: `main` protegida —requiere pull request, revisión aprobada y build verde— y una rama por funcionalidad. Cada pull request usa una plantilla con lista de verificación (DTOs, autorización, excepción adecuada, pruebas, ausencia de secretos) y lo revisa otro integrante.
+El flujo es GitFlow simplificado: `main` protegida —requiere pull request, revisión aprobada y build verde— y una rama por funcionalidad. Cada pull request usa una plantilla con lista de verificación (DTOs, autorización, excepciones, pruebas, ausencia de secretos) y lo revisa otro integrante.
 
 **GitHub Actions** corre la integración continua en cada push y pull request: compila y ejecuta la suite completa con `./mvnw verify` sobre H2. Un segundo workflow construye la imagen Docker y la despliega en AWS al integrar a `main`.
 
@@ -340,11 +340,11 @@ docker compose up -d
 
 La API queda en `http://localhost:8080`; las pruebas (`./mvnw test`) usan H2 y no requieren Docker.
 
-**Variables de entorno:** base de datos, clave y expiración del JWT, orígenes CORS, credenciales de correo, almacenamiento de archivos y usuario administrador inicial. La lista completa, con valores de ejemplo, está en `.env.example`.
+**Variables de entorno:** base de datos, JWT, CORS, correo, almacenamiento de archivos y administrador inicial; la lista completa está en `.env.example`.
 
-**Documentación de la API:** `postman_collection.json` (raíz) contiene 106 peticiones en 15 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`. La especificación **OpenAPI** se explora en `/swagger-ui.html`, con autenticación JWT desde el navegador.
+**Documentación de la API:** `postman_collection.json` (raíz) contiene 106 peticiones en 15 carpetas, con ejemplos de respuesta, variables automáticas y casos de error por cada código HTTP; los entornos están en `postman/`.
 
-**Despliegue:** la API está publicada en **http://34.193.16.240:8080** — documentación interactiva en **http://34.193.16.240:8080/swagger-ui.html** y estado en `/actuator/health`. La instancia corre sobre un laboratorio de AWS Academy, por lo que solo responde mientras el laboratorio está activo. Backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
+**Despliegue:** la API está publicada en **http://34.193.16.240:8080** — documentación interactiva en **http://34.193.16.240:8080/swagger-ui.html** y estado en `/actuator/health`. La instancia corre sobre un laboratorio de AWS Academy, por lo que responde solo mientras el laboratorio está activo. Backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
 
 ---
 
