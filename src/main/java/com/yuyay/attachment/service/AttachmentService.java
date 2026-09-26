@@ -24,6 +24,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -68,6 +70,7 @@ public class AttachmentService {
 
         String key = "care-subjects/" + subjectId + "/" + UUID.randomUUID() + extension;
         fileStorage.store(key, content, file.getContentType());
+        deleteFromStorageIfRolledBack(key);
 
         Attachment attachment = attachmentRepo.save(Attachment.builder()
                 .careSubject(subject)
@@ -109,6 +112,23 @@ public class AttachmentService {
         attachment.setOcrCompletedAt(null);
         eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
         return mapper.toResponse(attachment);
+    }
+
+    /**
+     * S3 no participa en la transaccion de la base de datos: si algo falla despues de subir
+     * (el INSERT o el propio commit), la foto quedaria en el bucket sin fila que la referencie.
+     * Se registra un callback que, solo si la transaccion termina en rollback, borra el objeto.
+     */
+    private void deleteFromStorageIfRolledBack(String key) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    fileStorage.delete(key);
+                }
+            }
+        });
     }
 
     private Attachment load(Long subjectId, Long attachmentId) {

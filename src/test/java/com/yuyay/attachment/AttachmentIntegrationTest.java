@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -86,6 +87,7 @@ class AttachmentIntegrationTest {
         assertEquals("DONE", done.get("ocrStatus").asText());
         assertTrue(done.get("ocrText").asText().contains("Metformina 850 mg"));
         verify(fileStorage).store(startsWith("care-subjects/" + subjectId + "/"), any(byte[].class), eq("image/jpeg"));
+        verify(fileStorage, never()).delete(anyString());
     }
 
     @Test
