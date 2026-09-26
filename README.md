@@ -35,14 +35,14 @@
 
 ### Contexto
 
-Cuando varios familiares se turnan para cuidar a una persona con una condición persistente —un adulto mayor con medicación crónica, un menor con asma— la información queda repartida entre recetas de papel, el registro interno de cada clínica y la memoria del cuidador principal. Quien acompaña al paciente suele ser el que menos sabe: no puede responder qué toma ni qué cambió. La consulta se resuelve con información incompleta y nadie queda como responsable de lo declarado.
+Cuando varios familiares se turnan para cuidar a una persona con una condición persistente, la información queda repartida entre recetas de papel, el registro de cada clínica y la memoria del cuidador principal. Quien acompaña al paciente suele ser el que menos sabe: no puede responder qué toma ni qué cambió, y la consulta se resuelve con información incompleta.
 
 ### Objetivos del proyecto
 
-1. Mantener la información de salud compartida entre todos los cuidadores, con trazabilidad de quién declaró cada dato y cuándo.
-2. Generar un resumen de traspaso que el acompañante muestre al médico en segundos, sin que el médico instale ni registre nada.
+1. Mantener la información de salud compartida entre los cuidadores, con trazabilidad de quién declaró cada dato y cuándo.
+2. Generar un resumen de traspaso que el acompañante muestre al médico en segundos, sin que este instale ni registre nada.
 3. Delegar acceso temporal y limitado a terceros sin cuenta, como una enfermera contratada por una semana.
-4. Garantizar que ningún endpoint exponga información fuera del alcance del rol o de la delegación vigente, filtrando a nivel de consulta.
+4. Garantizar que ningún endpoint exponga información fuera del alcance del rol o de la delegación vigente.
 
 ---
 
@@ -50,11 +50,11 @@ Cuando varios familiares se turnan para cuidar a una persona con una condición 
 
 ### Descripción del problema
 
-La información clínica de una persona dependiente vive fragmentada y sin dueño: los sistemas de historia clínica no se comparten entre establecimientos y están pensados para el personal de salud, no para la familia que administra el día a día. El cuidador que acompaña responde de memoria e introduce errores en datos sensibles como dosis y alergias.
+La información clínica de una persona dependiente vive fragmentada y sin dueño: las historias clínicas no se comparten entre establecimientos y están pensadas para el personal de salud, no para la familia que administra el día a día. El cuidador que acompaña responde de memoria e introduce errores en datos sensibles como dosis y alergias.
 
 ### Justificación
 
-El costo es directo: prescripciones duplicadas, interacciones no detectadas y exámenes repetidos. Yuyay no pretende ser una historia clínica ni reemplazar el criterio médico: es un **registro declarativo**. No interpreta información ni sugiere dosis, y no garantiza que un dato sea verdadero; garantiza **quién lo declaró, cuándo y si alguien lo modificó**. Por eso cada dato lleva un nivel de confianza explícito (`CONFIRMED` o `UNCERTAIN`): registrar una duda es más honesto que forzar una certeza inexistente.
+El costo es directo: prescripciones duplicadas, interacciones no detectadas y exámenes repetidos. Yuyay no pretende ser una historia clínica ni reemplazar el criterio médico: es un **registro declarativo** que no garantiza que un dato sea verdadero, sino **quién lo declaró, cuándo y si alguien lo modificó**. Por eso cada dato lleva un nivel de confianza explícito (`CONFIRMED` o `UNCERTAIN`): registrar una duda es más honesto que forzar una certeza inexistente.
 
 ---
 
@@ -78,11 +78,11 @@ El costo es directo: prescripciones duplicadas, interacciones no detectadas y ex
 
 ### Tecnologías utilizadas
 
-Java 17 y **Spring Boot 4.1.1** (Web MVC, Data JPA con Hibernate 7, Security 7, Bean Validation), **PostgreSQL 16**, **MapStruct**, **Lombok**, **JJWT**, **Thymeleaf** para plantillas de correo y **Resend** como servicio de envío. Los adjuntos se almacenan en **AWS S3** y su texto se extrae con **AWS Textract**. El entorno local usa **Docker Compose**, la integración continua **GitHub Actions** y el despliegue **AWS (EC2 + RDS)**. Las pruebas usan JUnit 5, MockMvc y H2 en memoria.
+Java 17 y **Spring Boot 4.1.1** (Web MVC, Data JPA con Hibernate 7, Security 7, Bean Validation), **PostgreSQL** (16 en desarrollo, 18 en RDS), **MapStruct**, **Lombok**, **JJWT**, **Thymeleaf** para plantillas de correo y **Resend** como servicio de envío. Los adjuntos se almacenan en **AWS S3** y su texto se extrae con **AWS Textract**. El entorno local usa **Docker Compose**, la integración continua **GitHub Actions** y el despliegue **AWS (EC2 + RDS)**. Las pruebas usan JUnit 5, MockMvc y H2 en memoria.
 
 ### Arquitectura
 
-El proyecto se organiza **por funcionalidad** (`auth`, `user`, `care`, `health`, `consultation`, `attachment`, `notification`, `audit`, `admin`), y dentro de cada una respeta las capas **Controller → Service → Repository**: los controladores reciben y devuelven DTOs validados, los servicios concentran reglas de negocio, autorización y transacciones, y los repositorios extienden `JpaRepository`. Las dependencias se inyectan por constructor y ninguna entidad JPA se expone en una respuesta HTTP.
+El proyecto se organiza **por funcionalidad** (`auth`, `user`, `care`, `health`, `consultation`, `attachment`, `notification`, `audit`, `admin`), y cada una respeta las capas **Controller → Service → Repository**: los controladores reciben y devuelven DTOs validados, los servicios concentran reglas de negocio, autorización y transacciones. Las dependencias se inyectan por constructor y ninguna entidad se expone en una respuesta HTTP.
 
 ---
 
@@ -111,6 +111,7 @@ erDiagram
     CARE_SUBJECT ||--o{ ATTACHMENT : "documenta"
     CONSULTATION |o--o{ ATTACHMENT : "respalda"
     USER ||--o{ ATTACHMENT : "sube"
+    ATTACHMENT |o--o{ HEALTH_ENTRY_VERSION : "respalda"
     CARE_SUBJECT ||--o{ ACCESS_LOG : "auditado en"
     USER |o--o{ ACCESS_LOG : "actor"
     DELEGATION |o--o{ ACCESS_LOG : "actor"
@@ -184,6 +185,7 @@ erDiagram
         varchar frequency
         date occurred_on
         enum confidence_level "CONFIRMED | UNCERTAIN"
+        bigint source_attachment_id FK
         bigint declared_by FK
         timestamp declared_at
     }
@@ -226,8 +228,9 @@ erDiagram
         varchar content_type
         bigint size_bytes
         varchar storage_key
-        enum ocr_status "PENDING | COMPLETED | FAILED"
+        enum ocr_status "PENDING | DONE | FAILED"
         text ocr_text
+        text ocr_error
         timestamp uploaded_at
         timestamp ocr_completed_at
     }
@@ -256,15 +259,13 @@ erDiagram
 
 ### Descripción de las entidades principales
 
-**User** es la cuenta con la que alguien inicia sesión: hash de contraseña y rol global (`USER` o `ADMIN`); **RefreshToken** guarda el hash de cada refresh para rotarlo y revocarlo. **CareSubject** es la persona cuidada, que puede no tener cuenta propia, y **CareRelationship** es la entidad puente entre ambas: una relación muchos a muchos con datos propios (rol, parentesco, estado `PENDING`/`ACTIVE`/`REVOKED` y marcas de tiempo), razón por la cual es entidad y no un `@ManyToMany` simple. Solo el estado `ACTIVE` otorga acceso.
+**User** es la cuenta con la que alguien inicia sesión y **RefreshToken** guarda el hash de cada refresh para rotarlo y revocarlo. **CareSubject** es la persona cuidada, que puede no tener cuenta, y **CareRelationship** es la entidad puente entre ambas: una relación muchos a muchos con datos propios (rol, parentesco, estado `PENDING`/`ACTIVE`/`REVOKED` y marcas de tiempo), razón por la cual es entidad y no un `@ManyToMany` simple. Solo `ACTIVE` otorga acceso.
 
-**HealthCategory** es el catálogo de tipos de dato (`ALLERGY`, `CONDITION`, `MEDICATION`, `IMMUNIZATION`, `EPISODE`). **HealthEntry** es solo la cabecera —persona, categoría, autor— y no contiene el dato clínico: ese contenido vive en **HealthEntryVersion**, inmutable, donde cada edición inserta una versión nueva con número correlativo, tipo de cambio, nivel de confianza y autor. Esa separación cumple la promesa del producto: reconstruir qué se declaró en cada momento y quién lo hizo.
+**HealthCategory** es el catálogo de tipos de dato (`ALLERGY`, `CONDITION`, `MEDICATION`, `IMMUNIZATION`, `EPISODE`). **HealthEntry** es solo la cabecera y no contiene el dato clínico: ese contenido vive en **HealthEntryVersion**, inmutable, donde cada edición inserta una versión nueva con número correlativo, tipo de cambio, nivel de confianza, autor y, si procede, el adjunto del que salió. Esa separación cumple la promesa del producto: reconstruir qué se declaró en cada momento y quién lo hizo.
 
-**Consultation** registra una visita médica. **Handoff** es el resumen de una cita y **HandoffItem** lo vincula con las **versiones** elegidas, no con la cabecera, de modo que queda congelado aunque el dato cambie; **HandoffSession** es el enlace temporal para compartirlo. **Delegation** otorga acceso a alguien sin cuenta y se relaciona con `HealthCategory` por un `@ManyToMany` real (tabla `delegation_categories`), porque el alcance es una lista sin atributos propios. **Attachment** guarda la referencia al archivo subido —su clave en el almacenamiento, tipo, tamaño y el estado de la extracción de texto— asociado a la persona y, opcionalmente, a una consulta. **Notification** y **AccessLog** cierran el modelo: avisos por usuario y bitácora inmutable con tres actores posibles.
+**Consultation** registra una visita médica. **Handoff** es el resumen de una cita y **HandoffItem** lo vincula con las **versiones** elegidas, de modo que queda congelado aunque el dato cambie; **HandoffSession** es el enlace temporal para compartirlo. **Delegation** otorga acceso a alguien sin cuenta y se relaciona con `HealthCategory` por un `@ManyToMany` real. **Attachment** guarda el archivo subido —clave de almacenamiento, tipo, tamaño y estado de la extracción de texto—. **Notification** y **AccessLog** cierran el modelo: avisos por usuario y bitácora inmutable con tres actores posibles.
 
 Las relaciones son `FetchType.LAZY` para no cargar historiales completos en cada consulta, y el `cascade` se decidió caso por caso: `Handoff` es dueño de sus items y sesiones y `CareSubject` de sus relaciones y consultas, pero **no** hay cascade hacia `HealthEntry` ni `AccessLog`, porque el historial y la auditoría no deben desaparecer como efecto colateral. Los borrados de salud son lógicos (`deleted_at`).
-
----
 
 ## 5. Manejo de errores
 
@@ -272,7 +273,7 @@ Toda excepción de negocio hereda de `YuyayException`, que lleva asociado su `Ht
 
 Un único `@RestControllerAdvice` las traduce, junto con las de Spring (`MethodArgumentNotValidException`, `HttpMessageNotReadableException`, `DataIntegrityViolationException`, `AccessDeniedException`, `NoResourceFoundException`), al formato `ErrorResponseDTO` con `timestamp`, `status`, `error`, `message`, `path` y, en validaciones, los campos inválidos. Los errores del filtro de seguridad se escriben igual desde `JwtAuthenticationEntryPoint` y `JwtAccessDeniedHandler`, así el cliente nunca recibe una página HTML.
 
-Centralizarlo evita que cada controlador repita `try/catch`, garantiza que el mismo fallo responda siempre igual y, sobre todo, impide filtrar detalles internos: los errores no controlados responden 500 genérico y el detalle queda en el log. Los códigos usados son 200, 201, 204, 400, 401, 403, 404, 409, 410 y 500.
+Centralizarlo evita repetir `try/catch` en cada controlador, garantiza que el mismo fallo responda siempre igual e impide filtrar detalles internos: los errores no controlados responden 500 genérico y el detalle queda en el log. Los códigos usados son 200, 201, 202, 204, 400, 401, 403, 404, 409, 410 y 500.
 
 ---
 
@@ -280,25 +281,25 @@ Centralizarlo evita que cada controlador repita `try/catch`, garantiza que el mi
 
 ### Seguridad de los datos
 
-Las contraseñas se almacenan con **BCrypt** (factor 12) y nunca aparecen en una respuesta, porque los DTOs de salida no incluyen ese campo. La autenticación es **sin estado**: el login entrega un *access token* JWT de 60 minutos y un *refresh token* opaco de 7 días del que solo se guarda su **SHA-256**; cada uso lo rota y revoca el anterior, así un token filtrado sirve una sola vez. Los tokens de enlaces de resumen y de delegación reciben igual tratamiento: se generan con `SecureRandom`, se entregan una única vez y en la base queda solo su hash. Todos los secretos vienen de variables de entorno.
+Las contraseñas se almacenan con **BCrypt** (factor 12) y nunca salen en una respuesta. La autenticación es **sin estado**: el login entrega un *access token* JWT de 60 minutos y un *refresh token* opaco de 7 días del que solo se guarda su **SHA-256**; cada uso lo rota y revoca el anterior, así un token filtrado sirve una sola vez. Los tokens de enlaces y delegaciones reciben igual tratamiento: se generan con `SecureRandom`, se entregan una única vez y en la base queda su hash. Todos los secretos vienen de variables de entorno.
 
 ### Autorización en dos niveles
 
-La decisión central es que **el rol global no determina el acceso a un recurso**. El JWT solo indica si quien llama es `USER`, `ADMIN` o `DELEGATE`; que pueda ver a una persona lo decide su `CareRelationship` activa, y que un delegado vea cierta categoría, su `Delegation` vigente. Esa verificación vive en `AuthorizationService`, invocado en cada método de servicio que toca datos de una persona; los endpoints de administración usan además `@PreAuthorize("hasRole('ADMIN')")`.
+La decisión central es que **el rol global no determina el acceso a un recurso**. El JWT solo indica si quien llama es `USER`, `ADMIN` o `DELEGATE`; que pueda ver a una persona lo decide su `CareRelationship` activa, y que un delegado vea cierta categoría, su `Delegation` vigente. Esa verificación vive en `AuthorizationService`, invocado en cada método de servicio que toca datos de una persona; administración usa además `@PreAuthorize("hasRole('ADMIN')")`.
 
-El filtrado ocurre **a nivel de consulta**, no del DTO: los listados no usan `findAll()`, sino JPQL con join a las relaciones activas del usuario, y el del delegado filtra por categorías permitidas en el propio `WHERE`. Un tercero sin vínculo recibe lista vacía, y por id recibe 403. Revocar una relación o delegación corta el acceso de inmediato, aunque el token siga vigente.
+El filtrado ocurre **a nivel de consulta**, no del DTO: los listados no usan `findAll()`, sino JPQL con join a las relaciones activas del usuario, y el del delegado filtra por categorías permitidas en el propio `WHERE`. Un tercero sin vínculo recibe lista vacía; por id recibe 403. Revocar corta el acceso de inmediato, aunque el token siga vigente.
 
 ### Prevención de vulnerabilidades comunes
 
-**Inyección SQL:** no se construye SQL por concatenación; todo el acceso pasa por Spring Data JPA con *query methods* derivados o JPQL con parámetros nombrados, que se traducen a sentencias preparadas.
+**Inyección SQL:** no se concatena SQL; todo el acceso pasa por Spring Data JPA con *query methods* o JPQL con parámetros nombrados, que se traducen a sentencias preparadas.
 
-**XSS:** la API devuelve solo JSON serializado por Jackson, que escapa el contenido; no se renderiza HTML con datos del usuario. Las plantillas de correo usan Thymeleaf, que escapa variables por defecto. La validación de entrada (`@Size`, `@Email`, `@Pattern`) limita además el contenido aceptado.
+**XSS:** la API devuelve solo JSON serializado por Jackson y las plantillas de correo usan Thymeleaf, que escapa variables por defecto; la validación de entrada limita además el contenido aceptado.
 
-**CSRF:** la protección está deshabilitada de forma deliberada y segura: al ser una API sin estado sin cookies de sesión, la credencial viaja en la cabecera `Authorization`, que el navegador no adjunta solo en peticiones de terceros. **CORS** se restringe a los orígenes de `CORS_ALLOWED_ORIGINS`.
+**CSRF:** la protección está deshabilitada de forma deliberada y segura: al ser una API sin estado sin cookies de sesión, la credencial viaja en la cabecera `Authorization`, que el navegador no adjunta solo en peticiones de terceros. **CORS** se restringe a los orígenes configurados.
+
+**Archivos maliciosos:** los adjuntos se validan por firma real del archivo, no por su extensión, antes de subirse al almacenamiento.
 
 **Enumeración de usuarios:** el login responde igual ante correo inexistente y contraseña incorrecta, y los enlaces públicos responden 404 sin revelar si el token existió.
-
----
 
 ## 7. Eventos y asincronía
 
@@ -321,11 +322,11 @@ La asincronía no es decorativa: enviar un correo por un servicio externo puede 
 
 ## 8. GitHub y gestión del proyecto
 
-El trabajo se organizó en **GitHub Projects** con un tablero por estados e *issues* etiquetados (`feature`, `fix`, `test`, `docs`, `infra`) agrupados en *milestones* por fecha de entrega, asignados según el módulo responsable: seguridad y delegaciones, dominio de cuidado, salud y consultas, eventos y traspaso, e infraestructura.
+El trabajo se organizó con *issues* etiquetados (`feature`, `fix`, `test`, `docs`, `infra`), agrupados en *milestones* por fecha de entrega y asignados según el módulo responsable: seguridad y delegaciones, dominio de cuidado, salud y consultas, eventos y traspaso, e infraestructura.
 
-El flujo de ramas es GitFlow simplificado: `main` protegida —requiere pull request, revisión aprobada y build verde— y una rama por funcionalidad (`feature/...`, `fix/...`, `docs/...`). Cada pull request usa una plantilla con lista de verificación (DTOs, autorización, excepción adecuada, pruebas, ausencia de secretos) y lo revisa otro integrante.
+El flujo de ramas es GitFlow simplificado: `main` protegida —requiere pull request, revisión aprobada y build verde— y una rama por funcionalidad. Cada pull request usa una plantilla con lista de verificación (DTOs, autorización, excepción adecuada, pruebas, ausencia de secretos) y lo revisa otro integrante.
 
-**GitHub Actions** corre la integración continua en cada push y pull request: compila y ejecuta la suite completa con `./mvnw verify` sobre H2, sin necesidad de base de datos externa. Un segundo workflow construye la imagen Docker y la despliega en AWS al integrar a `main`.
+**GitHub Actions** corre la integración continua en cada push y pull request: compila y ejecuta la suite completa con `./mvnw verify` sobre H2. Un segundo workflow construye la imagen Docker y la despliega en AWS al integrar a `main`.
 
 ---
 
@@ -337,13 +338,13 @@ docker compose up -d
 ./mvnw spring-boot:run
 ```
 
-La API queda en `http://localhost:8080` y su estado en `/actuator/health`. Las pruebas (`./mvnw test`) usan H2 y no requieren Docker.
+La API queda en `http://localhost:8080`; las pruebas (`./mvnw test`) usan H2 y no requieren Docker.
 
-**Variables de entorno:** `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_ACCESS_EXPIRATION_MINUTES`, `JWT_REFRESH_EXPIRATION_DAYS`, `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `RESEND_API_KEY`, `MAIL_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`.
+**Variables de entorno:** base de datos, clave y expiración del JWT, orígenes CORS, credenciales de correo, almacenamiento de archivos y usuario administrador inicial. La lista completa, con valores de ejemplo, está en `.env.example`.
 
-**Documentación de la API:** `postman_collection.json` (raíz) contiene 106 peticiones en 15 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`. La especificación **OpenAPI** se genera automáticamente y se explora en `/swagger-ui.html`, con autenticación JWT desde el propio navegador.
+**Documentación de la API:** `postman_collection.json` (raíz) contiene 106 peticiones en 15 carpetas, con ejemplos de respuesta, variables automáticas y casos de error para cada código HTTP; los entornos están en `postman/`. La especificación **OpenAPI** se explora en `/swagger-ui.html`, con autenticación JWT desde el navegador.
 
-**Despliegue:** la API está publicada en **http://34.193.16.240:8080** (estado en `/actuator/health`, documentación en `/swagger-ui.html`). Backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
+**Despliegue:** la API está publicada en **http://34.193.16.240:8080** — documentación interactiva en **http://34.193.16.240:8080/swagger-ui.html** y estado en `/actuator/health`. La instancia corre sobre un laboratorio de AWS Academy, por lo que solo responde mientras el laboratorio está activo. Backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
 
 ---
 
@@ -351,15 +352,15 @@ La API queda en `http://localhost:8080` y su estado en `/actuator/health`. Las p
 
 ### Logros
 
-Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta y delegar accesos acotados. Son 15 entidades JPA, 43 DTOs, 56 endpoints, 20 excepciones personalizadas y 6 eventos con procesamiento asíncrono, cubiertos por pruebas de integración que validan tanto el éxito como la autorización denegada.
+Se implementó un backend completo que cubre el ciclo de uso del producto: registrar personas a cargo, coordinar cuidadores, mantener un historial versionado y auditable, preparar el resumen para la consulta, compartirlo con quien no tiene cuenta, delegar accesos acotados y adjuntar documentos con extracción de texto. Son 15 entidades, 43 DTOs, 56 endpoints, 20 excepciones y 6 eventos asíncronos, con pruebas de integración que validan el éxito y la autorización denegada.
 
 ### Aprendizajes clave
 
-El aprendizaje central fue distinguir **autenticación** de **autorización contextual**: la intuición inicial era modelar "cuidador de Pedro" como un rol del token, y el diseño correcto resultó el opuesto —el token dice quién eres y la base de datos a qué tienes acceso en cada llamada—. El segundo fue el manejo de transacciones con eventos: entender por qué un listener asíncrono debe correr tras el commit y abrir su propia transacción evitó errores difíciles de diagnosticar. El tercero: el versionado inmutable resultó más simple y más fiel al problema que actualizar registros en su lugar.
+El aprendizaje central fue distinguir **autenticación** de **autorización contextual**: la intuición era modelar "cuidador de Pedro" como un rol del token, y el diseño correcto resultó el opuesto —el token dice quién eres y la base de datos a qué tienes acceso en cada llamada—. El segundo fue el manejo de transacciones con eventos: un listener asíncrono debe correr tras el commit y abrir su propia transacción. El tercero: el versionado inmutable resultó más simple y más fiel al problema que actualizar registros.
 
 ### Trabajo futuro
 
-Quedan planteadas dos extensiones de producto: notas de voz con transcripción al salir de la consulta y notificaciones push a la aplicación móvil. Sobre los adjuntos ya implementados, el siguiente paso es convertir el texto extraído en una sugerencia estructurada que el cuidador acepte con un toque. En lo técnico, migrar el esquema a Flyway y paginar todos los listados.
+Quedan dos extensiones de producto: notas de voz con transcripción y notificaciones push a la aplicación móvil. Sobre los adjuntos, el siguiente paso es convertir el texto extraído en una sugerencia estructurada que el cuidador acepte con un toque. En lo técnico, migrar el esquema a Flyway y paginar todos los listados.
 
 ---
 
