@@ -1079,7 +1079,50 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/logout",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "logout"
+                  ]
+                },
+                "description": "Revoca el refresh token. Al final de la colección volvemos a hacer login para dejar tokens válidos.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ]
         },
         {
           "name": "Login (post-logout)",
@@ -1103,7 +1146,7 @@
                 "login"
               ]
             },
-            "description": "",
+            "description": "Vuelve a iniciar sesión tras el logout y deja un accessToken válido en las variables para el resto de la colección. Demuestra que el logout invalida la sesión anterior pero no la cuenta.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\"\n}",
@@ -1130,13 +1173,61 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Vuelve a iniciar sesión tras el logout y deja un accessToken válido en las variables para el resto de la colección. Demuestra que el logout invalida la sesión anterior pero no la cuenta.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"1g4W...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 13,\n    \"email\": \"ana.1790390049282@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"createdAt\": \"2026-09-26T02:34:09.670221Z\"\n  }\n}"
+            }
+          ]
         }
       ]
     },
     {
       "name": "2. Users",
-      "description": "",
+      "description": "Perfil del usuario autenticado. El usuario se obtiene siempre del JWT (SecurityContext), nunca de un id en la URL: así nadie puede leer ni editar el perfil de otro.",
       "item": [
         {
           "name": "Mi perfil",
@@ -1223,7 +1314,7 @@
                 "me"
               ]
             },
-            "description": "",
+            "description": "Actualización parcial (PATCH) del perfil propio. Solo se cambian los campos enviados; el email y el rol no son editables desde aquí.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Ana Torres Vega\"\n}",
@@ -1296,7 +1387,7 @@
     },
     {
       "name": "3. Care Subjects (personas a cargo)",
-      "description": "",
+      "description": "Personas a cargo (CareSubject): el paciente cuyos datos se registran. No necesita cuenta propia. Quien la crea queda como PRINCIPAL y es el único que puede invitar cuidadores o borrarla.",
       "item": [
         {
           "name": "Crear persona a cargo",
@@ -1467,7 +1558,7 @@
                 "{{careSubjectId}}"
               ]
             },
-            "description": ""
+            "description": "Devuelve la persona a cargo y el rol del usuario sobre ella (myRole). Requiere vínculo ACTIVE; si no existe responde 403, sin revelar si la persona existe."
           },
           "event": [
             {
@@ -1535,7 +1626,7 @@
                 "{{careSubjectId}}"
               ]
             },
-            "description": "",
+            "description": "Edita nombre, fecha de nacimiento o notas de la persona a cargo. Cualquier cuidador con vínculo activo puede hacerlo.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso y diabético\"\n}",
@@ -1557,7 +1648,52 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}"
+                  ]
+                },
+                "description": "Edita nombre, fecha de nacimiento o notas de la persona a cargo. Cualquier cuidador con vínculo activo puede hacerlo.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso y diabético\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 9,\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso y diabético\",\n  \"createdAt\": \"2026-09-26T02:34:11.947425Z\",\n  \"myRole\": \"PRINCIPAL\"\n}"
+            }
+          ]
         },
         {
           "name": "Crear persona sin nombre → 400",
@@ -1602,7 +1738,51 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects"
+                  ]
+                },
+                "description": "name @NotBlank y birthDate @Past.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:12.183787849Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"Datos inválidos\",\n  \"path\": \"/api/v1/care-subjects\",\n  \"fieldErrors\": [\n    {\n      \"field\": \"name\",\n      \"message\": \"must not be blank\"\n    },\n    {\n      \"field\": \"birthDate\",\n      \"message\": \"must be a past date\"\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Persona inexistente o ajena → 403",
@@ -1671,7 +1851,7 @@
     },
     {
       "name": "4. Care Relationships (cuidadores)",
-      "description": "",
+      "description": "Vínculos de cuidado (CareRelationship). Un cuidador solo ve a una persona si tiene un vínculo ACTIVE con ella: la invitación queda PENDING hasta que el invitado la acepta. Es la base de la autorización por recurso de toda la API.",
       "item": [
         {
           "name": "Invitar a Bruno como cuidador",
@@ -1791,7 +1971,7 @@
                 "relationships"
               ]
             },
-            "description": "",
+            "description": "Repetir la invitación al mismo email responde 409 Conflict (DuplicateCareRelationshipException): la restricción única usuario–persona evita vínculos duplicados.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{brunoEmail}}\",\n  \"role\": \"CAREGIVER\",\n  \"relationshipLabel\": \"hijo\"\n}",
@@ -1813,7 +1993,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "409 Conflict",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/relationships",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "relationships"
+                  ]
+                },
+                "description": "Repetir la invitación al mismo email responde 409 Conflict (DuplicateCareRelationshipException): la restricción única usuario–persona evita vínculos duplicados.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{brunoEmail}}\",\n  \"role\": \"CAREGIVER\",\n  \"relationshipLabel\": \"hijo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:12.327033503Z\",\n  \"status\": 409,\n  \"error\": \"Conflict\",\n  \"message\": \"Ese usuario ya está vinculado a esta persona\",\n  \"path\": \"/api/v1/care-subjects/9/relationships\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Invitarme a mí misma → 400",
@@ -1838,7 +2064,7 @@
                 "relationships"
               ]
             },
-            "description": "",
+            "description": "Una PRINCIPAL no puede invitarse a sí misma: la regla de negocio responde 400 Bad Request.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"role\": \"CAREGIVER\"\n}",
@@ -1860,7 +2086,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/relationships",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "relationships"
+                  ]
+                },
+                "description": "Una PRINCIPAL no puede invitarse a sí misma: la regla de negocio responde 400 Bad Request.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"role\": \"CAREGIVER\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:12.411662927Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"No puedes invitarte a ti mismo\",\n  \"path\": \"/api/v1/care-subjects/9/relationships\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Invitar email sin cuenta → 404",
@@ -1885,7 +2157,7 @@
                 "relationships"
               ]
             },
-            "description": "",
+            "description": "Solo se puede invitar a usuarios registrados. Si el email no tiene cuenta responde 404 Not Found.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"nadie@yuyay.app\",\n  \"role\": \"CAREGIVER\"\n}",
@@ -1907,7 +2179,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/relationships",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "relationships"
+                  ]
+                },
+                "description": "Solo se puede invitar a usuarios registrados. Si el email no tiene cuenta responde 404 Not Found.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"nadie@yuyay.app\",\n  \"role\": \"CAREGIVER\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:12.449733979Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"message\": \"No existe una cuenta con el email nadie@yuyay.app\",\n  \"path\": \"/api/v1/care-subjects/9/relationships\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Cuidadores de la persona",
@@ -1927,7 +2245,7 @@
                 "relationships"
               ]
             },
-            "description": ""
+            "description": "Lista los vínculos de la persona con su rol (PRINCIPAL o CAREGIVER) y estado. Permite ver quién tiene acceso a los datos de salud."
           },
           "event": [
             {
@@ -2165,7 +2483,7 @@
                 "{{careSubjectId}}"
               ]
             },
-            "description": "",
+            "description": "Con el token de Bruno, tras aceptar la invitación: ahora sí accede a la persona y su rol es CAREGIVER. Contrasta con el 403 que recibía antes.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2189,7 +2507,48 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}"
+                  ]
+                },
+                "description": "Con el token de Bruno, tras aceptar la invitación: ahora sí accede a la persona y su rol es CAREGIVER. Contrasta con el 403 que recibía antes.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{brunoAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 9,\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso y diabético\",\n  \"createdAt\": \"2026-09-26T02:34:11.947425Z\",\n  \"myRole\": \"CAREGIVER\"\n}"
+            }
+          ]
         },
         {
           "name": "[Bruno] No puede invitar (no es PRINCIPAL) → 403",
@@ -2214,7 +2573,7 @@
                 "relationships"
               ]
             },
-            "description": "",
+            "description": "Un CAREGIVER no puede invitar a terceros: solo la PRINCIPAL gestiona el acceso. Responde 403 Forbidden.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"role\": \"CAREGIVER\"\n}",
@@ -2246,13 +2605,69 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/relationships",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "relationships"
+                  ]
+                },
+                "description": "Un CAREGIVER no puede invitar a terceros: solo la PRINCIPAL gestiona el acceso. Responde 403 Forbidden.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"role\": \"CAREGIVER\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{brunoAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:12.653073837Z\",\n  \"status\": 403,\n  \"error\": \"Forbidden\",\n  \"message\": \"Se requiere rol PRINCIPAL sobre esta persona\",\n  \"path\": \"/api/v1/care-subjects/9/relationships\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         }
       ]
     },
     {
       "name": "5. Health Entries (registros de salud)",
-      "description": "",
+      "description": "Registros de salud: alergias, condiciones, medicación, vacunas y episodios. HealthEntry es la cabecera y cada edición crea una HealthEntryVersion inmutable, de modo que siempre se puede reconstruir quién declaró qué y cuándo. El borrado es lógico.",
       "item": [
         {
           "name": "Categorías de salud",
@@ -2456,7 +2871,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries"
+                  ]
+                },
+                "description": "confidenceLevel UNCERTAIN: Yuyay registra quién lo declaró y con qué certeza, no si es cierto.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"categoryCode\": \"ALLERGY\",\n  \"title\": \"Penicilina\",\n  \"details\": \"Reacción en la piel de niño\",\n  \"confidenceLevel\": \"UNCERTAIN\",\n  \"notes\": \"Lo contó la abuela\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 16,\n  \"careSubjectId\": 9,\n  \"categoryCode\": \"ALLERGY\",\n  \"categoryName\": \"Alergia\",\n  \"createdBy\": {\n    \"id\": 13,\n    \"name\": \"Ana Torres Vega\"\n  },\n  \"createdAt\": \"2026-09-26T02:34:12.816547502Z\",\n  \"deletedAt\": null,\n  \"latestVersion\": {\n    \"id\": 21,\n    \"versionNumber\": 1,\n    \"changeType\": \"CREATED\",\n    \"title\": \"Penicilina\",\n    \"details\": \"Reacción en la piel de niño\",\n    \"dose\": null,\n    \"frequency\": null,\n    \"occurredOn\": null,\n    \"confidenceLevel\": \"UNCERTAIN\",\n    \"notes\": \"Lo contó la abuela\",\n    \"declaredBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:12.818355064Z\",\n    \"sourceAttachmentId\": null\n  }\n}"
+            }
+          ]
         },
         {
           "name": "Registrar episodio",
@@ -2481,7 +2942,7 @@
                 "health-entries"
               ]
             },
-            "description": "",
+            "description": "Registra un episodio puntual (EPISODE) con su fecha. La dosis y la frecuencia solo se aceptan en MEDICATION.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"categoryCode\": \"EPISODE\",\n  \"title\": \"Mareo al levantarse\",\n  \"occurredOn\": \"2026-09-15\",\n  \"confidenceLevel\": \"CONFIRMED\"\n}",
@@ -2503,7 +2964,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries"
+                  ]
+                },
+                "description": "Registra un episodio puntual (EPISODE) con su fecha. La dosis y la frecuencia solo se aceptan en MEDICATION.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"categoryCode\": \"EPISODE\",\n  \"title\": \"Mareo al levantarse\",\n  \"occurredOn\": \"2026-09-15\",\n  \"confidenceLevel\": \"CONFIRMED\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 17,\n  \"careSubjectId\": 9,\n  \"categoryCode\": \"EPISODE\",\n  \"categoryName\": \"Episodio\",\n  \"createdBy\": {\n    \"id\": 13,\n    \"name\": \"Ana Torres Vega\"\n  },\n  \"createdAt\": \"2026-09-26T02:34:12.869306247Z\",\n  \"deletedAt\": null,\n  \"latestVersion\": {\n    \"id\": 22,\n    \"versionNumber\": 1,\n    \"changeType\": \"CREATED\",\n    \"title\": \"Mareo al levantarse\",\n    \"details\": null,\n    \"dose\": null,\n    \"frequency\": null,\n    \"occurredOn\": \"2026-09-15\",\n    \"confidenceLevel\": \"CONFIRMED\",\n    \"notes\": null,\n    \"declaredBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:12.871498471Z\",\n    \"sourceAttachmentId\": null\n  }\n}"
+            }
+          ]
         },
         {
           "name": "Listar registros",
@@ -2594,7 +3101,7 @@
                 }
               ]
             },
-            "description": ""
+            "description": "Filtra los registros vigentes por categoría con ?category=. Útil para mostrar, por ejemplo, solo la medicación actual."
           },
           "event": [
             {
@@ -2607,7 +3114,45 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries?category=MEDICATION",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries"
+                  ],
+                  "query": [
+                    {
+                      "key": "category",
+                      "value": "MEDICATION"
+                    }
+                  ]
+                },
+                "description": "Filtra los registros vigentes por categoría con ?category=. Útil para mostrar, por ejemplo, solo la medicación actual."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": 15,\n    \"careSubjectId\": 9,\n    \"categoryCode\": \"MEDICATION\",\n    \"categoryName\": \"Medicación\",\n    \"createdBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"createdAt\": \"2026-09-26T02:34:12.726742Z\",\n    \"deletedAt\": null,\n    \"latestVersion\": {\n      \"id\": 20,\n      \"versionNumber\": 1,\n      \"changeType\": \"CREATED\",\n      \"title\": \"Losartán\",\n      \"details\": \"Para la presión\",\n      \"dose\": \"50 mg\",\n      \"frequency\": \"1 vez al día\",\n      \"occurredOn\": \"2026-01-10\",\n      \"confidenceLevel\": \"CONFIRMED\",\n      \"notes\": null,\n      \"declaredBy\": {\n        \"id\": 13,\n        \"name\": \"Ana Torres Vega\"\n      },\n      \"declaredAt\": \"2026-09-26T02:34:12.731561Z\",\n      \"sourceAttachmentId\": null\n    }\n  }\n]"
+            }
+          ]
         },
         {
           "name": "Detalle de registro",
@@ -2628,7 +3173,7 @@
                 "{{healthEntryId}}"
               ]
             },
-            "description": ""
+            "description": "Devuelve la cabecera del registro y su última versión (latestVersion) con autor, nivel de confianza y datos clínicos."
           },
           "event": [
             {
@@ -2885,7 +3430,7 @@
                 "health-entries"
               ]
             },
-            "description": "",
+            "description": "Validación con Bean Validation (@NotBlank): el título vacío responde 400 con el detalle en fieldErrors.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"categoryCode\": \"MEDICATION\",\n  \"title\": \"\",\n  \"confidenceLevel\": \"CONFIRMED\"\n}",
@@ -2907,7 +3452,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries"
+                  ]
+                },
+                "description": "Validación con Bean Validation (@NotBlank): el título vacío responde 400 con el detalle en fieldErrors.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"categoryCode\": \"MEDICATION\",\n  \"title\": \"\",\n  \"confidenceLevel\": \"CONFIRMED\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:13.185594287Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"Datos inválidos\",\n  \"path\": \"/api/v1/care-subjects/9/health-entries\",\n  \"fieldErrors\": [\n    {\n      \"field\": \"title\",\n      \"message\": \"must not be blank\"\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Categoría inexistente → 404",
@@ -2932,7 +3523,7 @@
                 "health-entries"
               ]
             },
-            "description": "",
+            "description": "La categoría debe existir en el catálogo (ALLERGY, CONDITION, MEDICATION, IMMUNIZATION, EPISODE). Un código desconocido responde 404.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"categoryCode\": \"SURGERY\",\n  \"title\": \"x\",\n  \"confidenceLevel\": \"CONFIRMED\"\n}",
@@ -2954,7 +3545,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries"
+                  ]
+                },
+                "description": "La categoría debe existir en el catálogo (ALLERGY, CONDITION, MEDICATION, IMMUNIZATION, EPISODE). Un código desconocido responde 404.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"categoryCode\": \"SURGERY\",\n  \"title\": \"x\",\n  \"confidenceLevel\": \"CONFIRMED\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:13.226327436Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"message\": \"HealthCategory not found: SURGERY\",\n  \"path\": \"/api/v1/care-subjects/9/health-entries\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Borrar registro (soft delete)",
@@ -2988,7 +3625,35 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries/{{allergyEntryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries",
+                    "{{allergyEntryId}}"
+                  ]
+                },
+                "description": "Marca deletedAt y crea versión DELETED. No desaparece de la base."
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ]
         },
         {
           "name": "Registro borrado → 404",
@@ -3009,7 +3674,7 @@
                 "{{allergyEntryId}}"
               ]
             },
-            "description": ""
+            "description": "Tras el borrado lógico el registro ya no se puede consultar: responde 404, aunque su historial se conserva en la base."
           },
           "event": [
             {
@@ -3022,7 +3687,40 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries/{{allergyEntryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries",
+                    "{{allergyEntryId}}"
+                  ]
+                },
+                "description": "Tras el borrado lógico el registro ya no se puede consultar: responde 404, aunque su historial se conserva en la base."
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:13.335376957Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"message\": \"HealthEntry not found: 16\",\n  \"path\": \"/api/v1/care-subjects/9/health-entries/16\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         }
       ]
     },
@@ -3142,7 +3840,7 @@
                 "consultations"
               ]
             },
-            "description": ""
+            "description": "Lista las visitas médicas registradas para la persona, de la más reciente a la más antigua."
           },
           "event": [
             {
@@ -3206,7 +3904,7 @@
                 "{{consultationId}}"
               ]
             },
-            "description": ""
+            "description": "Devuelve una consulta por id. El acceso se valida contra la persona a la que pertenece."
           },
           "event": [
             {
@@ -3274,7 +3972,7 @@
                 "{{consultationId}}"
               ]
             },
-            "description": "",
+            "description": "Actualiza fecha, motivo o notas de una consulta. La fecha sigue validada con @PastOrPresent.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"date\": \"2026-09-10\",\n  \"reason\": \"Control de presión arterial\",\n  \"notes\": \"Presión 140/90. Repetir análisis en un mes.\"\n}",
@@ -3296,7 +3994,52 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/consultations/{{consultationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "consultations",
+                    "{{consultationId}}"
+                  ]
+                },
+                "description": "Actualiza fecha, motivo o notas de una consulta. La fecha sigue validada con @PastOrPresent.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"date\": \"2026-09-10\",\n  \"reason\": \"Control de presión arterial\",\n  \"notes\": \"Presión 140/90. Repetir análisis en un mes.\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 7,\n  \"careSubjectId\": 9,\n  \"careSubjectName\": \"Pedro Torres Díaz\",\n  \"createdByUserId\": 13,\n  \"date\": \"2026-09-10\",\n  \"reason\": \"Control de presión arterial\",\n  \"notes\": \"Presión 140/90. Repetir análisis en un mes.\",\n  \"createdAt\": \"2026-09-26T02:34:13.368668Z\"\n}"
+            }
+          ]
         },
         {
           "name": "Cambios desde una consulta",
@@ -3336,7 +4079,46 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/consultations/changes?sinceConsultationId={{consultationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "consultations",
+                    "changes"
+                  ],
+                  "query": [
+                    {
+                      "key": "sinceConsultationId",
+                      "value": "{{consultationId}}"
+                    }
+                  ]
+                },
+                "description": "Qué ha pasado desde la consulta de referencia."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": 24,\n    \"versionNumber\": 2,\n    \"changeType\": \"DELETED\",\n    \"title\": \"Penicilina\",\n    \"details\": \"Reacción en la piel de niño\",\n    \"dose\": null,\n    \"frequency\": null,\n    \"occurredOn\": null,\n    \"confidenceLevel\": \"UNCERTAIN\",\n    \"notes\": \"Lo contó la abuela\",\n    \"declaredBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:13.276685Z\",\n    \"sourceAttachmentId\": null\n  },\n  {\n    \"id\": 23,\n    \"versionNumber\": 2,\n    \"changeType\": \"UPDATED\",\n    \"title\": \"Losartán\",\n    \"details\": \"Para la presión\",\n    \"dose\": \"100 mg\",\n    \"frequency\": \"1 vez al día\",\n    \"occurredOn\": \"2026-09-20\",\n    \"confidenceLevel\": \"CONFIRMED\",\n    \"notes\": \"Subió la dosis el médico\",\n    \"declaredBy\": {\n      \"id\": 14,\n      \"name\": \"Bruno Torres\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:13.109929Z\",\n    \"sourceAttachmentId\": null\n  },\n  {\n    \"id\": 22,\n    \"versionNumber\": 1,\n    \"changeType\": \"CREATED\",\n    \"title\": \"Mareo al levantarse\",\n    \"details\": null,\n    \"dose\": null,\n    \"frequency\": null,\n    \"occurredOn\": \"2026-09-15\",\n    \"confidenceLevel\": \"CONFIRMED\",\n    \"notes\": null,\n    \"declaredBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:12.871498Z\",\n    \"sourceAttachmentId\": null\n  },\n  {\n    \"id\": 21,\n    \"versionNumber\": 1,\n    \"changeType\": \"CREATED\",\n    \"title\": \"Penicilina\",\n    \"details\": \"Reacción en la piel de niño\",\n    \"dose\": null,\n    \"frequency\": null,\n    \"occurredOn\": null,\n    \"confidenceLevel\": \"UNCERTAIN\",\n    \"notes\": \"Lo contó la abuela\",\n    \"declaredBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:12.818355Z\",\n    \"sourceAttachmentId\": null\n  },\n  {\n    \"id\": 20,\n    \"versionNumber\": 1,\n    \"changeType\": \"CREATED\",\n    \"title\": \"Losartán\",\n    \"details\": \"Para la presión\",\n    \"dose\": \"50 mg\",\n    \"frequency\": \"1 vez al día\",\n    \"occurredOn\": \"2026-01-10\",\n    \"confidenceLevel\": \"CONFIRMED\",\n    \"notes\": null,\n    \"declaredBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:12.731561Z\",\n    \"sourceAttachmentId\": null\n  }\n]"
+            }
+          ]
         },
         {
           "name": "Consulta con fecha futura → 400",
@@ -3361,7 +4143,7 @@
                 "consultations"
               ]
             },
-            "description": "",
+            "description": "Una consulta no puede registrarse en el futuro (@PastOrPresent): responde 400 Bad Request.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"date\": \"2099-01-01\",\n  \"reason\": \"x\"\n}",
@@ -3383,7 +4165,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/consultations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "consultations"
+                  ]
+                },
+                "description": "Una consulta no puede registrarse en el futuro (@PastOrPresent): responde 400 Bad Request.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"date\": \"2099-01-01\",\n  \"reason\": \"x\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:13.591536577Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"Datos inválidos\",\n  \"path\": \"/api/v1/care-subjects/9/consultations\",\n  \"fieldErrors\": [\n    {\n      \"field\": \"date\",\n      \"message\": \"must be a date in the past or in the present\"\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Registrar consulta temporal",
@@ -3419,7 +4247,53 @@
               }
             }
           },
-          "response": [],
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/consultations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "consultations"
+                  ]
+                },
+                "description": "Se crea para demostrar el borrado sin afectar la consulta usada en el resto del flujo.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"date\": \"2026-08-01\",\n  \"reason\": \"Consulta de prueba para el borrado\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 8,\n  \"careSubjectId\": 9,\n  \"careSubjectName\": \"Pedro Torres Díaz\",\n  \"createdByUserId\": 13,\n  \"date\": \"2026-08-01\",\n  \"reason\": \"Consulta de prueba para el borrado\",\n  \"notes\": null,\n  \"createdAt\": \"2026-09-26T02:34:13.651955131Z\"\n}"
+            }
+          ],
           "event": [
             {
               "listen": "test",
@@ -3452,7 +4326,33 @@
             },
             "description": "Solo el cuidador PRINCIPAL puede borrar una consulta."
           },
-          "response": [],
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/consultations/{{tempConsultationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "consultations",
+                    "{{tempConsultationId}}"
+                  ]
+                },
+                "description": "Solo el cuidador PRINCIPAL puede borrar una consulta."
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ],
           "event": [
             {
               "listen": "test",
@@ -3482,9 +4382,40 @@
                 "{{tempConsultationId}}"
               ]
             },
-            "description": ""
+            "description": "Comprueba que la consulta eliminada ya no es accesible: responde 404 Not Found."
           },
-          "response": [],
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/consultations/{{tempConsultationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "consultations",
+                    "{{tempConsultationId}}"
+                  ]
+                },
+                "description": "Comprueba que la consulta eliminada ya no es accesible: responde 404 Not Found."
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:13.739475479Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"message\": \"Consulta no encontrada\",\n  \"path\": \"/api/v1/consultations/8\",\n  \"fieldErrors\": null\n}"
+            }
+          ],
           "event": [
             {
               "listen": "test",
@@ -3501,7 +4432,7 @@
     },
     {
       "name": "7. Handoffs (resumen de traspaso)",
-      "description": "",
+      "description": "Resumen de traspaso (Handoff): la cuidadora elige qué registros llevar a una cita médica. Los items apuntan a versiones concretas, así el resumen queda congelado aunque el dato cambie después.",
       "item": [
         {
           "name": "Crear resumen para la cita",
@@ -3624,7 +4555,7 @@
                 "handoffs"
               ]
             },
-            "description": ""
+            "description": "Lista los resúmenes de traspaso creados para la persona."
           },
           "event": [
             {
@@ -3637,7 +4568,39 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/handoffs",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "handoffs"
+                  ]
+                },
+                "description": "Lista los resúmenes de traspaso creados para la persona."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": 7,\n    \"careSubjectId\": 9,\n    \"createdByUserId\": 13,\n    \"reason\": \"Control de presión\",\n    \"questions\": \"¿Subir la dosis de Losartán? ¿Repetir análisis?\",\n    \"createdAt\": \"2026-09-26T02:34:13.798055Z\"\n  }\n]"
+            }
+          ]
         },
         {
           "name": "Detalle del resumen",
@@ -3656,7 +4619,7 @@
                 "{{handoffId}}"
               ]
             },
-            "description": ""
+            "description": "Devuelve el resumen con sus items: cada item apunta a la versión exacta del registro elegida al crearlo."
           },
           "event": [
             {
@@ -3747,7 +4710,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/handoffs",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "handoffs"
+                  ]
+                },
+                "description": "healthEntryIds @NotEmpty.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"x\",\n  \"healthEntryIds\": []\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:13.942992399Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"Datos inválidos\",\n  \"path\": \"/api/v1/care-subjects/9/handoffs\",\n  \"fieldErrors\": [\n    {\n      \"field\": \"healthEntryIds\",\n      \"message\": \"must not be empty\"\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Crear resumen temporal",
@@ -3783,7 +4792,53 @@
               }
             }
           },
-          "response": [],
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/handoffs",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "handoffs"
+                  ]
+                },
+                "description": "Se crea aparte para probar el borrado sin tocar el resumen que se comparte más adelante.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Resumen de prueba para el borrado\",\n  \"healthEntryIds\": [\n    1\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 8,\n  \"careSubjectId\": 9,\n  \"createdByUserId\": 13,\n  \"reason\": \"Resumen de prueba para el borrado\",\n  \"questions\": null,\n  \"createdAt\": \"2026-09-26T02:34:14.002985431Z\",\n  \"items\": [\n    {\n      \"healthEntryId\": 15,\n      \"healthEntryVersionId\": 23,\n      \"categoryCode\": \"MEDICATION\",\n      \"versionNumber\": 2,\n      \"changeType\": \"UPDATED\",\n      \"title\": \"Losartán\",\n      \"details\": \"Para la presión\",\n      \"dose\": \"100 mg\",\n      \"frequency\": \"1 vez al día\",\n      \"occurredOn\": \"2026-09-20\",\n      \"confidenceLevel\": \"CONFIRMED\",\n      \"notes\": \"Subió la dosis el médico\",\n      \"declaredAt\": \"2026-09-26T02:34:13.109929Z\"\n    }\n  ]\n}"
+            }
+          ],
           "event": [
             {
               "listen": "prerequest",
@@ -3825,7 +4880,33 @@
             },
             "description": "Al borrar el resumen se borran sus items y sus enlaces (cascade), pero no las versiones de salud."
           },
-          "response": [],
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/handoffs/{{tempHandoffId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "handoffs",
+                    "{{tempHandoffId}}"
+                  ]
+                },
+                "description": "Al borrar el resumen se borran sus items y sus enlaces (cascade), pero no las versiones de salud."
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ],
           "event": [
             {
               "listen": "test",
@@ -3842,7 +4923,7 @@
     },
     {
       "name": "8. Handoff Sessions (enlace temporal)",
-      "description": "",
+      "description": "Enlace temporal (HandoffSession) para compartir un resumen con un médico sin cuenta. El enlace lleva un token aleatorio y vence en máximo 72 horas (@Max(72)); pedir más responde 400.",
       "item": [
         {
           "name": "Generar enlace",
@@ -3970,7 +5051,39 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/handoffs/{{handoffId}}/sessions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "handoffs",
+                    "{{handoffId}}",
+                    "sessions"
+                  ]
+                },
+                "description": "Nunca devuelve el token."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": 4,\n    \"handoffId\": 7,\n    \"expiresAt\": \"2026-09-27T02:34:14.128024Z\",\n    \"sessionWindowMinutes\": 30,\n    \"firstOpenedAt\": null,\n    \"revokedAt\": null,\n    \"createdAt\": \"2026-09-26T02:34:14.128166Z\"\n  }\n]"
+            }
+          ]
         },
         {
           "name": "Enlace con 100 h → 400",
@@ -4017,7 +5130,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/handoffs/{{handoffId}}/sessions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "handoffs",
+                    "{{handoffId}}",
+                    "sessions"
+                  ]
+                },
+                "description": "@Max(72).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"expiresInHours\": 100,\n  \"sessionWindowMinutes\": 30\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:14.205627367Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"Datos inválidos\",\n  \"path\": \"/api/v1/handoffs/7/sessions\",\n  \"fieldErrors\": [\n    {\n      \"field\": \"expiresInHours\",\n      \"message\": \"must be less than or equal to 72\"\n    }\n  ]\n}"
+            }
+          ]
         }
       ]
     },
@@ -4288,7 +5447,7 @@
                 "me"
               ]
             },
-            "description": "",
+            "description": "Con el token de delegado: muestra qué persona puede ver, qué categorías y hasta cuándo. El token no tiene cuenta asociada.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -4395,7 +5554,48 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/delegate/health-entries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "delegate",
+                    "health-entries"
+                  ]
+                },
+                "description": "Filtrado en la consulta: solo las categorías delegadas.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{delegateToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": 15,\n    \"careSubjectId\": 9,\n    \"categoryCode\": \"MEDICATION\",\n    \"categoryName\": \"Medicación\",\n    \"createdBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"createdAt\": \"2026-09-26T02:34:12.726742Z\",\n    \"deletedAt\": null,\n    \"latestVersion\": {\n      \"id\": 23,\n      \"versionNumber\": 2,\n      \"changeType\": \"UPDATED\",\n      \"title\": \"Losartán\",\n      \"details\": \"Para la presión\",\n      \"dose\": \"100 mg\",\n      \"frequency\": \"1 vez al día\",\n      \"occurredOn\": \"2026-09-20\",\n      \"confidenceLevel\": \"CONFIRMED\",\n      \"notes\": \"Subió la dosis el médico\",\n      \"declaredBy\": {\n        \"id\": 14,\n        \"name\": \"Bruno Torres\"\n      },\n      \"declaredAt\": \"2026-09-26T02:34:13.109929Z\",\n      \"sourceAttachmentId\": null\n    }\n  }\n]"
+            }
+          ]
         },
         {
           "name": "[Enfermera] Ver un registro permitido por id",
@@ -4427,7 +5627,49 @@
               ]
             }
           },
-          "response": [],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/delegate/health-entries/{{healthEntryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "delegate",
+                    "health-entries",
+                    "{{healthEntryId}}"
+                  ]
+                },
+                "description": "El registro pertenece a una categoría delegada: se permite y queda registrado en la bitácora.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{delegateToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 15,\n  \"careSubjectId\": 9,\n  \"categoryCode\": \"MEDICATION\",\n  \"categoryName\": \"Medicación\",\n  \"createdBy\": {\n    \"id\": 13,\n    \"name\": \"Ana Torres Vega\"\n  },\n  \"createdAt\": \"2026-09-26T02:34:12.726742Z\",\n  \"deletedAt\": null,\n  \"latestVersion\": {\n    \"id\": 23,\n    \"versionNumber\": 2,\n    \"changeType\": \"UPDATED\",\n    \"title\": \"Losartán\",\n    \"details\": \"Para la presión\",\n    \"dose\": \"100 mg\",\n    \"frequency\": \"1 vez al día\",\n    \"occurredOn\": \"2026-09-20\",\n    \"confidenceLevel\": \"CONFIRMED\",\n    \"notes\": \"Subió la dosis el médico\",\n    \"declaredBy\": {\n      \"id\": 14,\n      \"name\": \"Bruno Torres\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:13.109929Z\",\n    \"sourceAttachmentId\": null\n  }\n}"
+            }
+          ],
           "event": [
             {
               "listen": "test",
@@ -4464,7 +5706,7 @@
                 }
               ]
             },
-            "description": "",
+            "description": "La delegación solo cubre MEDICATION: pedir ALLERGY responde 403. El alcance se valida en cada petición, no solo al canjear.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -4576,7 +5818,48 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}"
+                  ]
+                },
+                "description": "El rol DELEGATE solo puede usar /api/v1/delegate/**.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{delegateToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:14.548151251Z\",\n  \"status\": 403,\n  \"error\": \"Forbidden\",\n  \"message\": \"No tienes permiso para esta operación\",\n  \"path\": \"/api/v1/care-subjects/9\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Canjear el mismo enlace otra vez → 400",
@@ -4670,7 +5953,7 @@
                 "exchange"
               ]
             },
-            "description": "",
+            "description": "Canjear un token que no existe responde 404, sin dar pistas sobre tokens válidos.",
             "auth": {
               "type": "noauth"
             }
@@ -4686,7 +5969,43 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/public/delegations/token-inventado/exchange",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "public",
+                    "delegations",
+                    "token-inventado",
+                    "exchange"
+                  ]
+                },
+                "description": "Canjear un token que no existe responde 404, sin dar pistas sobre tokens válidos.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:14.641014860Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"message\": \"Enlace de delegación no encontrado\",\n  \"path\": \"/api/v1/public/delegations/token-inventado/exchange\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Categoría inexistente → 400",
@@ -4711,7 +6030,7 @@
                 "delegations"
               ]
             },
-            "description": "",
+            "description": "No se puede delegar una categoría que no existe en el catálogo: responde 400 Bad Request.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"granteeName\": \"X\",\n  \"granteeEmail\": \"x@y.pe\",\n  \"categoryCodes\": [\n    \"SURGERY\"\n  ],\n  \"validUntil\": \"{{validUntil}}\"\n}",
@@ -4733,7 +6052,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/delegations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "delegations"
+                  ]
+                },
+                "description": "No se puede delegar una categoría que no existe en el catálogo: responde 400 Bad Request.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"granteeName\": \"X\",\n  \"granteeEmail\": \"x@y.pe\",\n  \"categoryCodes\": [\n    \"SURGERY\"\n  ],\n  \"validUntil\": \"{{validUntil}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:14.676861381Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"Categorías desconocidas: [SURGERY]\",\n  \"path\": \"/api/v1/care-subjects/9/delegations\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Revocar delegación",
@@ -4752,7 +6117,7 @@
                 "{{delegationId}}"
               ]
             },
-            "description": ""
+            "description": "La PRINCIPAL revoca la delegación antes de su vencimiento. Responde 204 No Content y el token del delegado deja de funcionar de inmediato."
           },
           "event": [
             {
@@ -4765,7 +6130,33 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/delegations/{{delegationId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "delegations",
+                    "{{delegationId}}"
+                  ]
+                },
+                "description": "La PRINCIPAL revoca la delegación antes de su vencimiento. Responde 204 No Content y el token del delegado deja de funcionar de inmediato."
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ]
         },
         {
           "name": "[Enfermera] Tras revocar → 403",
@@ -4807,13 +6198,54 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/delegate/health-entries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "delegate",
+                    "health-entries"
+                  ]
+                },
+                "description": "El JWT sigue vigente pero la delegación ya no: se verifica en cada llamada.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{delegateToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:14.746101399Z\",\n  \"status\": 403,\n  \"error\": \"Forbidden\",\n  \"message\": \"La delegación fue revocada o ya no está vigente\",\n  \"path\": \"/api/v1/delegate/health-entries\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         }
       ]
     },
     {
       "name": "10. Público · enlace de resumen",
-      "description": "",
+      "description": "Endpoints públicos (sin JWT) que abre el médico con el enlace del resumen. Cada apertura queda en la bitácora; un enlace revocado responde 410 Gone.",
       "item": [
         {
           "name": "Abrir enlace del resumen",
@@ -4966,7 +6398,57 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/public/handoff-sessions/token-que-no-existe/open",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "public",
+                    "handoff-sessions",
+                    "token-que-no-existe",
+                    "open"
+                  ]
+                },
+                "description": "No se revela si existe.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"visitorName\": \"X\",\n  \"visitorRole\": \"X\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:14.812753835Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"message\": \"Enlace de Handoff no encontrado\",\n  \"path\": \"/api/v1/public/handoff-sessions/token-que-no-existe/open\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Revocar enlace",
@@ -4985,7 +6467,7 @@
                 "{{handoffSessionId}}"
               ]
             },
-            "description": ""
+            "description": "Revoca un enlace de resumen compartido. Responde 204 No Content."
           },
           "event": [
             {
@@ -4998,7 +6480,33 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/handoff-sessions/{{handoffSessionId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "handoff-sessions",
+                    "{{handoffSessionId}}"
+                  ]
+                },
+                "description": "Revoca un enlace de resumen compartido. Responde 204 No Content."
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ]
         },
         {
           "name": "Enlace revocado → 410",
@@ -5024,7 +6532,7 @@
                 "open"
               ]
             },
-            "description": "",
+            "description": "Abrir un enlace revocado responde 410 Gone: el recurso existió pero ya no está disponible.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"visitorName\": \"Dra. Rosa Pérez\",\n  \"visitorRole\": \"Médica\"\n}",
@@ -5105,7 +6613,7 @@
     },
     {
       "name": "11. Notifications",
-      "description": "",
+      "description": "Notificaciones internas. Se generan de forma asíncrona (evento + @Async) cuando otro cuidador cambia un dato de una persona compartida.",
       "item": [
         {
           "name": "Mis notificaciones (Ana recibe el cambio de Bruno)",
@@ -5186,7 +6694,7 @@
                 "unread-count"
               ]
             },
-            "description": ""
+            "description": "Devuelve el número de notificaciones sin leer, pensado para el contador de la app."
           },
           "event": [
             {
@@ -5250,7 +6758,7 @@
                 "read"
               ]
             },
-            "description": ""
+            "description": "Marca una notificación propia como leída. Una notificación ajena no se puede modificar."
           },
           "event": [
             {
@@ -5301,7 +6809,7 @@
     },
     {
       "name": "12. Access Logs (bitácora)",
-      "description": "",
+      "description": "Bitácora inmutable (AccessLog) de quién vio o modificó qué y cuándo, incluidos los accesos anónimos por enlace. Se escribe de forma asíncrona y solo la consultan cuidadores con vínculo activo.",
       "item": [
         {
           "name": "Bitácora de la persona",
@@ -5424,7 +6932,55 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "Credenciales del seeder en perfil dev.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@yuyay.app\",\n  \"password\": \"Admin12345\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"sfQS...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"admin@yuyay.app\",\n    \"name\": \"Administrador Yuyay\",\n    \"role\": \"ADMIN\",\n    \"createdAt\": \"2026-09-24T21:33:47.025514Z\"\n  }\n}"
+            }
+          ]
         },
         {
           "name": "Usuarios (paginado)",
@@ -5547,7 +7103,7 @@
                 "stats"
               ]
             },
-            "description": "",
+            "description": "Totales del sistema (usuarios, personas a cargo, vínculos activos, registros de salud y delegaciones activas) para el panel del administrador. Protegido con @PreAuthorize(\"hasRole('ADMIN')\").",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -5631,7 +7187,7 @@
                 "1"
               ]
             },
-            "description": "",
+            "description": "Detalle de un usuario por id, solo para el rol ADMIN. Nunca expone el passwordHash.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -5831,7 +7387,7 @@
                 "999999"
               ]
             },
-            "description": "",
+            "description": "Un id de usuario inexistente responde 404 Not Found con el formato estándar de error.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -5854,7 +7410,49 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/admin/users/999999",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "users",
+                    "999999"
+                  ]
+                },
+                "description": "Un id de usuario inexistente responde 404 Not Found con el formato estándar de error.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{adminToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:15.585303335Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"message\": \"Usuario no encontrado: 999999\",\n  \"path\": \"/api/v1/admin/users/999999\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "[Ana, rol USER] → 403",
@@ -5936,7 +7534,7 @@
                 "stats"
               ]
             },
-            "description": "",
+            "description": "Sin JWT la petición no llega al controlador: JwtAuthenticationEntryPoint responde 401 en formato JSON.",
             "auth": {
               "type": "noauth"
             }
@@ -5952,13 +7550,47 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/admin/stats",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "admin",
+                    "stats"
+                  ]
+                },
+                "description": "Sin JWT la petición no llega al controlador: JwtAuthenticationEntryPoint responde 401 en formato JSON.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:15.643597347Z\",\n  \"status\": 401,\n  \"error\": \"Unauthorized\",\n  \"message\": \"Token ausente, inválido o expirado\",\n  \"path\": \"/api/v1/admin/stats\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         }
       ]
     },
     {
       "name": "14. Seguridad y errores",
-      "description": "",
+      "description": "Casos transversales de seguridad y manejo de errores: 401 sin token o con token inválido, 403 por falta de vínculo (incluido el intento de IDOR por id), 409 por reglas de negocio, 400 por JSON malformado y 404 en rutas inexistentes. Todas las respuestas usan el mismo ErrorResponseDTO.",
       "item": [
         {
           "name": "Sin token → 401",
@@ -6046,7 +7678,7 @@
                 "me"
               ]
             },
-            "description": "",
+            "description": "Un JWT mal formado o con firma inválida responde 401: JwtAuthenticationFilter no autentica la petición.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -6069,7 +7701,48 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/users/me",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "me"
+                  ]
+                },
+                "description": "Un JWT mal formado o con firma inválida responde 401: JwtAuthenticationFilter no autentica la petición.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{invalidToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:15.685278739Z\",\n  \"status\": 401,\n  \"error\": \"Unauthorized\",\n  \"message\": \"Token ausente, inválido o expirado\",\n  \"path\": \"/api/v1/users/me\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "[Carla] Persona ajena → 403",
@@ -6170,7 +7843,7 @@
                 "care-subjects"
               ]
             },
-            "description": "",
+            "description": "Carla no tiene vínculos: su lista de personas sale vacía. El filtrado ocurre en la consulta a la base (solo vínculos ACTIVE del usuario), no en memoria.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -6194,7 +7867,47 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects"
+                  ]
+                },
+                "description": "Carla no tiene vínculos: su lista de personas sale vacía. El filtrado ocurre en la consulta a la base (solo vínculos ACTIVE del usuario), no en memoria.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{carlaAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[]"
+            }
+          ]
         },
         {
           "name": "[Carla] Registro ajeno por id (IDOR) → 403",
@@ -6215,7 +7928,7 @@
                 "{{healthEntryId}}"
               ]
             },
-            "description": "",
+            "description": "Intento de IDOR: Carla conoce el id de un registro ajeno y lo pide directamente. El servicio valida el vínculo con la persona y responde 403.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -6238,7 +7951,50 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries/{{healthEntryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries",
+                    "{{healthEntryId}}"
+                  ]
+                },
+                "description": "Intento de IDOR: Carla conoce el id de un registro ajeno y lo pide directamente. El servicio valida el vínculo con la persona y responde 403.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{carlaAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:15.790172125Z\",\n  \"status\": 403,\n  \"error\": \"Forbidden\",\n  \"message\": \"No tienes acceso a esta persona\",\n  \"path\": \"/api/v1/care-subjects/9/health-entries/15\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "[Carla] Bitácora ajena → 403",
@@ -6258,7 +8014,7 @@
                 "access-logs"
               ]
             },
-            "description": "",
+            "description": "La bitácora también está protegida por vínculo: un usuario sin acceso a la persona recibe 403.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -6281,7 +8037,49 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/access-logs",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "access-logs"
+                  ]
+                },
+                "description": "La bitácora también está protegida por vínculo: un usuario sin acceso a la persona recibe 403.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{carlaAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:15.830228081Z\",\n  \"status\": 403,\n  \"error\": \"Forbidden\",\n  \"message\": \"Se requiere rol PRINCIPAL sobre esta persona\",\n  \"path\": \"/api/v1/care-subjects/9/access-logs\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "[Bruno] Borrar persona sin ser PRINCIPAL → 403",
@@ -6300,7 +8098,7 @@
                 "{{careSubjectId}}"
               ]
             },
-            "description": "",
+            "description": "Solo la PRINCIPAL puede eliminar a la persona a cargo; un CAREGIVER recibe 403.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -6323,7 +8121,48 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}"
+                  ]
+                },
+                "description": "Solo la PRINCIPAL puede eliminar a la persona a cargo; un CAREGIVER recibe 403.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{brunoAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:15.879373744Z\",\n  \"status\": 403,\n  \"error\": \"Forbidden\",\n  \"message\": \"Se requiere rol PRINCIPAL sobre esta persona\",\n  \"path\": \"/api/v1/care-subjects/9\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Borrar persona con historial → 409",
@@ -6404,7 +8243,7 @@
                 "care-subjects"
               ]
             },
-            "description": ""
+            "description": "Un body que no es JSON válido lo captura HttpMessageNotReadableException en el GlobalExceptionHandler: responde 400, nunca 500."
           },
           "event": [
             {
@@ -6426,7 +8265,37 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects"
+                  ]
+                },
+                "description": "Un body que no es JSON válido lo captura HttpMessageNotReadableException en el GlobalExceptionHandler: responde 400, nunca 500."
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:15.964410383Z\",\n  \"status\": 400,\n  \"error\": \"Bad Request\",\n  \"message\": \"Cuerpo de la petición inválido o mal formado\",\n  \"path\": \"/api/v1/care-subjects\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Ruta inexistente → 404",
@@ -6444,7 +8313,7 @@
                 "no-existe"
               ]
             },
-            "description": ""
+            "description": "Una ruta que no existe responde 404 con ErrorResponseDTO (NoResourceFoundException), no con la página HTML por defecto."
           },
           "event": [
             {
@@ -6457,7 +8326,37 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/no-existe",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "no-existe"
+                  ]
+                },
+                "description": "Una ruta que no existe responde 404 con ErrorResponseDTO (NoResourceFoundException), no con la página HTML por defecto."
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"timestamp\": \"2026-09-26T02:34:16.003408437Z\",\n  \"status\": 404,\n  \"error\": \"Not Found\",\n  \"message\": \"Ruta no encontrada\",\n  \"path\": \"/api/v1/no-existe\",\n  \"fieldErrors\": null\n}"
+            }
+          ]
         },
         {
           "name": "Health check (público)",
@@ -6474,7 +8373,7 @@
                 "health"
               ]
             },
-            "description": "",
+            "description": "Endpoint público de Spring Actuator. Lo usa el workflow de despliegue para comprobar que la API quedó arriba (status UP).",
             "auth": {
               "type": "noauth"
             }
@@ -6490,7 +8389,39 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/actuator/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "actuator",
+                    "health"
+                  ]
+                },
+                "description": "Endpoint público de Spring Actuator. Lo usa el workflow de despliegue para comprobar que la API quedó arriba (status UP).",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"groups\": [\n    \"liveness\",\n    \"readiness\"\n  ],\n  \"status\": \"UP\"\n}"
+            }
+          ]
         },
         {
           "name": "Revocar a un cuidador",
@@ -6513,7 +8444,35 @@
             },
             "description": "Solo el PRINCIPAL puede revocar. Se deja al final porque a partir de aquí Bruno pierde el acceso."
           },
-          "response": [],
+          "response": [
+            {
+              "name": "204 No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/relationships/{{relationshipId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "relationships",
+                    "{{relationshipId}}"
+                  ]
+                },
+                "description": "Solo el PRINCIPAL puede revocar. Se deja al final porque a partir de aquí Bruno pierde el acceso."
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "text",
+              "header": [],
+              "body": ""
+            }
+          ],
           "event": [
             {
               "listen": "test",
@@ -7050,7 +9009,53 @@
               }
             }
           ],
-          "response": []
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"categoryCode\": \"MEDICATION\",\n  \"title\": \"Metformina\",\n  \"dose\": \"850 mg\",\n  \"frequency\": \"cada 12 horas\",\n  \"confidenceLevel\": \"CONFIRMED\",\n  \"sourceAttachmentId\": {{attachmentId}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/care-subjects/{{careSubjectId}}/health-entries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "care-subjects",
+                    "{{careSubjectId}}",
+                    "health-entries"
+                  ]
+                },
+                "description": "El cuidador lee el texto extraído y registra el dato a mano. sourceAttachmentId enlaza esta versión con la foto que la respalda; si el adjunto es de otra persona responde 400."
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 18,\n  \"careSubjectId\": 9,\n  \"categoryCode\": \"MEDICATION\",\n  \"categoryName\": \"Medicación\",\n  \"createdBy\": {\n    \"id\": 13,\n    \"name\": \"Ana Torres Vega\"\n  },\n  \"createdAt\": \"2026-09-26T02:34:16.280005520Z\",\n  \"deletedAt\": null,\n  \"latestVersion\": {\n    \"id\": 25,\n    \"versionNumber\": 1,\n    \"changeType\": \"CREATED\",\n    \"title\": \"Metformina\",\n    \"details\": null,\n    \"dose\": \"850 mg\",\n    \"frequency\": \"cada 12 horas\",\n    \"occurredOn\": null,\n    \"confidenceLevel\": \"CONFIRMED\",\n    \"notes\": null,\n    \"declaredBy\": {\n      \"id\": 13,\n      \"name\": \"Ana Torres Vega\"\n    },\n    \"declaredAt\": \"2026-09-26T02:34:16.281508795Z\",\n    \"sourceAttachmentId\": null\n  }\n}"
+            }
+          ]
         }
       ]
     }
