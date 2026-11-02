@@ -7,10 +7,12 @@ import com.yuyay.care.entity.CareRole;
 import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import com.yuyay.common.Pagination;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -21,7 +23,7 @@ public class AccessLogService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
 
-    public List<AccessLogResponseDTO> list(Long careSubjectId) {
+    public Page<AccessLogResponseDTO> list(Long careSubjectId, Pageable pageable) {
 
         Long currentUserId = currentUserService.getCurrentUserId();
 
@@ -32,10 +34,8 @@ public class AccessLogService {
         );
 
         return accessLogRepository
-                .findByCareSubjectIdOrderByOccurredAtDesc(careSubjectId)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+                .findByCareSubjectId(careSubjectId, Pagination.stable(pageable, "occurredAt"))
+                .map(this::toResponse);
     }
 
     private AccessLogResponseDTO toResponse(AccessLog accessLog) {

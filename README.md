@@ -1,5 +1,7 @@
 # Yuyay — Registro de salud compartido entre cuidadores
 
+Guía de integración del bloque backend: [paginación, CORS y enlaces web](docs/frontend-integration.md).
+
 **Curso:** CS2031 · Desarrollo Basado en Plataformas · Universidad de Ingeniería y Tecnología (UTEC)
 **Sección:** Laboratorio 11 · Grupo 3
 

@@ -4,9 +4,12 @@ import com.yuyay.notification.dto.NotificationResponseDTO;
 import com.yuyay.notification.dto.UnreadCountDTO;
 import com.yuyay.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import com.yuyay.common.PageResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -16,8 +19,10 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @GetMapping
-    public List<NotificationResponseDTO> list() {
-        return notificationService.list();
+    public PageResponse<NotificationResponseDTO> list(
+            @RequestParam(required = false) Boolean unread,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return PageResponse.from(notificationService.list(unread, pageable));
     }
 
     @GetMapping("/unread-count")

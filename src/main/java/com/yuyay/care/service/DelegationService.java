@@ -76,7 +76,7 @@ public class DelegationService {
                 .categories(categories)
                 .build());
 
-        String shareLink = properties.baseUrl() + "/public/delegations/" + rawToken;
+        String shareLink = properties.frontendUrl() + "/acceso/" + rawToken;
         eventPublisher.publishEvent(new DelegationCreatedEvent(delegation.getId(), shareLink));
 
         return new DelegationCreatedResponse(mapper.toResponse(delegation), rawToken, shareLink);

@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.frontend-url=https://web.yuyay.example/")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DelegationIntegrationTest {
@@ -47,6 +47,8 @@ class DelegationIntegrationTest {
     @Test
     void principalCreatesDelegationAndTokenIsReturnedOnce() throws Exception {
         JsonNode created = createDelegation("MEDICATION");
+        org.junit.jupiter.api.Assertions.assertEquals("https://web.yuyay.example/acceso/" + created.get("token").asText(),
+                created.get("shareLink").asText());
 
         mvc.perform(get("/api/v1/care-subjects/" + subjectId + "/delegations").header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isOk())
