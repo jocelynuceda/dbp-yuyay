@@ -80,7 +80,7 @@ El costo es directo: prescripciones duplicadas, interacciones no detectadas y ex
 
 ### Tecnologías utilizadas
 
-Java 17 y **Spring Boot 4.1.1** (Web MVC, Data JPA con Hibernate 7, Security 7, Bean Validation), **PostgreSQL** (16 en desarrollo, 18 en RDS), **MapStruct**, **Lombok**, **JJWT**, **Thymeleaf** para plantillas de correo y **Resend** como servicio de envío. Los adjuntos se almacenan en **AWS S3** y su texto se extrae con **AWS Textract**. El entorno local usa **Docker Compose**, la integración continua **GitHub Actions** y el despliegue **AWS (EC2 + RDS)**. Las pruebas usan JUnit 5, MockMvc y H2 en memoria.
+Java 26 y **Spring Boot 4.1.1** (Web MVC, Data JPA con Hibernate 7, Security 7, Bean Validation), **PostgreSQL** (16 en desarrollo, 18 en RDS), **MapStruct**, **Lombok**, **JJWT**, **Thymeleaf** para plantillas de correo y **Resend** como servicio de envío. Los adjuntos se almacenan en **AWS S3** y su texto se extrae con **AWS Textract**. El entorno local usa **Docker Compose**, la integración continua **GitHub Actions** y el despliegue **AWS (EC2 + RDS)**. Las pruebas usan JUnit 5, MockMvc y H2 en memoria.
 
 ### Arquitectura
 

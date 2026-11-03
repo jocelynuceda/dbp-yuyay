@@ -15,7 +15,7 @@
     <description>Yuyay - registro de salud compartido entre cuidadores (CS2031 DBP)</description>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>26</java.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>3.1.1</springdoc.version>
