@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Consultas médicas: CRUD del PRINCIPAL, fecha no futura, permisos por rol
+ * Consultas médicas: CRUD del PRINCIPAL, fechas pasadas, presentes y futuras, permisos por rol
  * y /changes con los registros de salud declarados desde la consulta.
  */
 @SpringBootTest
@@ -71,12 +71,23 @@ class ConsultationIntegrationTest {
     }
 
     @Test
-    void futureDateOrMissingReasonReturns400() throws Exception {
-        send(post(consultations), anaToken, consultation(LocalDate.now().plusDays(1), "Control"), 400);
-        send(post(consultations), anaToken, consultation(LocalDate.now(), ""), 400);
+    void futureDatesAreAcceptedOnCreateAndUpdate() throws Exception {
+        LocalDate future = LocalDate.now().plusDays(7);
+        JsonNode created = send(post(consultations), anaToken, consultation(future, "Control programado"), 201);
+        assertEquals(future.toString(), created.get("date").asText());
+        long id = created.get("id").asLong();
+        LocalDate rescheduled = future.plusDays(1);
+        JsonNode updated = send(patch("/api/v1/consultations/" + id), anaToken,
+                "{\"date\":\"" + rescheduled + "\"}", 200);
+        assertEquals(rescheduled.toString(), updated.get("date").asText());
+        assertEquals(rescheduled.toString(), send(get("/api/v1/consultations/" + id), anaToken, null, 200).get("date").asText());
+    }
 
-        long id = send(post(consultations), anaToken, consultation(LocalDate.now(), "Control"), 201).get("id").asLong();
-        send(patch("/api/v1/consultations/" + id), anaToken, "{\"date\":\"" + LocalDate.now().plusDays(1) + "\"}", 400);
+    @Test
+    void missingDateBlankReasonAndMalformedDateRemainInvalid() throws Exception {
+        send(post(consultations), anaToken, "{\"reason\":\"Control\"}", 400);
+        send(post(consultations), anaToken, consultation(LocalDate.now(), ""), 400);
+        send(post(consultations), anaToken, "{\"date\":\"invalid\",\"reason\":\"Control\"}", 400);
     }
 
     @Test

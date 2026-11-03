@@ -81,7 +81,7 @@ class HealthIntegrationTest {
 
         send(delete(entries + "/" + entryId), anaToken, null, 204);
 
-        assertEquals(0, send(get(entries), anaToken, null, 200).size());
+        assertEquals(0, send(get(entries), anaToken, null, 200).get("content").size());
         send(get(entries + "/" + entryId), anaToken, null, 404);
         JsonNode versions = send(get(entries + "/" + entryId + "/versions"), anaToken, null, 200);
         assertEquals(2, versions.size());
@@ -93,10 +93,10 @@ class HealthIntegrationTest {
         send(post(entries), anaToken, "{\"categoryCode\":\"ALLERGY\",\"title\":\"Penicilina\",\"confidenceLevel\":\"CONFIRMED\"}", 201);
         send(post(entries), anaToken, "{\"categoryCode\":\"CONDITION\",\"title\":\"Hipertensión\",\"confidenceLevel\":\"CONFIRMED\"}", 201);
 
-        JsonNode allergies = send(get(entries).param("category", "ALLERGY"), anaToken, null, 200);
+        JsonNode allergies = send(get(entries).param("category", "ALLERGY"), anaToken, null, 200).get("content");
         assertEquals(1, allergies.size());
         assertEquals("ALLERGY", allergies.get(0).get("categoryCode").asText());
-        assertEquals(2, send(get(entries), anaToken, null, 200).size());
+        assertEquals(2, send(get(entries), anaToken, null, 200).get("content").size());
     }
 
     @Test

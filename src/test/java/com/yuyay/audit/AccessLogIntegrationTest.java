@@ -93,7 +93,7 @@ class AccessLogIntegrationTest {
             Thread.sleep(100);
             JsonNode all = send(get("/api/v1/care-subjects/" + subjectId + "/access-logs"), anaToken, null, 200);
             List<JsonNode> found = new ArrayList<>();
-            all.forEach(l -> {
+            all.get("content").forEach(l -> {
                 if ("HEALTH_ENTRY".equals(l.get("targetType").asText())) found.add(l);
             });
             logs = found;

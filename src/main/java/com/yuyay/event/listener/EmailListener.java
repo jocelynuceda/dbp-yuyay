@@ -47,7 +47,7 @@ public class EmailListener {
             }
 
             String nombreSujeto = rel.getCareSubject().getName();
-            String enlace = "%s/invitations/%d".formatted(appProperties.baseUrl(), rel.getId());
+            String enlace = "%s/invitaciones/%d".formatted(appProperties.frontendUrl(), rel.getId());
 
             emailService.sendTemplate(
                     rel.getUser().getEmail(),
@@ -109,7 +109,7 @@ public class EmailListener {
                     "welcome",
                     Map.of(
                             "userName", user.getName(),
-                            "appLink", appProperties.baseUrl()
+                            "appLink", appProperties.frontendUrl()
                     ));
         } catch (Exception e) {
             log.error("Fallo enviando bienvenida al usuario {}", event.userId(), e);

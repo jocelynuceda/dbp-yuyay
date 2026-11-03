@@ -4,6 +4,10 @@ import com.yuyay.health.dto.*;
 import com.yuyay.health.service.HealthEntryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import com.yuyay.common.PageResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,10 +29,11 @@ public class HealthEntryController {
     }
 
     @GetMapping
-    public List<HealthEntryResponse> list(
+    public PageResponse<HealthEntryResponse> list(
             @PathVariable Long subjectId,
-            @RequestParam(required = false) String category) {
-        return service.list(subjectId, category);
+            @RequestParam(required = false) String category,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return PageResponse.from(service.list(subjectId, category, pageable));
     }
 
     @GetMapping("/{entryId}")

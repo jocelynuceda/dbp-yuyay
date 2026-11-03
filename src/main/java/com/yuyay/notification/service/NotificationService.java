@@ -8,11 +8,13 @@ import com.yuyay.notification.mapper.NotificationMapper;
 import com.yuyay.notification.repository.NotificationRepository;
 import com.yuyay.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import com.yuyay.common.Pagination;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -24,11 +26,14 @@ public class NotificationService {
     private final CurrentUserService currentUserService;
 
     @Transactional(readOnly = true)
-    public List<NotificationResponseDTO> list() {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(currentUserService.getCurrentUserId())
-                .stream()
-                .map(notificationMapper::toResponse)
-                .toList();
+    public Page<NotificationResponseDTO> list(Boolean unread, Pageable pageable) {
+        Long userId = currentUserService.getCurrentUserId();
+        pageable = Pagination.stable(pageable, "createdAt");
+        Page<Notification> notifications = unread == null
+                ? notificationRepository.findByUserId(userId, pageable)
+                : unread ? notificationRepository.findByUserIdAndReadAtIsNull(userId, pageable)
+                : notificationRepository.findByUserIdAndReadAtIsNotNull(userId, pageable);
+        return notifications.map(notificationMapper::toResponse);
     }
 
     @Transactional(readOnly = true)

@@ -8,10 +8,15 @@ import java.util.List;
 public record AppProperties(
         Jwt jwt,
         String baseUrl,
+        String frontendUrl,
         Cors cors,
         Mail mail,
         Admin admin
 ) {
+    public AppProperties {
+        if (frontendUrl != null) frontendUrl = frontendUrl.replaceAll("/+$", "");
+    }
+
     public record Jwt(String secret, long accessExpirationMinutes, long refreshExpirationDays) {}
     public record Cors(List<String> allowedOrigins) {}
     public record Mail(String from, String resendApiKey) {}

@@ -61,7 +61,7 @@ class HealthEntryDoseRuleTest {
 
         mvc.perform(get(entriesPath).header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.content.length()").value(0));
     }
 
     @Test

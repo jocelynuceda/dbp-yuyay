@@ -118,7 +118,7 @@ class AttachmentIntegrationTest {
         mvc.perform(get("/api/v1/care-subjects/" + subjectId + "/health-entries")
                         .header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.content.length()").value(0));
     }
 
     @Test

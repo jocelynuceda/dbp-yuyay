@@ -3,6 +3,8 @@ package com.yuyay.health.repository;
 import com.yuyay.health.entity.HealthEntry;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.Collection;
@@ -10,6 +12,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface HealthEntryRepository extends JpaRepository<HealthEntry, Long> {
+    @EntityGraph(attributePaths = {"category", "createdBy"})
+    Page<HealthEntry> findByCareSubjectIdAndDeletedAtIsNull(Long careSubjectId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"category", "createdBy"})
+    Page<HealthEntry> findByCareSubjectIdAndCategoryCodeAndDeletedAtIsNull(Long careSubjectId, String categoryCode, Pageable pageable);
+
     @EntityGraph(attributePaths = {"category", "createdBy"})
     List<HealthEntry> findByCareSubjectIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long careSubjectId);
 

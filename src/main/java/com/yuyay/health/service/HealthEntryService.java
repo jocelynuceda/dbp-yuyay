@@ -23,6 +23,9 @@ import com.yuyay.user.repository.UserRepository;
 import com.yuyay.event.AccessRecordedEvent;
 import com.yuyay.event.HealthEntryChangedEvent;
 import lombok.RequiredArgsConstructor;
+import com.yuyay.common.Pagination;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,23 +90,23 @@ public class HealthEntryService {
     }
 
     @Transactional(readOnly = true)
-    public List<HealthEntryResponse> list(Long subjectId, String categoryCode) {
+    public Page<HealthEntryResponse> list(Long subjectId, String categoryCode, Pageable pageable) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireAccess(meId, subjectId);
 
-        List<HealthEntry> entries = (categoryCode == null || categoryCode.isBlank())
-                ? entryRepo.findByCareSubjectIdAndDeletedAtIsNullOrderByCreatedAtDesc(subjectId)
-                : entryRepo.findByCareSubjectIdAndCategoryCodeAndDeletedAtIsNullOrderByCreatedAtDesc(subjectId, categoryCode);
+        pageable = Pagination.stable(pageable, "createdAt");
+        Page<HealthEntry> entries = (categoryCode == null || categoryCode.isBlank())
+                ? entryRepo.findByCareSubjectIdAndDeletedAtIsNull(subjectId, pageable)
+                : entryRepo.findByCareSubjectIdAndCategoryCodeAndDeletedAtIsNull(subjectId, categoryCode, pageable);
 
-        return entries.stream()
+        return entries
                 .map(e -> {
                     HealthEntryVersion latest = versionRepo
                             .findFirstByHealthEntryIdOrderByVersionNumberDesc(e.getId())
                             .orElse(null);
                     return entryMapper.toResponse(e,
                             latest == null ? null : versionMapper.toResponse(latest));
-                })
-                .toList();
+                });
     }
 
     @Transactional(readOnly = true)
