@@ -11,11 +11,6 @@ public class LoggingEmailSender implements EmailSender {
 
     @Override
     public void send(String to, String subject, String html) {
-        log.info(
-                "EMAIL SIMULADO -> destinatario: {}, asunto: {}, contenido: {}",
-                to,
-                subject,
-                html
-        );
+        log.info("Correo simulado. Proveedor de correo desactivado en este perfil.");
     }
 }

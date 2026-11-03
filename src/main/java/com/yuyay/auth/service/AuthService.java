@@ -22,6 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -56,7 +57,8 @@ public class AuthService {
     public AuthResponseDTO login(LoginRequestDTO dto) {
         User user = userRepository.findByEmailIgnoreCase(dto.email())
                 .orElseThrow(() -> new InvalidCredentialsException("Email o contraseña incorrectos"));
-        if (!passwordEncoder.matches(dto.password(), user.getPasswordHash())) {
+        if (dto.password().getBytes(StandardCharsets.UTF_8).length > 72
+                || !passwordEncoder.matches(dto.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("Email o contraseña incorrectos");
         }
         return issueTokens(user);
