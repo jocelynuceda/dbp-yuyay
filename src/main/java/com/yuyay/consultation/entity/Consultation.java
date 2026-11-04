@@ -10,6 +10,7 @@ import lombok.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "consultations", indexes = @Index(name = "idx_consultation_subject_date", columnList = "care_subject_id, date"))
@@ -34,6 +35,10 @@ public class Consultation {
     @NotNull
     @Column(nullable = false)
     private LocalDate date;
+
+    // Opcional: una cita puede registrarse sin hora
+    @Column(name = "appointment_time")
+    private LocalTime time;
 
     @NotBlank
     @Size(max = 200)

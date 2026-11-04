@@ -9,5 +9,6 @@ public record DelegateMeResponse(
         String careSubjectName,
         String granteeName,
         Set<String> categoryCodes,
+        boolean includeConsultations,
         Instant validUntil
 ) {}

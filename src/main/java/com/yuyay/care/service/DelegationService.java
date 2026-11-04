@@ -63,6 +63,10 @@ public class DelegationService {
                 .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
         User me = userRepo.findById(meId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        boolean includeConsultations = Boolean.TRUE.equals(req.includeConsultations());
+        if (req.categoryCodes().isEmpty() && !includeConsultations) {
+            throw new InvalidDelegationException("Elige al menos una categoría o las citas");
+        }
         Set<HealthCategory> categories = resolveCategories(req.categoryCodes());
 
         String rawToken = TokenHasher.randomToken();
@@ -74,6 +78,7 @@ public class DelegationService {
                 .tokenHash(TokenHasher.sha256(rawToken))
                 .validUntil(req.validUntil())
                 .categories(categories)
+                .includeConsultations(includeConsultations)
                 .build());
 
         String shareLink = properties.frontendUrl() + "/acceso/" + rawToken;
@@ -124,7 +129,8 @@ public class DelegationService {
                 subject.getId(), delegation.getId(), AccessAction.EXCHANGE_DELEGATION, "DELEGATION", delegation.getId()));
 
         return new DelegateSessionResponse(jwt, "Bearer", delegation.getValidUntil(),
-                subject.getId(), subject.getName(), delegation.getGranteeName(), codesOf(delegation));
+                subject.getId(), subject.getName(), delegation.getGranteeName(), codesOf(delegation),
+                delegation.isIncludeConsultations());
     }
 
     @Transactional(readOnly = true)
@@ -135,7 +141,8 @@ public class DelegationService {
         CareSubject subject = delegation.getCareSubject();
 
         return new DelegateMeResponse(delegation.getId(), subject.getId(), subject.getName(),
-                delegation.getGranteeName(), codesOf(delegation), delegation.getValidUntil());
+                delegation.getGranteeName(), codesOf(delegation), delegation.isIncludeConsultations(),
+                delegation.getValidUntil());
     }
 
     private Set<HealthCategory> resolveCategories(Set<String> codes) {

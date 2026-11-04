@@ -10,5 +10,6 @@ public record DelegateSessionResponse(
         Long careSubjectId,
         String careSubjectName,
         String granteeName,
-        Set<String> categoryCodes
+        Set<String> categoryCodes,
+        boolean includeConsultations
 ) {}

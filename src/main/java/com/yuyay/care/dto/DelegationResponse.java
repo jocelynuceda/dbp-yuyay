@@ -11,6 +11,7 @@ public record DelegationResponse(
         String granteeName,
         String granteeEmail,
         Set<String> categoryCodes,
+        boolean includeConsultations,
         Instant validUntil,
         Instant exchangedAt,
         Instant revokedAt,
