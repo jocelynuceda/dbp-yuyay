@@ -1,7 +1,10 @@
 package com.yuyay.attachment;
 
+import com.yuyay.attachment.dto.AttachmentAccessResponse;
+import com.yuyay.attachment.entity.OcrStatus;
 import com.yuyay.attachment.exception.FileStorageException;
 import com.yuyay.attachment.ocr.TextExtractor;
+import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.storage.FileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,10 +19,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -31,9 +41,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -49,6 +62,7 @@ class AttachmentIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired AttachmentRepository attachmentRepository;
 
     @MockitoBean FileStorage fileStorage;
     @MockitoBean TextExtractor textExtractor;
@@ -154,7 +168,7 @@ class AttachmentIntegrationTest {
         long id = upload(subjectId, ownerToken, "receta.png", "image/png", FAKE_PNG, 201).get("id").asLong();
         JsonNode failed = awaitOcr(subjectId, id);
         assertEquals("FAILED", failed.get("ocrStatus").asText());
-        assertTrue(failed.get("ocrError").asText().contains("Textract no disponible"));
+        assertEquals("No se pudo extraer el texto. Puedes reintentar el OCR.", failed.get("ocrError").asText());
 
         mvc.perform(post(url(subjectId) + "/" + id + "/ocr-retry").header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isAccepted())
@@ -176,16 +190,32 @@ class AttachmentIntegrationTest {
     }
 
     @Test
-    void longOcrErrorIsTruncatedToFitTheColumn() throws Exception {
-        when(textExtractor.extractText(anyString())).thenThrow(new RuntimeException("x".repeat(2000)));
+    void sensitiveOcrErrorIsReplacedWithSafeMessage() throws Exception {
+        when(textExtractor.extractText(anyString())).thenThrow(new RuntimeException("AWS request, bucket and credentials: " + "x".repeat(2000)));
         long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
 
         JsonNode failed = awaitOcr(subjectId, id);
         assertEquals("FAILED", failed.get("ocrStatus").asText());
-        assertEquals(500, failed.get("ocrError").asText().length());
+        assertEquals("No se pudo extraer el texto. Puedes reintentar el OCR.", failed.get("ocrError").asText());
     }
 
     // ---------- Fallos de S3 ----------
+
+    @Test
+    void historicalRawOcrErrorIsSanitizedOnDetailAndList() throws Exception {
+        long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        awaitOcr(subjectId, id);
+        var attachment = attachmentRepository.findById(id).orElseThrow();
+        attachment.setOcrStatus(OcrStatus.FAILED);
+        attachment.setOcrError("AWS historical bucket, endpoint and request details");
+        attachmentRepository.saveAndFlush(attachment);
+        mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ocrError").value("No se pudo extraer el texto. Puedes reintentar el OCR."));
+        mvc.perform(get(url(subjectId)).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].ocrError").value("No se pudo extraer el texto. Puedes reintentar el OCR."));
+    }
 
     @Test
     void storageFailureReturns502AndLeavesNoRecord() throws Exception {
@@ -276,12 +306,31 @@ class AttachmentIntegrationTest {
                 .get("id").asLong();
 
         upload(subjectId, brunoToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 403);
+        mvc.perform(get(url(subjectId) + "/1/access").header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete(url(subjectId) + "/1").header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isForbidden());
 
         mvc.perform(post("/api/v1/me/relationships/" + relationshipId + "/accept")
                         .header("Authorization", "Bearer " + brunoToken))
                 .andExpect(status().isOk());
 
-        upload(subjectId, brunoToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201);
+        long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        awaitOcr(subjectId, id);
+        when(fileStorage.createAccess(anyString(), anyString(), any(Duration.class)))
+                .thenReturn(new AttachmentAccessResponse("https://example.invalid/temporary", Instant.now().plusSeconds(300)));
+        mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isOk());
+        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isNoContent());
+        long remainingId = upload(subjectId, brunoToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        awaitOcr(subjectId, remainingId);
+        mvc.perform(delete("/api/v1/care-subjects/" + subjectId + "/relationships/" + relationshipId)
+                        .header("Authorization", "Bearer " + ownerToken)).andExpect(status().isNoContent());
+        mvc.perform(get(url(subjectId) + "/" + remainingId + "/access").header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete(url(subjectId) + "/" + remainingId).header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -290,6 +339,132 @@ class AttachmentIntegrationTest {
 
         mvc.perform(get(url(otherSubjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void accessReturnsTemporaryUrlWithoutCachingAndKeepsListContract() throws Exception {
+        long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        Instant expiresAt = Instant.parse("2030-01-01T00:05:00Z");
+        when(fileStorage.createAccess(anyString(), eq("image/jpeg"), eq(Duration.ofMinutes(5))))
+                .thenReturn(new AttachmentAccessResponse("https://example.invalid/temporary", expiresAt));
+        mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(jsonPath("$.url").value("https://example.invalid/temporary"))
+                .andExpect(jsonPath("$.expiresAt").value(expiresAt.toString()));
+        verify(fileStorage).createAccess(startsWith("care-subjects/" + subjectId + "/"), eq("image/jpeg"), eq(Duration.ofMinutes(5)));
+        mvc.perform(get(url(subjectId)).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].url").doesNotExist());
+    }
+
+    @Test
+    void accessFailureReturnsSafe502() throws Exception {
+        long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        when(fileStorage.createAccess(anyString(), anyString(), any(Duration.class)))
+                .thenThrow(new FileStorageException("No se pudo abrir el archivo"));
+        mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.message").value("No se pudo abrir el archivo"));
+    }
+
+    @Test
+    void accessAndDeleteEnforceAuthenticationMembershipAndSubjectScope() throws Exception {
+        long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        mvc.perform(get(url(subjectId) + "/" + id + "/access")).andExpect(status().isUnauthorized());
+        mvc.perform(delete(url(subjectId) + "/" + id)).andExpect(status().isUnauthorized());
+        mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + strangerToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + strangerToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(url(otherSubjectId) + "/" + id + "/access").header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete(url(otherSubjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+        verify(fileStorage, never()).createAccess(anyString(), anyString(), any(Duration.class));
+        verify(fileStorage, never()).deleteRequired(anyString());
+    }
+
+    @Test
+    void deleteRemovesFileMetadataAndSubsequentAccess() throws Exception {
+        long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        awaitOcr(subjectId, id);
+        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+        verify(fileStorage).deleteRequired(startsWith("care-subjects/" + subjectId + "/"));
+        mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(url(subjectId)).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void failedDeleteRollsBackMetadataAndAllowsRetry() throws Exception {
+        long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        awaitOcr(subjectId, id);
+        org.mockito.Mockito.doThrow(new FileStorageException("No se pudo eliminar el archivo"))
+                .doNothing().when(fileStorage).deleteRequired(anyString());
+        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.message").value("No se pudo eliminar el archivo"));
+        mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.originalFilename").value("receta.jpg"));
+        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void evidenceCannotBeDeletedAndSurvivesHealthEntryEdit() throws Exception {
+        long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        awaitOcr(subjectId, id);
+        long entryId = postJson("/api/v1/care-subjects/" + subjectId + "/health-entries", ownerToken,
+                entryBody(id), 201).get("id").asLong();
+        mvc.perform(patch("/api/v1/care-subjects/" + subjectId + "/health-entries/" + entryId)
+                        .header("Authorization", "Bearer " + ownerToken).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Metformina actualizada\",\"dose\":\"850 mg\",\"confidenceLevel\":\"CONFIRMED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latestVersion.sourceAttachmentId").value(id));
+        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isConflict());
+        verify(fileStorage, never()).deleteRequired(anyString());
+        mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void deleteWaitsForOcrAndOcrCannotRestoreDeletedMetadata() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch finish = new CountDownLatch(1);
+        when(textExtractor.extractText(anyString())).thenAnswer(invocation -> {
+            entered.countDown();
+            if (!finish.await(10, TimeUnit.SECONDS)) throw new AssertionError("No se liberó el OCR de prueba");
+            return "texto";
+        });
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            CountDownLatch deleteStarted = new CountDownLatch(1);
+            var deletion = executor.submit(() -> {
+                deleteStarted.countDown();
+                return mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                        .andReturn().getResponse().getStatus();
+            });
+            assertTrue(deleteStarted.await(2, TimeUnit.SECONDS));
+            assertThrows(TimeoutException.class, () -> deletion.get(250, TimeUnit.MILLISECONDS));
+            verify(fileStorage, never()).deleteRequired(anyString());
+            finish.countDown();
+            assertEquals(204, deletion.get(5, TimeUnit.SECONDS));
+            mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isNotFound());
+        } finally {
+            finish.countDown();
+            executor.shutdownNow();
+        }
     }
 
     // ---------- Helpers ----------

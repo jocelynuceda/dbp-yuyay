@@ -91,3 +91,9 @@ HTTPS está activo en producción. Quedan datos demo, medición de latencia y de
 funcional. El listado
 de salud conserva la consulta existente de última versión por registro (N+1), ahora limitada al
 tamaño de página; optimizarla y medir latencia corresponde a la revisión de rendimiento del plan.
+
+## Acceso y borrado de adjuntos
+
+Ver [contrato de adjuntos privados](attachment-access.md) para abrir imágenes/PDF con
+un enlace temporal de cinco minutos, eliminar adjuntos sin referencias y manejar
+403/404/409/502. La edición clínica conserva su evidencia original.
