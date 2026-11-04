@@ -32,7 +32,8 @@ public class DataSeeder {
                     HealthCategory.builder().code(HealthCategory.CONDITION).name("Condición").description("Diagnósticos y condiciones persistentes").build(),
                     HealthCategory.builder().code(HealthCategory.MEDICATION).name("Medicación").description("Medicamentos con dosis y frecuencia").build(),
                     HealthCategory.builder().code(HealthCategory.IMMUNIZATION).name("Vacuna").description("Vacunas aplicadas").build(),
-                    HealthCategory.builder().code(HealthCategory.EPISODE).name("Episodio").description("Crisis, urgencias u otros eventos puntuales").build()
+                    HealthCategory.builder().code(HealthCategory.EPISODE).name("Episodio").description("Crisis, urgencias u otros eventos puntuales").build(),
+                    HealthCategory.builder().code(HealthCategory.EXAM_RESULT).name("Examen").description("Resultados de exámenes ya realizados").build()
             );
             for (HealthCategory c : seed) {
                 if (categories.findByCode(c.getCode()).isEmpty()) {

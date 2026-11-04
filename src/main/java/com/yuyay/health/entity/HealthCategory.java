@@ -17,6 +17,7 @@ public class HealthCategory {
     public static final String MEDICATION = "MEDICATION";
     public static final String IMMUNIZATION = "IMMUNIZATION";
     public static final String EPISODE = "EPISODE";
+    public static final String EXAM_RESULT = "EXAM_RESULT";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
