@@ -46,6 +46,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -71,6 +72,7 @@ class AttachmentIntegrationTest {
     private static final byte[] FAKE_JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 1, 2, 3};
     private static final byte[] FAKE_PNG = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2};
     private static final byte[] FAKE_PDF = "%PDF-1.7\n%fake".getBytes();
+    private static final byte[] FAKE_M4A = {0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4D, 0x34, 0x41, 0x20};
 
     private String ownerToken;
     private String strangerToken;
@@ -331,6 +333,90 @@ class AttachmentIntegrationTest {
                 .andExpect(status().isForbidden());
         mvc.perform(delete(url(subjectId) + "/" + remainingId).header("Authorization", "Bearer " + brunoToken))
                 .andExpect(status().isForbidden());
+    }
+
+    // ---------- Audio, descarga y borrado ----------
+
+    @Test
+    void audioIsStoredWithoutRunningOcr() throws Exception {
+        JsonNode created = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201);
+
+        assertEquals("DONE", created.get("ocrStatus").asText());
+        verify(fileStorage).store(matches(".*\\.m4a$"), any(byte[].class), eq("audio/mp4"));
+        verifyNoInteractions(textExtractor);
+    }
+
+    @Test
+    void audioWithWrongSignatureIsRejected() throws Exception {
+        upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_JPEG, 400);
+        verify(fileStorage, never()).store(anyString(), any(byte[].class), anyString());
+    }
+
+    @Test
+    void contentIsServedOnlyToPeopleWithAccess() throws Exception {
+        long id = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        when(fileStorage.load(anyString())).thenReturn(FAKE_M4A);
+        String path = "/api/v1/care-subjects/" + subjectId + "/attachments/" + id + "/content";
+
+        mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("audio/mp4"))
+                .andExpect(content().bytes(FAKE_M4A));
+        mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken).header("Range", "bytes=0-3"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string("Content-Range", "bytes 0-3/" + FAKE_M4A.length));
+        mvc.perform(get(path).header("Authorization", "Bearer " + strangerToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deleteRemovesRowAndStoredFile() throws Exception {
+        long id = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        String path = "/api/v1/care-subjects/" + subjectId + "/attachments/" + id;
+
+        mvc.perform(delete(path).header("Authorization", "Bearer " + strangerToken))
+                .andExpect(status().isForbidden());
+        verify(fileStorage, never()).delete(anyString());
+
+        mvc.perform(delete(path).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+        verify(fileStorage).delete(startsWith("care-subjects/" + subjectId + "/"));
+        mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void caregiverCanDeleteOnlyWhatTheyUploaded() throws Exception {
+        String brunoEmail = "bruno." + UUID.randomUUID() + "@yuyay.app";
+        String brunoToken = register(brunoEmail);
+        long relationshipId = postJson("/api/v1/care-subjects/" + subjectId + "/relationships", ownerToken,
+                "{\"email\":\"" + brunoEmail + "\",\"role\":\"CAREGIVER\",\"relationshipLabel\":\"hijo\"}", 201)
+                .get("id").asLong();
+        mvc.perform(post("/api/v1/me/relationships/" + relationshipId + "/accept")
+                        .header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isOk());
+        long ownerFile = upload(subjectId, ownerToken, "a.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        long brunoFile = upload(subjectId, brunoToken, "b.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        String base = "/api/v1/care-subjects/" + subjectId + "/attachments/";
+
+        mvc.perform(delete(base + ownerFile).header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete(base + brunoFile).header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void attachmentBackingAnEntryCannotBeDeleted() throws Exception {
+        long id = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        postJson("/api/v1/care-subjects/" + subjectId + "/health-entries", ownerToken, entryBody(id), 201);
+
+        int status = mvc.perform(delete("/api/v1/care-subjects/" + subjectId + "/attachments/" + id)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andReturn().getResponse().getStatus();
+
+        assertTrue(status >= 400 && status < 500);
+        verify(fileStorage, never()).delete(anyString());
     }
 
     @Test

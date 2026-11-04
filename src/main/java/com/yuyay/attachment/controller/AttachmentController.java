@@ -1,16 +1,22 @@
 package com.yuyay.attachment.controller;
 
 import com.yuyay.attachment.dto.AttachmentAccessResponse;
+import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.dto.AttachmentResponse;
 import com.yuyay.attachment.service.AttachmentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -37,12 +43,25 @@ public class AttachmentController {
         return attachmentService.get(subjectId, attachmentId);
     }
 
+    /** Enlace temporal de S3. Solo con almacenamiento S3; en desarrollo local usa /content. */
     @GetMapping("/{attachmentId}/access")
     public ResponseEntity<AttachmentAccessResponse> access(@PathVariable Long subjectId,
                                                            @PathVariable Long attachmentId) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .header("Referrer-Policy", "no-referrer")
                 .body(attachmentService.access(subjectId, attachmentId));
+    }
+
+    /** Devuelve un Resource para que Spring atienda Range: el reproductor de iOS lo necesita. */
+    @GetMapping("/{attachmentId}/content")
+    public ResponseEntity<Resource> content(@PathVariable Long subjectId, @PathVariable Long attachmentId) {
+        AttachmentContent content = attachmentService.content(subjectId, attachmentId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(content.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                        .filename(content.filename(), StandardCharsets.UTF_8).build().toString())
+                .cacheControl(CacheControl.noStore())
+                .body(new ByteArrayResource(content.bytes()));
     }
 
     @DeleteMapping("/{attachmentId}")

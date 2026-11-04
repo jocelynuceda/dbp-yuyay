@@ -1,6 +1,7 @@
 package com.yuyay.attachment.service;
 
 import com.yuyay.attachment.dto.AttachmentAccessResponse;
+import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.dto.AttachmentResponse;
 import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.entity.OcrStatus;
@@ -9,6 +10,7 @@ import com.yuyay.attachment.exception.InvalidAttachmentException;
 import com.yuyay.attachment.mapper.AttachmentMapper;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.storage.FileStorage;
+import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.exception.CareSubjectNotFoundException;
 import com.yuyay.care.repository.CareSubjectRepository;
@@ -17,13 +19,13 @@ import com.yuyay.consultation.repository.ConsultationRepository;
 import com.yuyay.event.AttachmentUploadedEvent;
 import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
+import com.yuyay.health.repository.HealthEntryVersionRepository;
 import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -45,11 +47,15 @@ public class AttachmentService {
     private static final Map<String, String> ALLOWED_TYPES = Map.of(
             "image/jpeg", ".jpg",
             "image/png", ".png",
-            "application/pdf", ".pdf");
+            "application/pdf", ".pdf",
+            "audio/mp4", ".m4a",
+            "audio/x-m4a", ".m4a",
+            "audio/webm", ".webm");
 
     private final AttachmentRepository attachmentRepo;
     private final CareSubjectRepository careSubjectRepo;
     private final ConsultationRepository consultationRepo;
+    private final HealthEntryVersionRepository versionRepo;
     private final UserRepository userRepo;
     private final AttachmentMapper mapper;
     private final FileStorage fileStorage;
@@ -75,6 +81,9 @@ public class AttachmentService {
         fileStorage.store(key, content, file.getContentType());
         deleteFromStorageIfRolledBack(key);
 
+        // Los audios no pasan por el OCR. Se marcan DONE y no con un estado nuevo porque la columna tiene
+        // un CHECK con los valores actuales y ddl-auto=update no lo modifica en las bases existentes.
+        boolean audio = file.getContentType().startsWith("audio/");
         Attachment attachment = attachmentRepo.save(Attachment.builder()
                 .careSubject(subject)
                 .consultation(consultation)
@@ -83,10 +92,10 @@ public class AttachmentService {
                 .contentType(file.getContentType())
                 .sizeBytes(file.getSize())
                 .storageKey(key)
-                .ocrStatus(OcrStatus.PENDING)
+                .ocrStatus(audio ? OcrStatus.DONE : OcrStatus.PENDING)
                 .build());
 
-        eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
+        if (!audio) eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
         return mapper.toResponse(attachment);
     }
 
@@ -111,19 +120,31 @@ public class AttachmentService {
         return fileStorage.createAccess(attachment.getStorageKey(), attachment.getContentType(), Duration.ofMinutes(5));
     }
 
-    public void delete(Long subjectId, Long attachmentId) {
+    @Transactional(readOnly = true)
+    public AttachmentContent content(Long subjectId, Long attachmentId) {
         authorizationService.requireAccess(currentUserService.getCurrentUserId(), subjectId);
-        Attachment attachment = loadForUpdate(subjectId, attachmentId);
-        String key = attachment.getStorageKey();
-        try {
-            attachmentRepo.delete(attachment);
-            // Detectar referencias de versiones clínicas ANTES de tocar S3. La transacción
-            // conserva el bloqueo hasta commit/rollback y revierte la fila si falla S3.
-            attachmentRepo.flush();
-        } catch (DataIntegrityViolationException e) {
-            throw new InvalidOperationException("El adjunto respalda un registro de salud y no se puede eliminar");
+        Attachment attachment = load(subjectId, attachmentId);
+        return new AttachmentContent(fileStorage.load(attachment.getStorageKey()),
+                attachment.getContentType(), attachment.getOriginalFilename());
+    }
+
+    /** Lo borra quien lo subió o el principal. Si respalda un registro se conserva: el historial no se reescribe. */
+    public void delete(Long subjectId, Long attachmentId) {
+        Long meId = currentUserService.getCurrentUserId();
+        authorizationService.requireAccess(meId, subjectId);
+        Attachment attachment = load(subjectId, attachmentId);
+        if (!attachment.getUploadedBy().getId().equals(meId)) {
+            authorizationService.requireRole(meId, subjectId, CareRole.PRINCIPAL);
         }
-        fileStorage.deleteRequired(key);
+        if (attachment.getOcrStatus() == OcrStatus.PENDING) {
+            throw new InvalidOperationException("Espera a que termine la lectura del documento");
+        }
+        if (versionRepo.existsBySourceAttachmentId(attachmentId)) {
+            throw new InvalidOperationException("Este archivo respalda un registro de salud y no se puede borrar");
+        }
+        String key = attachment.getStorageKey();
+        attachmentRepo.delete(attachment);
+        deleteFromStorageAfterCommit(key);
     }
 
     public AttachmentResponse retryOcr(Long subjectId, Long attachmentId) {
@@ -156,6 +177,19 @@ public class AttachmentService {
         });
     }
 
+    private void deleteFromStorageAfterCommit(String key) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            fileStorage.delete(key);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                fileStorage.delete(key);
+            }
+        });
+    }
+
     private Attachment load(Long subjectId, Long attachmentId) {
         return attachmentRepo.findByIdAndCareSubjectId(attachmentId, subjectId)
                 .orElseThrow(() -> new AttachmentNotFoundException(attachmentId));
@@ -182,7 +216,7 @@ public class AttachmentService {
         String contentType = file.getContentType();
         String extension = contentType == null ? null : ALLOWED_TYPES.get(contentType);
         if (extension == null) {
-            throw new InvalidAttachmentException("Formato no soportado: usa JPG, PNG o PDF de una página");
+            throw new InvalidAttachmentException("Formato no soportado: usa JPG, PNG, PDF de una página o audio M4A");
         }
         return extension;
     }
@@ -196,6 +230,9 @@ public class AttachmentService {
             case "image/jpeg" -> startsWith(content, 0xFF, 0xD8, 0xFF);
             case "image/png" -> startsWith(content, 0x89, 0x50, 0x4E, 0x47);
             case "application/pdf" -> startsWith(content, 0x25, 0x50, 0x44, 0x46);
+            // En MP4 la marca "ftyp" va después de los 4 bytes que indican el tamaño de la caja
+            case "audio/mp4", "audio/x-m4a" -> hasBytesAt(content, 4, 0x66, 0x74, 0x79, 0x70);
+            case "audio/webm" -> startsWith(content, 0x1A, 0x45, 0xDF, 0xA3);
             default -> false;
         };
         if (!matches) {
@@ -204,9 +241,13 @@ public class AttachmentService {
     }
 
     private static boolean startsWith(byte[] content, int... signature) {
-        if (content.length < signature.length) return false;
+        return hasBytesAt(content, 0, signature);
+    }
+
+    private static boolean hasBytesAt(byte[] content, int offset, int... signature) {
+        if (content.length < offset + signature.length) return false;
         for (int i = 0; i < signature.length; i++) {
-            if ((content[i] & 0xFF) != signature[i]) return false;
+            if ((content[offset + i] & 0xFF) != signature[i]) return false;
         }
         return true;
     }
