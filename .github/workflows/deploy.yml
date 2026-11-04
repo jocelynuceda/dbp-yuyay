@@ -30,6 +30,31 @@ jobs:
           java-version: '26'
           cache: maven
 
+      - name: Resolver health check HTTPS
+        if: env.EC2_HOST != ''
+        env:
+          CONFIGURED_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+        run: |
+          python3 - <<'PY'
+          import ipaddress
+          import os
+          from urllib.parse import urlsplit
+
+          url = os.environ.get('CONFIGURED_HEALTH_URL', '').strip()
+          if not url:
+              try:
+                  host = str(ipaddress.IPv4Address(os.environ['EC2_HOST']))
+              except ipaddress.AddressValueError:
+                  raise SystemExit('Configura API_HEALTH_URL con HTTPS para un host que no sea IPv4.')
+              url = f"https://api.{host.replace('.', '-')}.sslip.io/actuator/health"
+          parsed = urlsplit(url)
+          if (parsed.scheme != 'https' or not parsed.hostname or parsed.username
+                  or parsed.password or parsed.fragment or any(c.isspace() for c in url)):
+              raise SystemExit('API_HEALTH_URL debe ser una URL HTTPS válida sin credenciales.')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              output.write(f'API_HEALTH_URL={url}\n')
+          PY
+
       - name: Tests antes de desplegar
         run: ./mvnw -B verify
 
@@ -57,6 +82,8 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -eu
+            test -s "$HOME/.env"
             # El token de Actions solo vale durante este job: basta para el pull y no queda una credencial permanente en el EC2.
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             docker pull ${{ env.IMAGE }}:${{ github.sha }}
@@ -64,16 +91,16 @@ jobs:
             docker stop yuyay || true
             docker rm yuyay || true
             docker run -d --name yuyay --restart unless-stopped \
-              --env-file ~/.env -p 8080:8080 ${{ env.IMAGE }}:${{ github.sha }}
+              --env-file ~/.env -p 127.0.0.1:8080:8080 ${{ env.IMAGE }}:${{ github.sha }}
             docker image prune -f
 
       - name: Comprobar /actuator/health
         if: env.EC2_HOST != ''
         run: |
           for i in $(seq 1 30); do
-            if curl -fs "http://${EC2_HOST}:8080/actuator/health" | grep -q '"UP"'; then
+            if curl -fsS --max-time 10 "$API_HEALTH_URL" | grep -q '"UP"'; then
               echo "API arriba"; exit 0
             fi
             sleep 5
           done
-          echo "La API no respondió UP en 150 s"; exit 1
+          echo "La API no respondió UP tras 30 intentos"; exit 1

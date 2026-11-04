@@ -20,8 +20,6 @@ import java.time.Instant;
 @Component
 @RequiredArgsConstructor
 public class OcrListener {
-    private static final int MAX_ERROR_LENGTH = 500;
-
     private final AttachmentRepository attachmentRepository;
     private final TextExtractor textExtractor;
 
@@ -29,7 +27,7 @@ public class OcrListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onAttachmentUploaded(AttachmentUploadedEvent event) {
-        Attachment attachment = attachmentRepository.findById(event.attachmentId()).orElse(null);
+        Attachment attachment = attachmentRepository.findForUpdateById(event.attachmentId()).orElse(null);
         if (attachment == null) {
             log.warn("Adjunto {} no encontrado para OCR", event.attachmentId());
             return;
@@ -39,15 +37,10 @@ public class OcrListener {
             attachment.setOcrStatus(OcrStatus.DONE);
             attachment.setOcrError(null);
         } catch (Exception e) {
-            log.error("Fallo el OCR del adjunto {}", attachment.getId(), e);
+            log.warn("Fallo el OCR de un adjunto ({})", e.getClass().getSimpleName());
             attachment.setOcrStatus(OcrStatus.FAILED);
-            attachment.setOcrError(truncate(e.getMessage()));
+            attachment.setOcrError("No se pudo extraer el texto. Puedes reintentar el OCR.");
         }
         attachment.setOcrCompletedAt(Instant.now());
-    }
-
-    private String truncate(String message) {
-        if (message == null) return "Error desconocido en el OCR";
-        return message.length() <= MAX_ERROR_LENGTH ? message : message.substring(0, MAX_ERROR_LENGTH);
     }
 }

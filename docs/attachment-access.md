@@ -1,0 +1,119 @@
+# Adjuntos privados: integración web y móvil
+
+La API conserva `POST` multipart (campo `file`, `consultationId` opcional), `GET` lista,
+`GET /{attachmentId}` y `POST /{attachmentId}/ocr-retry`. Los formatos siguen siendo JPG,
+PNG y PDF de una página, hasta 10 MB; no se admite audio. Las respuestas existentes no
+añaden URLs ni claves S3. Todos los endpoints requieren JWT de usuario y relación
+`ACTIVE` con la persona; tanto `PRINCIPAL` como `CAREGIVER` tienen acceso, igual que en
+los registros de salud. Una delegación no autoriza estos endpoints.
+
+Base: `/api/v1/care-subjects/{subjectId}/attachments`.
+
+## Abrir una imagen o documento
+
+`GET /{attachmentId}/access`, con `Authorization: Bearer <accessToken>`:
+
+```json
+{
+  "url": "https://<host-s3>/<objeto>?<firma-temporal>",
+  "expiresAt": "2030-01-01T00:05:00Z"
+}
+```
+
+La respuesta 200 incluye `Cache-Control: no-store` y `Referrer-Policy: no-referrer`.
+La URL firma únicamente un GET del objeto exacto, con duración de cinco minutos y
+respuesta S3 `Cache-Control: no-store`, tipo de contenido original y presentación
+`inline`. `expiresAt` procede del firmante, no de un cálculo independiente.
+
+Solicitar el enlace al abrir el visor, mantenerlo solo en memoria y solicitar otro si
+ha vencido. No persistirlo, incluirlo en analítica, logs, notificaciones ni mensajes de
+error. En web usar `referrerPolicy="no-referrer"` o `rel="noreferrer"` al abrirlo. S3
+recibe su firma temporal; no enviarle el JWT de Yuyay. El bucket permanece privado y
+la API no modifica sus ACL ni políticas. S3 debe permitir `GetObject` al rol firmante.
+El visor web de imágenes o PDF puede usar la URL directamente; descargar con `fetch`
+desde web requiere CORS del bucket para el origen de la aplicación.
+
+La URL es una credencial: quien la tenga puede abrirla hasta su vencimiento. Revocar
+la relación de cuidado impide nuevos enlaces; los ya emitidos pueden seguir siendo
+válidos hasta cinco minutos (o menos si caducan antes las credenciales del rol AWS).
+No se verifica la existencia del objeto al firmar; si falta o S3 rechaza el GET, el
+visor debe mostrar un error y permitir reintentar. El error de S3 no contiene el
+contrato JSON de la API.
+
+## Eliminar
+
+`DELETE /{attachmentId}`, con el mismo JWT, devuelve 204 sin cuerpo. Cualquier
+cuidador activo puede eliminar un adjunto sin referencias, aunque lo haya subido
+otro cuidador. Tras el éxito no aparece en la lista y sus rutas de detalle, acceso,
+reintento OCR y otro DELETE devuelven 404.
+
+| Estado | Significado |
+| --- | --- |
+| 401 | JWT ausente, inválido o vencido |
+| 403 | Sin relación activa con la persona solicitada |
+| 404 | Adjunto ausente o perteneciente a otra persona accesible |
+| 409 | Alguna versión de un registro de salud referencia el adjunto; se conserva la evidencia |
+| 502 | S3 no confirmó el borrado o no fue posible generar el enlace temporal |
+
+Ante 409 mostrar el mensaje de la API; no eliminar localmente la tarjeta. Ante un
+fallo S3 se conserva la fila mediante rollback y el usuario puede reintentar. La
+respuesta no expone detalles del SDK, bucket o credenciales. Los errores OCR también
+se guardan y se presentan como mensaje seguro fijo, incluso para errores históricos; el estado `FAILED` y el reintento conservan su
+contrato. Editar un registro de salud conserva el vínculo de evidencia en su nueva
+versión.
+
+## Consistencia y límites operativos
+
+El borrado, los reintentos y el listener OCR toman el mismo bloqueo de fila dentro de
+una transacción. Si OCR empezó primero, DELETE espera su finalización; si DELETE se
+confirmó primero, el listener no encuentra la fila y termina. No hay una escritura
+OCR que vuelva a crear metadatos borrados. Esto mantiene el bloqueo durante la llamada
+a Textract; por ello DELETE puede esperar lo que dure el OCR o recibir un error si
+vence el tiempo de espera de la base de datos. No se realiza OCR dentro de la petición
+HTTP de subida.
+
+DELETE elimina y hace `flush` de la fila antes de llamar a S3. Así una referencia
+clínica, incluida una referencia concurrente protegida por la FK, impide el borrado
+con 409 antes de tocar el objeto. Un error de S3 revierte el DELETE de la base de
+datos. El `delete` de mejor esfuerzo utilizado para compensar subidas fallidas sigue
+separado de este borrado explícito y estricto.
+
+PostgreSQL y S3 no comparten transacción: una interrupción del proceso o fallo de
+commit después del éxito de S3 puede dejar una fila cuyo objeto falta. Una respuesta
+de red ambigua también puede indicar 502 aunque S3 haya aplicado el borrado. En ambos
+casos se puede reintentar DELETE (S3 admite borrar objetos ya ausentes); si persiste,
+operaciones debe reconciliar la fila y el objeto. No se promete atomicidad distribuida.
+Si el bucket tiene versionado o retención, `DeleteObject` sin versionId puede crear
+un marcador de borrado y conservar versiones antiguas según la política del bucket;
+204 no certifica una purga histórica. Los clientes que ya descargaron bytes pueden
+conservarlos. No se cambian configuraciones AWS desde este código.
+
+## Validación local
+
+Con Java 26, ejecutar `mvn -B verify`. Se usan únicamente H2 bajo el perfil de prueba
+existente y mocks para S3/Textract. Las pruebas de firma usan credenciales ficticias
+locales y no consultan AWS. La cobertura incluye TTL firmado, no-store, permisos,
+aislamiento por persona, borrado y rollback, evidencia referenciada, edición clínica,
+subida/listado y concurrencia OCR/DELETE.
+
+## Integración local comprobada — 4 de noviembre de 2026
+
+Se volvió a ejecutar `mvnw.cmd -B verify` con Java 26: 103 pruebas, sin fallos,
+errores ni omitidos. Además se ejecutó la aplicación empaquetada contra PostgreSQL
+16 local aislado y S3/Textract reales, consumida por Expo web en Chrome sin
+interceptar peticiones de la API.
+
+Se verificaron subida PNG/PDF, OCR de imagen en DONE, acceso firmado con no-store,
+lectura de los bytes originales, eliminación de metadatos y objeto S3, rechazo
+403 de usuarios ajenos/pendientes/revocados y acceso del cuidador activo. El PATCH
+conservó sourceAttachment y el DELETE de esa evidencia respondió 409 sin perder
+el documento. Archivos falsificados o mayores de 10 MB recibieron 400.
+
+El ejecutor local usa el perfil dev con PostgreSQL y correo simulado; no añade un
+perfil H2 ni modifica la configuración de producción. Las credenciales temporales
+AWS se pasan únicamente al proceso de prueba y no se escriben en archivos. Todos
+los objetos S3 creados en esta prueba se eliminaron y la base temporal se retiró.
+
+Esto verifica los endpoints nuevos en ejecución local; no significa que ya estén
+desplegados en EC2. La prueba física de cámara/HEIC en iPhone sigue pendiente.
+

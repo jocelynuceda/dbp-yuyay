@@ -346,7 +346,15 @@ La API queda en `http://localhost:8080`; las pruebas (`./mvnw test`) usan H2 y n
 
 **Documentación de la API:** `postman_collection.json` (raíz) contiene 106 peticiones en 15 carpetas, con ejemplos de respuesta, variables automáticas y casos de error por cada código HTTP; los entornos están en `postman/`.
 
-**Despliegue:** la API está en **http://34.193.16.240:8080** — documentación en **/swagger-ui.html** y estado en `/actuator/health`. Corre sobre un laboratorio de AWS Academy, por lo que responde solo mientras el laboratorio está activo. Backend en **EC2** con Docker y base de datos en **RDS PostgreSQL**, accesible solo desde el grupo de seguridad de la instancia. Cada push a `main` ejecuta las pruebas, publica la imagen en GHCR, la despliega por SSH y verifica `/actuator/health`.
+**Despliegue:** la API está en [https://api.34-193-16-240.sslip.io](https://api.34-193-16-240.sslip.io).
+La [documentación Swagger](https://api.34-193-16-240.sslip.io/swagger-ui.html) y el
+[estado de salud](https://api.34-193-16-240.sslip.io/actuator/health) usan HTTPS con certificado
+público. Caddy recibe 80/443 y comunica con Docker por 127.0.0.1:8080. El puerto 8080 está cerrado
+al público. La instancia usa la Elastic IP 34.193.16.240 y la base permanece en RDS PostgreSQL.
+La disponibilidad depende de que el laboratorio AWS Academy esté activo. La
+[guía operativa](ops/https-deployment.md) detalla configuración, verificaciones y rollback.
+El workflow actualizado de esta rama debe integrarse antes del siguiente despliegue automático,
+porque el workflow anterior de main todavía comprueba HTTP 8080.
 
 ---
 

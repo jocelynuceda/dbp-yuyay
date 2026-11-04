@@ -153,14 +153,15 @@ public class HealthEntryService {
                 .orElseThrow(() -> new HealthEntryNotFoundException(entryId));
         requireDoseOnlyForMedication(entry.getCategory(), req.dose(), req.frequency());
 
-        int next = versionRepo.findFirstByHealthEntryIdOrderByVersionNumberDesc(entryId)
-                .map(v -> v.getVersionNumber() + 1)
-                .orElse(1);
+        HealthEntryVersion previous = versionRepo.findFirstByHealthEntryIdOrderByVersionNumberDesc(entryId)
+                .orElseThrow(() -> new HealthEntryNotFoundException(entryId));
+        int next = previous.getVersionNumber() + 1;
 
         HealthEntryVersion v = HealthEntryVersion.builder()
                 .healthEntry(entry)
                 .versionNumber(next)
                 .changeType(ChangeType.UPDATED)
+                .sourceAttachment(previous.getSourceAttachment())
                 .title(req.title())
                 .details(req.details())
                 .dose(req.dose())

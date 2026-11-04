@@ -1,0 +1,7 @@
+api.34-193-16-240.sslip.io {
+	reverse_proxy 127.0.0.1:8080
+}
+
+http://34.193.16.240 {
+	redir https://api.34-193-16-240.sslip.io{uri} 308
+}

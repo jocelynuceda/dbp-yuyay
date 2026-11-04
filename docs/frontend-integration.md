@@ -41,11 +41,10 @@ Ahora (elementos abreviados; cada elemento conserva sus campos anteriores):
 - Los avisos siguen limitados al usuario autenticado. La bitácora sigue reservada al PRINCIPAL
   de la persona. Los registros siguen exigiendo una relación de cuidado activa.
 
-**Coordinar con Jocelyn antes del merge:** el móvil espera arrays en registros y avisos. Debe leer
-`response.data.content`, conservar `number`/`totalPages`, pedir la siguiente página al llegar al final
-y reiniciar a página 0 al cambiar filtros o tamaño. Para scroll infinito, concatenar `content` por
-página y terminar cuando `number + 1 >= totalPages`. La bitácora requiere la misma adaptación si
-el cliente ya la consume.
+El móvil actualizado en el PR #1 de `yuyay-frontend` (commit `1f125e3`) acepta
+`Page` y el array legado. Recorre todas las páginas de registros y avisos para mantener los
+contadores de las pantallas actuales. Las ramas móviles anteriores a ese cambio deben integrar
+main antes de usar esta API. La bitácora requiere leer `content` si un cliente la incorpora.
 
 Conservan su contrato de lista: `/delegate/health-entries`, `.../health-entries/{entryId}/versions`,
 consultas (incluido `/changes`), traspasos, delegaciones y adjuntos. No se modificaron los métodos
@@ -74,20 +73,27 @@ dominio de Vercel supuesto. Si se define `CORS_ALLOWED_ORIGINS`, su valor reempl
 
 El despliegue existente pasa `~/.env` de EC2 mediante `docker run --env-file`; basta añadir esas
 variables a ese archivo al coordinar el despliegue. No es necesario introducir secrets de Actions
-ni cambiar el workflow.
+para configurar los enlaces. El workflow de la rama de despliegue prepara la comprobación de salud por HTTPS.
 
 ## Validación y límites
 
-Ejecutar `./mvnw verify` (Windows: `.\mvnw.cmd verify`) con Java 17. Las pruebas de integración
+Ejecutar `./mvnw verify` (Windows: `.\mvnw.cmd verify`) con Java 26. Las pruebas de integración
 activan el perfil `test`: H2 en memoria, correo simulado y almacenamiento/OCR mockeados en los
 tests de adjuntos. No requieren RDS, Resend, S3 ni Textract reales.
 
-Validación del bloque: `mvnw.cmd -B verify` con Java 17, 88 tests, sin fallos, errores ni omitidos.
+Validación del bloque: `mvnw.cmd -B verify` con Java 26, 91 tests, sin fallos, errores ni omitidos.
 
 La cobertura incluye fechas futuras, validación restante, páginas 0/1, tamaño y límite de 100,
 totales, filtros, empate de fechas, orden explícito, páginas fuera de rango, permisos y aislamiento,
 preflight CORS y enlaces web con host distinto de la API y barras finales.
 
-Pendientes del siguiente bloque: HTTPS, datos demo, medición de latencia y despliegue. El listado
+HTTPS está activo en producción. Quedan datos demo, medición de latencia y despliegue de la web
+funcional. El listado
 de salud conserva la consulta existente de última versión por registro (N+1), ahora limitada al
 tamaño de página; optimizarla y medir latencia corresponde a la revisión de rendimiento del plan.
+
+## Acceso y borrado de adjuntos
+
+Ver [contrato de adjuntos privados](attachment-access.md) para abrir imágenes/PDF con
+un enlace temporal de cinco minutos, eliminar adjuntos sin referencias y manejar
+403/404/409/502. La edición clínica conserva su evidencia original.

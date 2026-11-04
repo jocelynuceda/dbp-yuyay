@@ -1,5 +1,6 @@
 package com.yuyay.attachment.service;
 
+import com.yuyay.attachment.dto.AttachmentAccessResponse;
 import com.yuyay.attachment.dto.AttachmentResponse;
 import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.entity.OcrStatus;
@@ -22,6 +23,7 @@ import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -30,6 +32,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -101,9 +104,31 @@ public class AttachmentService {
         return mapper.toResponse(load(subjectId, attachmentId));
     }
 
-    public AttachmentResponse retryOcr(Long subjectId, Long attachmentId) {
+    @Transactional(readOnly = true)
+    public AttachmentAccessResponse access(Long subjectId, Long attachmentId) {
         authorizationService.requireAccess(currentUserService.getCurrentUserId(), subjectId);
         Attachment attachment = load(subjectId, attachmentId);
+        return fileStorage.createAccess(attachment.getStorageKey(), attachment.getContentType(), Duration.ofMinutes(5));
+    }
+
+    public void delete(Long subjectId, Long attachmentId) {
+        authorizationService.requireAccess(currentUserService.getCurrentUserId(), subjectId);
+        Attachment attachment = loadForUpdate(subjectId, attachmentId);
+        String key = attachment.getStorageKey();
+        try {
+            attachmentRepo.delete(attachment);
+            // Detectar referencias de versiones clínicas ANTES de tocar S3. La transacción
+            // conserva el bloqueo hasta commit/rollback y revierte la fila si falla S3.
+            attachmentRepo.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new InvalidOperationException("El adjunto respalda un registro de salud y no se puede eliminar");
+        }
+        fileStorage.deleteRequired(key);
+    }
+
+    public AttachmentResponse retryOcr(Long subjectId, Long attachmentId) {
+        authorizationService.requireAccess(currentUserService.getCurrentUserId(), subjectId);
+        Attachment attachment = loadForUpdate(subjectId, attachmentId);
         if (attachment.getOcrStatus() != OcrStatus.FAILED) {
             throw new InvalidOperationException("Solo se puede reintentar un OCR que falló");
         }
@@ -133,6 +158,11 @@ public class AttachmentService {
 
     private Attachment load(Long subjectId, Long attachmentId) {
         return attachmentRepo.findByIdAndCareSubjectId(attachmentId, subjectId)
+                .orElseThrow(() -> new AttachmentNotFoundException(attachmentId));
+    }
+
+    private Attachment loadForUpdate(Long subjectId, Long attachmentId) {
+        return attachmentRepo.findForUpdateByIdAndCareSubjectId(attachmentId, subjectId)
                 .orElseThrow(() -> new AttachmentNotFoundException(attachmentId));
     }
 
