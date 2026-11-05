@@ -117,3 +117,21 @@ los objetos S3 creados en esta prueba se eliminaron y la base temporal se retir�
 Esto verifica los endpoints nuevos en ejecución local; no significa que ya estén
 desplegados en EC2. La prueba física de cámara/HEIC en iPhone sigue pendiente.
 
+## Diagnóstico de fallos OCR
+
+El WARN del listener identifica el adjunto, el tipo de excepción y `causeType`, el último
+tipo observado dentro de un recorrido limitado de ocho niveles. Este último permite
+distinguir, por ejemplo, un timeout detrás de un wrapper sin copiar sus mensajes; en
+cadenas más largas o cíclicas no afirma identificar la causa raíz completa. Si encuentra un
+`SdkServiceException` entre la excepción y sus primeras siete causas, añade tipo del
+error de servicio, estado HTTP y requestId; con `AwsServiceException` añade también el
+código AWS. Ese requestId permite correlacionar el fallo con la operación del proveedor.
+Los identificadores admiten solo ASCII alfanumérico, punto, guion y guion bajo; se limitan
+a 128 caracteres (64 para el código AWS) y un campo inválido se sustituye por
+`unavailable` completo. El recorrido de causas se limita a ocho niveles.
+
+El log no incluye mensajes de excepción, stack traces, causas completas, cuerpos HTTP,
+claves S3, URLs firmadas ni contenido OCR. Los mensajes del SDK pueden contener esos datos;
+por eso se registra contexto seguro en vez de pasar el Throwable al logger. Este cambio
+no modifica `ocrError` persistido ni su presentación segura en la API, permisos, acceso
+a archivos o comportamiento de reintento.
