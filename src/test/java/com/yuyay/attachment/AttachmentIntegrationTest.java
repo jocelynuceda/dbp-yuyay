@@ -323,8 +323,9 @@ class AttachmentIntegrationTest {
                 .thenReturn(new AttachmentAccessResponse("https://example.invalid/temporary", Instant.now().plusSeconds(300)));
         mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + brunoToken))
                 .andExpect(status().isOk());
+        // Puede leerlo, pero no borrarlo: no lo subió él y tampoco es el principal.
         mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + brunoToken))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isForbidden());
         long remainingId = upload(subjectId, brunoToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
         awaitOcr(subjectId, remainingId);
         mvc.perform(delete("/api/v1/care-subjects/" + subjectId + "/relationships/" + relationshipId)
@@ -384,6 +385,24 @@ class AttachmentIntegrationTest {
         verify(fileStorage).delete(startsWith("care-subjects/" + subjectId + "/"));
         mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNotFound());
+        assertEquals("DELETE", awaitAttachmentLog(id).get("action").asText());
+    }
+
+    /** La bitácora es asíncrona (AFTER_COMMIT + @Async): se espera a que llegue el asiento. */
+    private JsonNode awaitAttachmentLog(long attachmentId) throws Exception {
+        for (int i = 0; i < 50; i++) {
+            Thread.sleep(100);
+            String body = mvc.perform(get("/api/v1/care-subjects/" + subjectId + "/access-logs")
+                            .header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            for (JsonNode log : json.readTree(body).get("content")) {
+                if ("ATTACHMENT".equals(log.get("targetType").asText())
+                        && log.get("targetId").asLong() == attachmentId) {
+                    return log;
+                }
+            }
+        }
+        throw new AssertionError("No llegó el asiento de bitácora del adjunto " + attachmentId);
     }
 
     @Test
@@ -477,7 +496,7 @@ class AttachmentIntegrationTest {
         awaitOcr(subjectId, id);
         mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNoContent());
-        verify(fileStorage).deleteRequired(startsWith("care-subjects/" + subjectId + "/"));
+        verify(fileStorage).delete(startsWith("care-subjects/" + subjectId + "/"));
         mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNotFound());
         mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + ownerToken))
@@ -488,19 +507,20 @@ class AttachmentIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
     }
 
+    /**
+     * El borrado explicito no revierte la fila si falla el almacenamiento: la limpieza del objeto
+     * es de mejor esfuerzo y corre despues del commit. Un objeto suelto lo recoge el job del #42.
+     */
     @Test
-    void failedDeleteRollsBackMetadataAndAllowsRetry() throws Exception {
+    void deleteCleansStorageAfterCommitAndNeverRequiresIt() throws Exception {
         long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
         awaitOcr(subjectId, id);
-        org.mockito.Mockito.doThrow(new FileStorageException("No se pudo eliminar el archivo"))
-                .doNothing().when(fileStorage).deleteRequired(anyString());
-        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
-                .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.message").value("No se pudo eliminar el archivo"));
-        mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.originalFilename").value("receta.jpg"));
         mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNoContent());
+        verify(fileStorage, never()).deleteRequired(anyString());
+        verify(fileStorage).delete(startsWith("care-subjects/" + subjectId + "/"));
+        mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -521,8 +541,12 @@ class AttachmentIntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    /**
+     * Mientras el OCR corre, el adjunto sigue PENDING y el borrado se rechaza con 409 en vez de
+     * esperar: asi el OCR nunca escribe sobre una fila ya borrada y no se bloquea la base.
+     */
     @Test
-    void deleteWaitsForOcrAndOcrCannotRestoreDeletedMetadata() throws Exception {
+    void deleteIsRejectedWhileOcrIsStillRunningAndWorksAfterwards() throws Exception {
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch finish = new CountDownLatch(1);
         when(textExtractor.extractText(anyString())).thenAnswer(invocation -> {
@@ -530,26 +554,23 @@ class AttachmentIntegrationTest {
             if (!finish.await(10, TimeUnit.SECONDS)) throw new AssertionError("No se liberó el OCR de prueba");
             return "texto";
         });
-        var executor = Executors.newSingleThreadExecutor();
         try {
             long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
             assertTrue(entered.await(5, TimeUnit.SECONDS));
-            CountDownLatch deleteStarted = new CountDownLatch(1);
-            var deletion = executor.submit(() -> {
-                deleteStarted.countDown();
-                return mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
-                        .andReturn().getResponse().getStatus();
-            });
-            assertTrue(deleteStarted.await(2, TimeUnit.SECONDS));
-            assertThrows(TimeoutException.class, () -> deletion.get(250, TimeUnit.MILLISECONDS));
-            verify(fileStorage, never()).deleteRequired(anyString());
+
+            mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value("Espera a que termine la lectura del documento"));
+            verify(fileStorage, never()).delete(anyString());
+
             finish.countDown();
-            assertEquals(204, deletion.get(5, TimeUnit.SECONDS));
+            awaitOcr(subjectId, id);
+            mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isNoContent());
             mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                     .andExpect(status().isNotFound());
         } finally {
             finish.countDown();
-            executor.shutdownNow();
         }
     }
 

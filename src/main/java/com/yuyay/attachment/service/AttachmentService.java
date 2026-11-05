@@ -10,12 +10,14 @@ import com.yuyay.attachment.exception.InvalidAttachmentException;
 import com.yuyay.attachment.mapper.AttachmentMapper;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.storage.FileStorage;
+import com.yuyay.audit.entity.AccessAction;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.exception.CareSubjectNotFoundException;
 import com.yuyay.care.repository.CareSubjectRepository;
 import com.yuyay.consultation.entity.Consultation;
 import com.yuyay.consultation.repository.ConsultationRepository;
+import com.yuyay.event.AccessRecordedEvent;
 import com.yuyay.event.AttachmentUploadedEvent;
 import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
@@ -144,6 +146,9 @@ public class AttachmentService {
         }
         String key = attachment.getStorageKey();
         attachmentRepo.delete(attachment);
+        // La bitácora es inmutable y sobrevive al archivo: queda quién borró qué y cuándo.
+        eventPublisher.publishEvent(
+                AccessRecordedEvent.byUser(subjectId, meId, AccessAction.DELETE, "ATTACHMENT", attachmentId));
         deleteFromStorageAfterCommit(key);
     }
 
