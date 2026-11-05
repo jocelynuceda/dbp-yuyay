@@ -323,7 +323,6 @@ class AttachmentIntegrationTest {
                 .thenReturn(new AttachmentAccessResponse("https://example.invalid/temporary", Instant.now().plusSeconds(300)));
         mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + brunoToken))
                 .andExpect(status().isOk());
-        // Puede leerlo, pero no borrarlo: no lo subió él y tampoco es el principal.
         mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + brunoToken))
                 .andExpect(status().isForbidden());
         long remainingId = upload(subjectId, brunoToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
@@ -388,7 +387,6 @@ class AttachmentIntegrationTest {
         assertEquals("DELETE", awaitAttachmentLog(id).get("action").asText());
     }
 
-    /** La bitácora es asíncrona (AFTER_COMMIT + @Async): se espera a que llegue el asiento. */
     private JsonNode awaitAttachmentLog(long attachmentId) throws Exception {
         for (int i = 0; i < 50; i++) {
             Thread.sleep(100);
@@ -507,10 +505,6 @@ class AttachmentIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
     }
 
-    /**
-     * El borrado explicito no revierte la fila si falla el almacenamiento: la limpieza del objeto
-     * es de mejor esfuerzo y corre despues del commit. Un objeto suelto lo recoge el job del #42.
-     */
     @Test
     void deleteCleansStorageAfterCommitAndNeverRequiresIt() throws Exception {
         long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
@@ -541,10 +535,6 @@ class AttachmentIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    /**
-     * Mientras el OCR corre, el adjunto sigue PENDING y el borrado se rechaza con 409 en vez de
-     * esperar: asi el OCR nunca escribe sobre una fila ya borrada y no se bloquea la base.
-     */
     @Test
     void deleteIsRejectedWhileOcrIsStillRunningAndWorksAfterwards() throws Exception {
         CountDownLatch entered = new CountDownLatch(1);

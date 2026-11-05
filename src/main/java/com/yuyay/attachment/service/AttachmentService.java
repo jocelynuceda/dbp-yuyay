@@ -146,7 +146,6 @@ public class AttachmentService {
         }
         String key = attachment.getStorageKey();
         attachmentRepo.delete(attachment);
-        // La bitácora es inmutable y sobrevive al archivo: queda quién borró qué y cuándo.
         eventPublisher.publishEvent(
                 AccessRecordedEvent.byUser(subjectId, meId, AccessAction.DELETE, "ATTACHMENT", attachmentId));
         deleteFromStorageAfterCommit(key);

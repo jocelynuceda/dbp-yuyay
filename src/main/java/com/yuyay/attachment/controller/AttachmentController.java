@@ -43,7 +43,6 @@ public class AttachmentController {
         return attachmentService.get(subjectId, attachmentId);
     }
 
-    /** Enlace temporal de S3. Solo con almacenamiento S3; en desarrollo local usa /content. */
     @GetMapping("/{attachmentId}/access")
     public ResponseEntity<AttachmentAccessResponse> access(@PathVariable Long subjectId,
                                                            @PathVariable Long attachmentId) {

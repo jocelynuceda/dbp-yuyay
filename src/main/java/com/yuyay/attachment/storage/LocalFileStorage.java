@@ -64,10 +64,6 @@ public class LocalFileStorage implements FileStorage {
         }
     }
 
-    /**
-     * En disco no hay nada que firmar: el enlace temporal solo existe con S3. En desarrollo
-     * el cliente descarga el archivo por la propia API con GET .../attachments/{id}/content.
-     */
     @Override
     public AttachmentAccessResponse createAccess(String key, String contentType, Duration ttl) {
         throw new FileStorageException("El enlace temporal requiere S3; en desarrollo usa /content");
