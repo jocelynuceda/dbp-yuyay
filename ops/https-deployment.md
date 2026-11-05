@@ -1,6 +1,8 @@
 # HTTPS del backend
 
-Estado aplicado el 3 de noviembre de 2026, hora de Colombia (UTC-5).
+Registro de la migración aplicada el 3 de noviembre de 2026, hora de Colombia (UTC-5).
+La imagen, el certificado, los respaldos y las comprobaciones descritos corresponden a esa
+ejecución; no indican por sí solos la versión desplegada actualmente.
 
 - [API](https://api.34-193-16-240.sslip.io)
 - [Swagger](https://api.34-193-16-240.sslip.io/swagger-ui.html)
@@ -33,6 +35,39 @@ Después de editar la configuración, validar antes de recargar.
     sudo systemctl reload caddy
     systemctl is-active caddy
 
+## Bootstrap manual de una instancia nueva
+
+**La instalación y configuración inicial de Caddy se hicieron manualmente.** El workflow
+no instala el proxy ni copia `ops/Caddyfile`, no prepara una EC2 nueva y no recrea la
+infraestructura. Antes de ejecutar Deploy sobre una instancia vacía, operaciones debe:
+
+1. Preparar Ubuntu y Docker, asociar la Elastic IP/dominio previsto y configurar las reglas
+   de red para 80/443 y la administración necesaria. Mantener 8080 sin acceso público.
+2. Instalar Caddy y su unidad systemd siguiendo la documentación oficial enlazada arriba.
+   Conservar la configuración del sitio y adaptar el dominio/IP si cambió la asignación.
+3. Desde un checkout del repositorio en esa instancia, instalar y validar la configuración:
+
+       sudo install -o root -g caddy -m 640 ops/Caddyfile /etc/caddy/Caddyfile
+       sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+       sudo systemctl enable --now caddy
+       sudo systemctl reload caddy
+
+4. Restaurar de forma privada `/home/ubuntu/.env` con modo 600 y las credenciales/configuración
+   de la API; preparar también acceso a RDS/S3/Textract y los secretos de SSH de GitHub.
+   Ajustar `APP_BASE_URL`, `CORS_ALLOWED_ORIGINS` y `FRONTEND_URL` al entorno. El workflow
+   solo comprueba que el archivo exista y lo entrega a Docker; no lo crea ni lo actualiza.
+5. Conservar o restaurar el almacenamiento de Caddy en `/var/lib/caddy/.local/share/caddy`
+   cuando se reemplace la instancia, con permisos para su servicio. Si no se restaura,
+   Caddy tendrá que emitir certificados nuevos y el dominio/80/443 deben permitirlo.
+6. Ejecutar Deploy y después comprobar salud HTTPS, redirección HTTP y cierre público de
+   8080 según esta guía. Antes de arrancar la API, el proxy puede responder 502 porque
+   todavía no hay backend en loopback.
+
+Guardar `ops/Caddyfile` en Git hace reproducible la configuración del sitio; aplicarla,
+instalar/actualizar Caddy y recuperar el estado de certificados siguen siendo tareas
+operativas manuales. La renovación de certificados la realiza Caddy mientras el servicio
+y su almacenamiento estén disponibles.
+
 ## Configuración de la API
 
 El contenedor usa /home/ubuntu/.env, modo 600, mediante Docker --env-file.
@@ -53,12 +88,26 @@ Las ramas móviles previas al PR #1 también requieren integrar la compatibilida
 
 ## Automatización
 
-La aplicación actual proviene del merge del PR #50, main 243602d. El run 41746235101 de Deploy
-terminó correctamente y comprobó la salud por HTTP antes de esta migración.
+Como antecedente de esta migración, la imagen de main 243602d (PR #50) pasó el run
+41746235101 de Deploy, que entonces comprobaba HTTP 8080. La corrección HTTPS ya está
+integrada en `.github/workflows/deploy.yml` de main.
 
-El workflow preparado en fix/https-deployment debe integrarse antes del próximo despliegue.
-El workflow que aún está en main comprueba HTTP 8080, que ya está cerrado públicamente.
-La corrección de esta rama publica Docker en loopback y comprueba la salud por HTTPS.
+El workflow actual verifica la URL de salud HTTPS, ejecuta `mvnw -B verify` con Java 26,
+construye y publica en GHCR las etiquetas `latest` y el SHA del commit. Cuando está
+configurado `EC2_HOST`, entra por SSH, descarga la imagen del SHA y recrea el contenedor
+`yuyay` con `--env-file ~/.env` y `-p 127.0.0.1:8080:8080`; después comprueba salud por
+HTTPS. Sin ese secreto ejecuta las pruebas y construye/publica la imagen, pero omite SSH y salud remota.
+No instala Docker/Caddy, no copia el Caddyfile, no configura red/DNS/Elastic IP ni
+genera o restaura archivos de entorno. Depende del bootstrap manual anterior.
+
+Observación del 4 de noviembre de 2026: la salud pública responde UP y Caddy sigue
+activo, pero el runtime observado todavía utiliza la imagen 243602d. Después del merge
+del PR #51 (main aba0620), CI 41923769429 terminó correctamente y Deploy 41923769384
+pasó resolución HTTPS, pruebas y publicación de imagen; falló en `Desplegar en EC2 por
+SSH` y omitió la comprobación de salud posterior. La causa del fallo SSH sigue sin
+confirmarse. Una imagen publicada o un merge no demuestran que ese SHA esté ejecutándose;
+comprobar el contenedor antes de declarar desplegada una funcionalidad. No se reintentó
+ni modificó AWS como parte de esta aclaración documental.
 
 Si API_HEALTH_URL existe como variable de GitHub, debe contener una URL HTTPS sin credenciales.
 Si está vacía y EC2_HOST es una IPv4, se deriva
