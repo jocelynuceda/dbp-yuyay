@@ -1,8 +1,10 @@
 # Adjuntos privados: integración web y móvil
 
 La API conserva `POST` multipart (campo `file`, `consultationId` opcional), `GET` lista,
-`GET /{attachmentId}` y `POST /{attachmentId}/ocr-retry`. Los formatos siguen siendo JPG,
-PNG y PDF de una página, hasta 10 MB; no se admite audio. Las respuestas existentes no
+`GET /{attachmentId}` y `POST /{attachmentId}/ocr-retry`. Los formatos son JPG, PNG y PDF
+de una página, y notas de voz M4A y WebM, hasta 10 MB. El audio no pasa por el OCR: se
+guarda directamente como `DONE` y se descarga con `GET /{attachmentId}/content`, que
+atiende `Range` para el reproductor. Las respuestas existentes no
 añaden URLs ni claves S3. Todos los endpoints requieren JWT de usuario y relación
 `ACTIVE` con la persona; tanto `PRINCIPAL` como `CAREGIVER` tienen acceso, igual que en
 los registros de salud. Una delegación no autoriza estos endpoints.
@@ -42,21 +44,23 @@ contrato JSON de la API.
 
 ## Eliminar
 
-`DELETE /{attachmentId}`, con el mismo JWT, devuelve 204 sin cuerpo. Cualquier
-cuidador activo puede eliminar un adjunto sin referencias, aunque lo haya subido
-otro cuidador. Tras el éxito no aparece en la lista y sus rutas de detalle, acceso,
-reintento OCR y otro DELETE devuelven 404.
+`DELETE /{attachmentId}`, con el mismo JWT, devuelve 204 sin cuerpo. Solo puede
+eliminarlo quien lo subió o el `PRINCIPAL` de la persona: un cuidador secundario
+borra lo suyo, pero no lo que subió otro. Tras el éxito no aparece en la lista y sus
+rutas de detalle, acceso, reintento OCR y otro DELETE devuelven 404. Todo borrado
+queda asentado en la bitácora con el autor, aunque el archivo ya no exista.
 
 | Estado | Significado |
 | --- | --- |
 | 401 | JWT ausente, inválido o vencido |
-| 403 | Sin relación activa con la persona solicitada |
+| 403 | Sin relación activa, o no es quien lo subió ni el `PRINCIPAL` |
 | 404 | Adjunto ausente o perteneciente a otra persona accesible |
-| 409 | Alguna versión de un registro de salud referencia el adjunto; se conserva la evidencia |
-| 502 | S3 no confirmó el borrado o no fue posible generar el enlace temporal |
+| 409 | El OCR sigue en curso, o alguna versión de un registro de salud referencia el adjunto |
+| 502 | No fue posible generar el enlace temporal |
 
-Ante 409 mostrar el mensaje de la API; no eliminar localmente la tarjeta. Ante un
-fallo S3 se conserva la fila mediante rollback y el usuario puede reintentar. La
+Ante 409 mostrar el mensaje de la API; no eliminar localmente la tarjeta. Son dos casos
+distintos: el OCR en curso se resuelve reintentando en unos segundos, la evidencia
+referenciada no se resuelve nunca. La
 respuesta no expone detalles del SDK, bucket o credenciales. Los errores OCR también
 se guardan y se presentan como mensaje seguro fijo, incluso para errores históricos; el estado `FAILED` y el reintento conservan su
 contrato. Editar un registro de salud conserva el vínculo de evidencia en su nueva
@@ -64,25 +68,21 @@ versión.
 
 ## Consistencia y límites operativos
 
-El borrado, los reintentos y el listener OCR toman el mismo bloqueo de fila dentro de
-una transacción. Si OCR empezó primero, DELETE espera su finalización; si DELETE se
-confirmó primero, el listener no encuentra la fila y termina. No hay una escritura
-OCR que vuelva a crear metadatos borrados. Esto mantiene el bloqueo durante la llamada
-a Textract; por ello DELETE puede esperar lo que dure el OCR o recibir un error si
-vence el tiempo de espera de la base de datos. No se realiza OCR dentro de la petición
-HTTP de subida.
+Mientras el OCR corre, el adjunto está en `PENDING` y DELETE responde 409 en lugar de
+esperar. Así el listener nunca escribe sobre una fila ya borrada y ninguna petición
+HTTP queda bloqueada durante la llamada a Textract. El reintento de OCR vuelve a dejar
+el adjunto en `PENDING`, por lo que durante ese lapso tampoco se puede borrar. No se
+realiza OCR dentro de la petición HTTP de subida.
 
-DELETE elimina y hace `flush` de la fila antes de llamar a S3. Así una referencia
-clínica, incluida una referencia concurrente protegida por la FK, impide el borrado
-con 409 antes de tocar el objeto. Un error de S3 revierte el DELETE de la base de
-datos. El `delete` de mejor esfuerzo utilizado para compensar subidas fallidas sigue
-separado de este borrado explícito y estricto.
+DELETE comprueba las referencias clínicas con `existsBySourceAttachmentId` antes de
+borrar; la FK queda como última barrera ante una referencia concurrente. La limpieza
+del objeto corre **después** del commit y es de mejor esfuerzo: si S3 falla, la fila
+ya no vuelve y el objeto queda suelto. Esa es la dirección elegida a propósito, porque
+un objeto huérfano es recuperable y una fila que apunta a un archivo inexistente no.
 
-PostgreSQL y S3 no comparten transacción: una interrupción del proceso o fallo de
-commit después del éxito de S3 puede dejar una fila cuyo objeto falta. Una respuesta
-de red ambigua también puede indicar 502 aunque S3 haya aplicado el borrado. En ambos
-casos se puede reintentar DELETE (S3 admite borrar objetos ya ausentes); si persiste,
-operaciones debe reconciliar la fila y el objeto. No se promete atomicidad distribuida.
+PostgreSQL y S3 no comparten transacción. Con esta estrategia el desajuste posible es
+siempre el mismo: objeto en el bucket sin fila que lo referencie. El job periódico de
+la issue #42 es el que los recoge. No se promete atomicidad distribuida.
 Si el bucket tiene versionado o retención, `DeleteObject` sin versionId puede crear
 un marcador de borrado y conservar versiones antiguas según la política del bucket;
 204 no certifica una purga histórica. Los clientes que ya descargaron bytes pueden

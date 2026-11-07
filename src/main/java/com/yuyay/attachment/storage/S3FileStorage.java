@@ -5,6 +5,7 @@ import com.yuyay.attachment.exception.FileStorageException;
 import com.yuyay.config.AwsProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -20,6 +21,7 @@ import java.time.Duration;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "app.storage.type", havingValue = "s3", matchIfMissing = true)
 @RequiredArgsConstructor
 public class S3FileStorage implements FileStorage {
     private final S3Client s3Client;
@@ -39,6 +41,21 @@ public class S3FileStorage implements FileStorage {
         } catch (SdkException e) {
             log.warn("Fallo guardando un adjunto en S3 ({})", e.getClass().getSimpleName());
             throw new FileStorageException("No se pudo guardar el archivo");
+        }
+    }
+
+    @Override
+    public byte[] load(String key) {
+        requireBucket();
+        try {
+            return s3Client.getObjectAsBytes(GetObjectRequest.builder()
+                            .bucket(awsProperties.s3Bucket())
+                            .key(key)
+                            .build())
+                    .asByteArray();
+        } catch (SdkException e) {
+            log.warn("Fallo leyendo el adjunto {} de S3", key, e);
+            throw new FileStorageException("No se pudo leer el archivo");
         }
     }
 
