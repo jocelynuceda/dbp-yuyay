@@ -14,6 +14,9 @@ public class NotificationSchemaHealthIndicator implements HealthIndicator {
     @Override
     public Health health() {
         NotificationTypeConstraintUpdater.Status status = updater.status();
+        if (status == NotificationTypeConstraintUpdater.Status.PENDING) {
+            return Health.outOfService().withDetail("estado", status.name()).build();
+        }
         if (status == NotificationTypeConstraintUpdater.Status.FAILED) {
             return Health.down().withDetail("motivo", updater.detail()).build();
         }

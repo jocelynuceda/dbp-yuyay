@@ -23,6 +23,16 @@ class NotificationSchemaHealthIndicatorTest {
     }
 
     @Test
+    void pendingCheckReportsOutOfServiceSoTheDeployKeepsWaiting() {
+        NotificationTypeConstraintUpdater updater = mock(NotificationTypeConstraintUpdater.class);
+        when(updater.status()).thenReturn(NotificationTypeConstraintUpdater.Status.PENDING);
+
+        Health health = new NotificationSchemaHealthIndicator(updater).health();
+
+        assertEquals(Status.OUT_OF_SERVICE, health.getStatus());
+    }
+
+    @Test
     void otherOutcomesReportUp() {
         for (NotificationTypeConstraintUpdater.Status status : new NotificationTypeConstraintUpdater.Status[]{
                 NotificationTypeConstraintUpdater.Status.SKIPPED,
