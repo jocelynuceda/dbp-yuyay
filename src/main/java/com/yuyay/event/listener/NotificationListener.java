@@ -4,7 +4,6 @@ import com.yuyay.care.entity.CareRelationship;
 import com.yuyay.care.entity.CareStatus;
 import com.yuyay.care.repository.CareRelationshipRepository;
 import com.yuyay.care.entity.CareRole;
-import com.yuyay.event.CaregiverInvitedEvent;
 import com.yuyay.event.CaregiverJoinedEvent;
 import com.yuyay.event.HealthEntryChangedEvent;
 import com.yuyay.notification.email.EmailService;
@@ -69,35 +68,6 @@ public class NotificationListener {
             }
         } catch (Exception e) {
             log.error("Fallo procesando HealthEntryChangedEvent {}", event, e);
-        }
-    }
-
-    @Async("eventExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void onCaregiverInvited(CaregiverInvitedEvent event) {
-        try {
-            careRelationshipRepository.findById(event.careRelationshipId()).ifPresent(rel -> {
-                Long subjectId = rel.getCareSubject().getId();
-                String subjectName = rel.getCareSubject().getName();
-                String inviterName = careRelationshipRepository
-                        .findByCareSubjectIdAndStatus(subjectId, CareStatus.ACTIVE).stream()
-                        .filter(r -> r.getRole() == CareRole.PRINCIPAL)
-                        .map(r -> r.getUser().getName())
-                        .findFirst()
-                        .orElse("Un cuidador");
-
-                notificationRepository.save(Notification.builder()
-                        .user(rel.getUser())
-                        .type(NotificationType.INVITATION)
-                        .careSubjectId(subjectId)
-                        .title("Te invitaron a cuidar a %s".formatted(subjectName))
-                        .body("%s te invitó a cuidar a %s. Acepta la invitación para ver sus registros."
-                                .formatted(inviterName, subjectName))
-                        .build());
-            });
-        } catch (Exception e) {
-            log.error("Fallo procesando CaregiverInvitedEvent {}", event, e);
         }
     }
 

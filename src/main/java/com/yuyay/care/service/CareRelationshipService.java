@@ -18,6 +18,7 @@ import com.yuyay.exception.ForbiddenCareSubjectAccessException;
 import com.yuyay.exception.InvalidCareRelationshipException;
 import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
+import com.yuyay.notification.entity.Notification;
 import com.yuyay.notification.entity.NotificationType;
 import com.yuyay.notification.repository.NotificationRepository;
 import com.yuyay.security.AuthorizationService;
@@ -69,6 +70,16 @@ public class CareRelationshipService {
                 .status(CareStatus.PENDING)
                 .build());
 
+        String inviterName = userRepo.findById(meId).map(User::getName).orElse("Un cuidador");
+        notificationRepository.save(Notification.builder()
+                .user(invitee)
+                .type(NotificationType.INVITATION)
+                .careSubjectId(subjectId)
+                .title("Te invitaron a cuidar a %s".formatted(cs.getName()))
+                .body("%s te invitó a cuidar a %s. Acepta la invitación para ver sus registros."
+                        .formatted(inviterName, cs.getName()))
+                .build());
+
         eventPublisher.publishEvent(new CaregiverInvitedEvent(rel.getId()));
         return mapper.toResponse(rel);
     }
@@ -107,9 +118,7 @@ public class CareRelationshipService {
         Instant now = Instant.now();
         rel.setAcceptedAt(now);
 
-        notificationRepository.findByUserIdAndTypeAndCareSubjectIdAndReadAtIsNull(
-                        meId, NotificationType.INVITATION, rel.getCareSubject().getId())
-                .forEach(n -> n.setReadAt(now));
+        markInvitationNoticesRead(meId, rel.getCareSubject().getId(), now);
 
         eventPublisher.publishEvent(new CaregiverJoinedEvent(rel.getId()));
         return mapper.toResponse(rel);
@@ -132,7 +141,15 @@ public class CareRelationshipService {
         }
 
         rel.setStatus(CareStatus.REVOKED);
-        rel.setRevokedAt(Instant.now());
+        Instant now = Instant.now();
+        rel.setRevokedAt(now);
+        markInvitationNoticesRead(rel.getUser().getId(), subjectId, now);
+    }
+
+    private void markInvitationNoticesRead(Long userId, Long subjectId, Instant now) {
+        notificationRepository.findByUserIdAndTypeAndCareSubjectIdAndReadAtIsNull(
+                        userId, NotificationType.INVITATION, subjectId)
+                .forEach(n -> n.setReadAt(now));
     }
 
     private CareSubject loadSubject(Long id) {
