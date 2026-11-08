@@ -25,8 +25,9 @@ Guía de integración del bloque backend: [paginación, CORS y enlaces web](docs
 | Estado de salud | [https://api.34-193-16-240.sslip.io/actuator/health](https://api.34-193-16-240.sslip.io/actuator/health) |
 | Repositorio web y móvil | [jocelynuceda/yuyay-frontend](https://github.com/jocelynuceda/yuyay-frontend) |
 
-**Cuentas de demo:** `ana@demo.yuyay` (cuidadora principal) y `bruno@demo.yuyay` (cuidador), ambas con la
-contraseña `Yuyay-Demo-2026`. La API solo responde mientras el laboratorio AWS Academy está encendido.
+**Cuentas de demo:** `ana@demo.yuyay` (cuidadora principal) y `bruno@demo.yuyay` (cuidador). La contraseña
+se entrega en el informe; no se publica porque la API está en internet. La API solo responde mientras el
+laboratorio AWS Academy está encendido.
 
 ---
 
