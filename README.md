@@ -15,6 +15,19 @@ Guía de integración del bloque backend: [paginación, CORS y enlaces web](docs
 | Puicon Arapa, Valentina Yamile | 202510090 |
 | Uceda Tang, Jocelyn Avril | 202510545 |
 
+**Enlaces públicos**
+
+| Recurso | URL |
+| --- | --- |
+| Aplicación web (Vercel) | [https://yuyay-web.vercel.app](https://yuyay-web.vercel.app) |
+| API (EC2 + HTTPS) | [https://api.34-193-16-240.sslip.io](https://api.34-193-16-240.sslip.io) |
+| Documentación Swagger | [https://api.34-193-16-240.sslip.io/swagger-ui.html](https://api.34-193-16-240.sslip.io/swagger-ui.html) |
+| Estado de salud | [https://api.34-193-16-240.sslip.io/actuator/health](https://api.34-193-16-240.sslip.io/actuator/health) |
+| Repositorio web y móvil | [jocelynuceda/yuyay-frontend](https://github.com/jocelynuceda/yuyay-frontend) |
+
+**Cuentas de demo:** `ana@demo.yuyay` (cuidadora principal) y `bruno@demo.yuyay` (cuidador), ambas con la
+contraseña `Yuyay-Demo-2026`. La API solo responde mientras el laboratorio AWS Academy está encendido.
+
 ---
 
 ## Índice
@@ -353,8 +366,18 @@ público. Caddy recibe 80/443 y comunica con Docker por 127.0.0.1:8080. El puert
 al público. La instancia usa la Elastic IP 34.193.16.240 y la base permanece en RDS PostgreSQL.
 La disponibilidad depende de que el laboratorio AWS Academy esté activo. La
 [guía operativa](ops/https-deployment.md) detalla configuración, verificaciones y rollback.
-El workflow actualizado de esta rama debe integrarse antes del siguiente despliegue automático,
-porque el workflow anterior de main todavía comprueba HTTP 8080.
+Cada merge a `main` despliega solo: GitHub Actions construye la imagen, la ejecuta en la EC2 con las
+variables de `~/.env` y comprueba `/actuator/health` por HTTPS.
+
+**Web:** [https://yuyay-web.vercel.app](https://yuyay-web.vercel.app), publicada en Vercel desde
+`yuyay-frontend/web` con `VITE_API_URL=https://api.34-193-16-240.sslip.io`. El dominio de Vercel está en
+`CORS_ALLOWED_ORIGINS` y en `FRONTEND_URL`, que arma los enlaces de los correos (`/acceso/{token}` e
+`/invitaciones/{id}`).
+
+**Datos de demo:** con el perfil `demo` (`SPRING_PROFILES_ACTIVE=prod,demo`) y `DEMO_PASSWORD` definido,
+`DemoDataSeeder` crea al iniciar las cuentas `ana@demo.yuyay` y `bruno@demo.yuyay`, tres personas (Rosa,
+Pedro y Lucía), registros de las cinco categorías con versiones, una consulta pasada y una futura, un
+traspaso, una delegación activa y avisos sin leer. Si las cuentas ya existen no vuelve a cargar nada.
 
 ---
 
