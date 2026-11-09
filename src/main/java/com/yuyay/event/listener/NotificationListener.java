@@ -3,6 +3,8 @@ package com.yuyay.event.listener;
 import com.yuyay.care.entity.CareRelationship;
 import com.yuyay.care.entity.CareStatus;
 import com.yuyay.care.repository.CareRelationshipRepository;
+import com.yuyay.care.entity.CareRole;
+import com.yuyay.event.CaregiverJoinedEvent;
 import com.yuyay.event.HealthEntryChangedEvent;
 import com.yuyay.notification.email.EmailService;
 import com.yuyay.notification.entity.Notification;
@@ -66,6 +68,33 @@ public class NotificationListener {
             }
         } catch (Exception e) {
             log.error("Fallo procesando HealthEntryChangedEvent {}", event, e);
+        }
+    }
+
+    @Async("eventExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onCaregiverJoined(CaregiverJoinedEvent event) {
+        try {
+            careRelationshipRepository.findById(event.careRelationshipId()).ifPresent(joined -> {
+                Long subjectId = joined.getCareSubject().getId();
+                String subjectName = joined.getCareSubject().getName();
+                Long joinerId = joined.getUser().getId();
+                String joinerName = joined.getUser().getName();
+
+                careRelationshipRepository.findByCareSubjectIdAndStatus(subjectId, CareStatus.ACTIVE).stream()
+                        .filter(r -> r.getRole() == CareRole.PRINCIPAL)
+                        .filter(r -> !r.getUser().getId().equals(joinerId))
+                        .forEach(r -> notificationRepository.save(Notification.builder()
+                                .user(r.getUser())
+                                .type(NotificationType.CAREGIVER_JOINED)
+                                .careSubjectId(subjectId)
+                                .title("Nuevo cuidador para %s".formatted(subjectName))
+                                .body("%s aceptó la invitación y ahora cuida a %s.".formatted(joinerName, subjectName))
+                                .build()));
+            });
+        } catch (Exception e) {
+            log.error("Fallo procesando CaregiverJoinedEvent {}", event, e);
         }
     }
 }

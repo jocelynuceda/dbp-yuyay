@@ -444,17 +444,17 @@ public class DemoDataSeeder {
                 .build());
         notificationRepo.save(Notification.builder()
                 .user(users.ana())
-                .type(NotificationType.INVITATION)
+                .type(NotificationType.CAREGIVER_JOINED)
                 .careSubjectId(subjects.pedro().getId())
-                .title("Invitación aceptada")
-                .body("Bruno Torres aceptó la invitación para cuidar a Pedro")
+                .title("Nuevo cuidador para Pedro")
+                .body("Bruno Torres aceptó la invitación y ahora cuida a Pedro.")
                 .build());
         notificationRepo.save(Notification.builder()
                 .user(users.bruno())
                 .type(NotificationType.INVITATION)
                 .careSubjectId(subjects.lucia().getId())
                 .title("Te invitaron a cuidar a Lucía")
-                .body("Ana Torres te invitó a cuidar a Lucía en Yuyay")
+                .body("Ana Torres te invitó a cuidar a Lucía. Acepta la invitación para ver sus registros.")
                 .build());
     }
 }

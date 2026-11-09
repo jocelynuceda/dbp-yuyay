@@ -12,11 +12,15 @@ import com.yuyay.care.mapper.CareRelationshipMapper;
 import com.yuyay.care.repository.CareRelationshipRepository;
 import com.yuyay.care.repository.CareSubjectRepository;
 import com.yuyay.event.CaregiverInvitedEvent;
+import com.yuyay.event.CaregiverJoinedEvent;
 import com.yuyay.exception.DuplicateCareRelationshipException;
 import com.yuyay.exception.ForbiddenCareSubjectAccessException;
 import com.yuyay.exception.InvalidCareRelationshipException;
 import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
+import com.yuyay.notification.entity.Notification;
+import com.yuyay.notification.entity.NotificationType;
+import com.yuyay.notification.repository.NotificationRepository;
 import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.entity.User;
@@ -41,6 +45,7 @@ public class CareRelationshipService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final NotificationRepository notificationRepository;
 
     public CareRelationshipResponse invite(Long subjectId, CareRelationshipInviteRequest req) {
         Long meId = currentUserService.getCurrentUserId();
@@ -63,6 +68,16 @@ public class CareRelationshipService {
                 .role(req.role())
                 .relationshipLabel(req.relationshipLabel())
                 .status(CareStatus.PENDING)
+                .build());
+
+        String inviterName = userRepo.findById(meId).map(User::getName).orElse("Un cuidador");
+        notificationRepository.save(Notification.builder()
+                .user(invitee)
+                .type(NotificationType.INVITATION)
+                .careSubjectId(subjectId)
+                .title("Te invitaron a cuidar a %s".formatted(cs.getName()))
+                .body("%s te invitó a cuidar a %s. Acepta la invitación para ver sus registros."
+                        .formatted(inviterName, cs.getName()))
                 .build());
 
         eventPublisher.publishEvent(new CaregiverInvitedEvent(rel.getId()));
@@ -100,7 +115,12 @@ public class CareRelationshipService {
         }
 
         rel.setStatus(CareStatus.ACTIVE);
-        rel.setAcceptedAt(Instant.now());
+        Instant now = Instant.now();
+        rel.setAcceptedAt(now);
+
+        markInvitationNoticesRead(meId, rel.getCareSubject().getId(), now);
+
+        eventPublisher.publishEvent(new CaregiverJoinedEvent(rel.getId()));
         return mapper.toResponse(rel);
     }
 
@@ -121,7 +141,15 @@ public class CareRelationshipService {
         }
 
         rel.setStatus(CareStatus.REVOKED);
-        rel.setRevokedAt(Instant.now());
+        Instant now = Instant.now();
+        rel.setRevokedAt(now);
+        markInvitationNoticesRead(rel.getUser().getId(), subjectId, now);
+    }
+
+    private void markInvitationNoticesRead(Long userId, Long subjectId, Instant now) {
+        notificationRepository.findByUserIdAndTypeAndCareSubjectIdAndReadAtIsNull(
+                        userId, NotificationType.INVITATION, subjectId)
+                .forEach(n -> n.setReadAt(now));
     }
 
     private CareSubject loadSubject(Long id) {
