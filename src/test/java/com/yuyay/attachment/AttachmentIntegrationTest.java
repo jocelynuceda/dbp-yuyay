@@ -46,6 +46,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -71,6 +72,7 @@ class AttachmentIntegrationTest {
     private static final byte[] FAKE_JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 1, 2, 3};
     private static final byte[] FAKE_PNG = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2};
     private static final byte[] FAKE_PDF = "%PDF-1.7\n%fake".getBytes();
+    private static final byte[] FAKE_M4A = {0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4D, 0x34, 0x41, 0x20};
 
     private String ownerToken;
     private String strangerToken;
@@ -322,7 +324,7 @@ class AttachmentIntegrationTest {
         mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + brunoToken))
                 .andExpect(status().isOk());
         mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + brunoToken))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isForbidden());
         long remainingId = upload(subjectId, brunoToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
         awaitOcr(subjectId, remainingId);
         mvc.perform(delete("/api/v1/care-subjects/" + subjectId + "/relationships/" + relationshipId)
@@ -331,6 +333,107 @@ class AttachmentIntegrationTest {
                 .andExpect(status().isForbidden());
         mvc.perform(delete(url(subjectId) + "/" + remainingId).header("Authorization", "Bearer " + brunoToken))
                 .andExpect(status().isForbidden());
+    }
+
+    // ---------- Audio, descarga y borrado ----------
+
+    @Test
+    void audioIsStoredWithoutRunningOcr() throws Exception {
+        JsonNode created = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201);
+
+        assertEquals("DONE", created.get("ocrStatus").asText());
+        verify(fileStorage).store(matches(".*\\.m4a$"), any(byte[].class), eq("audio/mp4"));
+        verifyNoInteractions(textExtractor);
+    }
+
+    @Test
+    void audioWithWrongSignatureIsRejected() throws Exception {
+        upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_JPEG, 400);
+        verify(fileStorage, never()).store(anyString(), any(byte[].class), anyString());
+    }
+
+    @Test
+    void contentIsServedOnlyToPeopleWithAccess() throws Exception {
+        long id = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        when(fileStorage.load(anyString())).thenReturn(FAKE_M4A);
+        String path = "/api/v1/care-subjects/" + subjectId + "/attachments/" + id + "/content";
+
+        mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("audio/mp4"))
+                .andExpect(content().bytes(FAKE_M4A));
+        mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken).header("Range", "bytes=0-3"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string("Content-Range", "bytes 0-3/" + FAKE_M4A.length));
+        mvc.perform(get(path).header("Authorization", "Bearer " + strangerToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deleteRemovesRowAndStoredFile() throws Exception {
+        long id = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        String path = "/api/v1/care-subjects/" + subjectId + "/attachments/" + id;
+
+        mvc.perform(delete(path).header("Authorization", "Bearer " + strangerToken))
+                .andExpect(status().isForbidden());
+        verify(fileStorage, never()).delete(anyString());
+
+        mvc.perform(delete(path).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+        verify(fileStorage).delete(startsWith("care-subjects/" + subjectId + "/"));
+        mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+        assertEquals("DELETE", awaitAttachmentLog(id).get("action").asText());
+    }
+
+    private JsonNode awaitAttachmentLog(long attachmentId) throws Exception {
+        for (int i = 0; i < 50; i++) {
+            Thread.sleep(100);
+            String body = mvc.perform(get("/api/v1/care-subjects/" + subjectId + "/access-logs")
+                            .header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            for (JsonNode log : json.readTree(body).get("content")) {
+                if ("ATTACHMENT".equals(log.get("targetType").asText())
+                        && log.get("targetId").asLong() == attachmentId) {
+                    return log;
+                }
+            }
+        }
+        throw new AssertionError("No llegó el asiento de bitácora del adjunto " + attachmentId);
+    }
+
+    @Test
+    void caregiverCanDeleteOnlyWhatTheyUploaded() throws Exception {
+        String brunoEmail = "bruno." + UUID.randomUUID() + "@yuyay.app";
+        String brunoToken = register(brunoEmail);
+        long relationshipId = postJson("/api/v1/care-subjects/" + subjectId + "/relationships", ownerToken,
+                "{\"email\":\"" + brunoEmail + "\",\"role\":\"CAREGIVER\",\"relationshipLabel\":\"hijo\"}", 201)
+                .get("id").asLong();
+        mvc.perform(post("/api/v1/me/relationships/" + relationshipId + "/accept")
+                        .header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isOk());
+        long ownerFile = upload(subjectId, ownerToken, "a.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        long brunoFile = upload(subjectId, brunoToken, "b.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        String base = "/api/v1/care-subjects/" + subjectId + "/attachments/";
+
+        mvc.perform(delete(base + ownerFile).header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete(base + brunoFile).header("Authorization", "Bearer " + brunoToken))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void attachmentBackingAnEntryCannotBeDeleted() throws Exception {
+        long id = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        postJson("/api/v1/care-subjects/" + subjectId + "/health-entries", ownerToken, entryBody(id), 201);
+
+        int status = mvc.perform(delete("/api/v1/care-subjects/" + subjectId + "/attachments/" + id)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andReturn().getResponse().getStatus();
+
+        assertTrue(status >= 400 && status < 500);
+        verify(fileStorage, never()).delete(anyString());
     }
 
     @Test
@@ -391,7 +494,7 @@ class AttachmentIntegrationTest {
         awaitOcr(subjectId, id);
         mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNoContent());
-        verify(fileStorage).deleteRequired(startsWith("care-subjects/" + subjectId + "/"));
+        verify(fileStorage).delete(startsWith("care-subjects/" + subjectId + "/"));
         mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNotFound());
         mvc.perform(get(url(subjectId) + "/" + id + "/access").header("Authorization", "Bearer " + ownerToken))
@@ -403,18 +506,15 @@ class AttachmentIntegrationTest {
     }
 
     @Test
-    void failedDeleteRollsBackMetadataAndAllowsRetry() throws Exception {
+    void deleteCleansStorageAfterCommitAndNeverRequiresIt() throws Exception {
         long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
         awaitOcr(subjectId, id);
-        org.mockito.Mockito.doThrow(new FileStorageException("No se pudo eliminar el archivo"))
-                .doNothing().when(fileStorage).deleteRequired(anyString());
-        mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
-                .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.message").value("No se pudo eliminar el archivo"));
-        mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.originalFilename").value("receta.jpg"));
         mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNoContent());
+        verify(fileStorage, never()).deleteRequired(anyString());
+        verify(fileStorage).delete(startsWith("care-subjects/" + subjectId + "/"));
+        mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -436,7 +536,7 @@ class AttachmentIntegrationTest {
     }
 
     @Test
-    void deleteWaitsForOcrAndOcrCannotRestoreDeletedMetadata() throws Exception {
+    void deleteIsRejectedWhileOcrIsStillRunningAndWorksAfterwards() throws Exception {
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch finish = new CountDownLatch(1);
         when(textExtractor.extractText(anyString())).thenAnswer(invocation -> {
@@ -444,26 +544,23 @@ class AttachmentIntegrationTest {
             if (!finish.await(10, TimeUnit.SECONDS)) throw new AssertionError("No se liberó el OCR de prueba");
             return "texto";
         });
-        var executor = Executors.newSingleThreadExecutor();
         try {
             long id = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
             assertTrue(entered.await(5, TimeUnit.SECONDS));
-            CountDownLatch deleteStarted = new CountDownLatch(1);
-            var deletion = executor.submit(() -> {
-                deleteStarted.countDown();
-                return mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
-                        .andReturn().getResponse().getStatus();
-            });
-            assertTrue(deleteStarted.await(2, TimeUnit.SECONDS));
-            assertThrows(TimeoutException.class, () -> deletion.get(250, TimeUnit.MILLISECONDS));
-            verify(fileStorage, never()).deleteRequired(anyString());
+
+            mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value("Espera a que termine la lectura del documento"));
+            verify(fileStorage, never()).delete(anyString());
+
             finish.countDown();
-            assertEquals(204, deletion.get(5, TimeUnit.SECONDS));
+            awaitOcr(subjectId, id);
+            mvc.perform(delete(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isNoContent());
             mvc.perform(get(url(subjectId) + "/" + id).header("Authorization", "Bearer " + ownerToken))
                     .andExpect(status().isNotFound());
         } finally {
             finish.countDown();
-            executor.shutdownNow();
         }
     }
 

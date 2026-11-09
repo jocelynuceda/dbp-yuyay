@@ -52,7 +52,7 @@ class AttachmentStorageRollbackTest {
     private final CurrentUserService currentUserService = mock(CurrentUserService.class);
 
     private final AttachmentService service = new AttachmentService(
-            attachmentRepo, careSubjectRepo, mock(ConsultationRepository.class), userRepo,
+            attachmentRepo, careSubjectRepo, mock(ConsultationRepository.class), mock(com.yuyay.health.repository.HealthEntryVersionRepository.class), userRepo,
             mock(AttachmentMapper.class), fileStorage, currentUserService,
             mock(AuthorizationService.class), mock(ApplicationEventPublisher.class));
 

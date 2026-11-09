@@ -1,6 +1,7 @@
 package com.yuyay.notification.repository;
 
 import com.yuyay.notification.entity.Notification;
+import com.yuyay.notification.entity.NotificationType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +19,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     long countByUserIdAndReadAtIsNull(Long userId);
+
+    List<Notification> findByUserIdAndTypeAndCareSubjectIdAndReadAtIsNull(Long userId, NotificationType type, Long careSubjectId);
 
     Optional<Notification> findByIdAndUserId(Long id, Long userId);
 }

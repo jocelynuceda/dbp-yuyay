@@ -24,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -61,14 +63,12 @@ public class CareSubjectService {
     public List<CareSubjectResponse> listMine() {
         Long meId = currentUserService.getCurrentUserId();
 
+        // Una sola consulta para todos los roles (evita N+1); la unicidad (user, subject) garantiza una fila por persona
+        Map<Long, CareRole> roles = relationshipRepo.findByUserIdAndStatus(meId, CareStatus.ACTIVE).stream()
+                .collect(Collectors.toMap(rel -> rel.getCareSubject().getId(), CareRelationship::getRole));
+
         return subjectRepo.findAllAccessibleBy(meId).stream()
-                .map(cs -> {
-                    CareRole role = relationshipRepo
-                            .findByUserIdAndCareSubjectId(meId, cs.getId())
-                            .map(CareRelationship::getRole)
-                            .orElse(null);
-                    return mapper.toResponse(cs, role);
-                })
+                .map(cs -> mapper.toResponse(cs, roles.get(cs.getId())))
                 .toList();
     }
 
