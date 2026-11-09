@@ -33,6 +33,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -99,14 +101,20 @@ public class HealthEntryService {
                 ? entryRepo.findByCareSubjectIdAndDeletedAtIsNull(subjectId, pageable)
                 : entryRepo.findByCareSubjectIdAndCategoryCodeAndDeletedAtIsNull(subjectId, categoryCode, pageable);
 
-        return entries
-                .map(e -> {
-                    HealthEntryVersion latest = versionRepo
-                            .findFirstByHealthEntryIdOrderByVersionNumberDesc(e.getId())
-                            .orElse(null);
-                    return entryMapper.toResponse(e,
-                            latest == null ? null : versionMapper.toResponse(latest));
-                });
+        List<Long> entryIds = entries.getContent().stream().map(HealthEntry::getId).toList();
+        if (entryIds.isEmpty()) {
+            return entries.map(e -> entryMapper.toResponse(e, null));
+        }
+
+        // Una sola consulta para las últimas versiones de toda la página (evita N+1)
+        Map<Long, HealthEntryVersion> latestByEntry = versionRepo.findLatestByHealthEntryIdIn(entryIds).stream()
+                .collect(Collectors.toMap(v -> v.getHealthEntry().getId(), v -> v));
+
+        return entries.map(e -> {
+            HealthEntryVersion latest = latestByEntry.get(e.getId());
+            return entryMapper.toResponse(e,
+                    latest == null ? null : versionMapper.toResponse(latest));
+        });
     }
 
     @Transactional(readOnly = true)
