@@ -2,6 +2,8 @@ package com.yuyay.care.controller;
 
 import com.yuyay.care.dto.DelegateMeResponse;
 import com.yuyay.care.service.DelegationService;
+import com.yuyay.consultation.dto.DelegateConsultationResponse;
+import com.yuyay.consultation.service.DelegateConsultationService;
 import com.yuyay.health.dto.HealthEntryResponse;
 import com.yuyay.health.service.DelegateHealthEntryService;
 import lombok.RequiredArgsConstructor;
@@ -20,10 +22,16 @@ public class DelegateController {
 
     private final DelegationService delegationService;
     private final DelegateHealthEntryService healthEntryService;
+    private final DelegateConsultationService consultationService;
 
     @GetMapping("/me")
     public DelegateMeResponse me() {
         return delegationService.me();
+    }
+
+    @GetMapping("/consultations")
+    public List<DelegateConsultationResponse> listConsultations() {
+        return consultationService.list();
     }
 
     @GetMapping("/health-entries")

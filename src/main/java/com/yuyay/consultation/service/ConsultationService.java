@@ -63,6 +63,7 @@ public class ConsultationService {
                 .careSubject(careSubject)
                 .createdBy(currentUser)
                 .date(request.date())
+                .time(request.time())
                 .reason(request.reason())
                 .notes(request.notes())
                 .build();
@@ -122,6 +123,11 @@ public class ConsultationService {
 
         if (request.date() != null) {
             consultation.setDate(request.date());
+        }
+        if (Boolean.TRUE.equals(request.clearTime())) {
+            consultation.setTime(null);
+        } else if (request.time() != null) {
+            consultation.setTime(request.time());
         }
         if (request.reason() != null && !request.reason().isBlank()) {
             consultation.setReason(request.reason());

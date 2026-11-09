@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -68,6 +69,29 @@ class ConsultationIntegrationTest {
 
         send(delete("/api/v1/consultations/" + id), anaToken, null, 204);
         send(get("/api/v1/consultations/" + id), anaToken, null, 404);
+    }
+
+    @Test
+    void timeIsOptionalAndCanBeChangedOrCleared() throws Exception {
+        String date = LocalDate.now().plusDays(3).toString();
+
+        JsonNode withoutTime = send(post(consultations), anaToken,
+                "{\"date\":\"" + date + "\",\"reason\":\"Sin hora\"}", 201);
+        assertTrue(withoutTime.get("time").isNull());
+
+        long id = send(post(consultations), anaToken,
+                "{\"date\":\"" + date + "\",\"time\":\"15:30\",\"reason\":\"Con hora\"}", 201).get("id").asLong();
+        String consultation = "/api/v1/consultations/" + id;
+        assertTrue(send(get(consultation), anaToken, null, 200).get("time").asText().startsWith("15:30"));
+
+        // Un PATCH que no menciona la hora la conserva
+        send(patch(consultation), anaToken, "{\"reason\":\"Control\"}", 200);
+        assertTrue(send(get(consultation), anaToken, null, 200).get("time").asText().startsWith("15:30"));
+
+        assertTrue(send(patch(consultation), anaToken, "{\"time\":\"09:05\"}", 200).get("time").asText().startsWith("09:05"));
+        assertTrue(send(patch(consultation), anaToken, "{\"clearTime\":true}", 200).get("time").isNull());
+
+        send(post(consultations), anaToken, "{\"date\":\"" + date + "\",\"time\":\"25:00\",\"reason\":\"Mala\"}", 400);
     }
 
     @Test

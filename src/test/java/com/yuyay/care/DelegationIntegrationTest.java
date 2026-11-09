@@ -148,6 +148,31 @@ class DelegationIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Categorías desconocidas: [SURGERY]"));
     }
 
+    @Test
+    void consultationsAreVisibleOnlyWhenIncludedAndWithoutNotes() throws Exception {
+        postJson("/api/v1/care-subjects/" + subjectId + "/consultations", ownerToken,
+                "{\"date\":\"2099-05-10\",\"reason\":\"Control de presión\",\"notes\":\"Nota privada\"}", 201);
+
+        JsonNode withConsultations = postJson("/api/v1/care-subjects/" + subjectId + "/delegations", ownerToken,
+                "{\"granteeName\":\"Rosa\",\"granteeEmail\":\"rosa@clinica.pe\",\"categoryCodes\":[],"
+                        + "\"includeConsultations\":true,\"validUntil\":\"" + Instant.now().plusSeconds(3600) + "\"}", 201);
+        String allowed = exchange(withConsultations);
+
+        mvc.perform(get("/api/v1/delegate/consultations").header("Authorization", "Bearer " + allowed))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reason").value("Control de presión"))
+                .andExpect(jsonPath("$[0].notes").doesNotExist());
+        mvc.perform(get("/api/v1/delegate/health-entries").header("Authorization", "Bearer " + allowed))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        String denied = exchange(createDelegation("MEDICATION"));
+        mvc.perform(get("/api/v1/delegate/consultations").header("Authorization", "Bearer " + denied))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/care-subjects/" + subjectId + "/consultations").header("Authorization", "Bearer " + allowed))
+                .andExpect(status().isForbidden());
+    }
+
     private JsonNode createDelegation(String category) throws Exception {
         return postJson("/api/v1/care-subjects/" + subjectId + "/delegations", ownerToken, delegationBody(category), 201);
     }

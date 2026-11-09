@@ -48,6 +48,10 @@ public class Delegation {
     @Column(nullable = false)
     private Instant validUntil;
 
+    // Con default: ddl-auto agrega la columna sobre filas que ya existen
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean includeConsultations;
+
     private Instant exchangedAt;
 
     private Instant revokedAt;
