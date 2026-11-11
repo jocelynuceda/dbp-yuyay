@@ -1,6 +1,7 @@
 package com.yuyay.attachment.dto;
 
 import com.yuyay.attachment.entity.OcrStatus;
+import com.yuyay.attachment.scope.DocumentScopeLabel;
 
 import java.time.Instant;
 
@@ -17,5 +18,7 @@ public record AttachmentResponse(
         String ocrText,
         String ocrError,
         Instant uploadedAt,
-        Instant ocrCompletedAt
+        Instant ocrCompletedAt,
+        DocumentScopeLabel scopeLabel,
+        Double scopeScore
 ) {}

@@ -3,6 +3,7 @@ package com.yuyay.attachment.controller;
 import com.yuyay.attachment.dto.AttachmentAccessResponse;
 import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.dto.AttachmentResponse;
+import com.yuyay.attachment.scope.DocumentScopeService;
 import com.yuyay.attachment.service.AttachmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
@@ -24,23 +25,24 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AttachmentController {
     private final AttachmentService attachmentService;
+    private final DocumentScopeService documentScopeService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AttachmentResponse> upload(@PathVariable Long subjectId,
                                                      @RequestParam("file") MultipartFile file,
                                                      @RequestParam(required = false) Long consultationId) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(attachmentService.upload(subjectId, file, consultationId));
+                .body(documentScopeService.annotate(attachmentService.upload(subjectId, file, consultationId)));
     }
 
     @GetMapping
     public List<AttachmentResponse> list(@PathVariable Long subjectId) {
-        return attachmentService.list(subjectId);
+        return documentScopeService.annotate(attachmentService.list(subjectId));
     }
 
     @GetMapping("/{attachmentId}")
     public AttachmentResponse get(@PathVariable Long subjectId, @PathVariable Long attachmentId) {
-        return attachmentService.get(subjectId, attachmentId);
+        return documentScopeService.annotate(attachmentService.get(subjectId, attachmentId));
     }
 
     @GetMapping("/{attachmentId}/access")
@@ -72,6 +74,7 @@ public class AttachmentController {
     @PostMapping("/{attachmentId}/ocr-retry")
     public ResponseEntity<AttachmentResponse> retryOcr(@PathVariable Long subjectId,
                                                        @PathVariable Long attachmentId) {
-        return ResponseEntity.accepted().body(attachmentService.retryOcr(subjectId, attachmentId));
+        return ResponseEntity.accepted()
+                .body(documentScopeService.annotate(attachmentService.retryOcr(subjectId, attachmentId)));
     }
 }
