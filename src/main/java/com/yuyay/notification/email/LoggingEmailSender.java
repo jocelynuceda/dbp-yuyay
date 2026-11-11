@@ -1,6 +1,7 @@
 package com.yuyay.notification.email;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
@@ -14,16 +15,30 @@ import java.util.regex.Pattern;
 @ConditionalOnExpression("'${app.mail.resend-api-key:}'.isEmpty()")
 public class LoggingEmailSender implements EmailSender {
 
-    private static final String MESSAGE =
+    private static final String SIMULATED =
             "Correo simulado (falta RESEND_API_KEY) para {}: \"{}\"{}";
+
+    private static final String DISABLED =
+            "Correo deshabilitado (falta RESEND_API_KEY) para {}: \"{}\"";
 
     private static final Pattern CODE = Pattern.compile("(?<!\\d)\\d{6}(?!\\d)");
     private static final Pattern LINK =
             Pattern.compile("href\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
 
+    private final boolean logContents;
+
+    public LoggingEmailSender(@Value("${app.mail.log-contents:false}") boolean logContents) {
+        this.logContents = logContents;
+    }
+
     @Override
     public void send(String to, String subject, String html) {
-        log.info(MESSAGE, to, subject, details(html == null ? "" : html));
+        if (!logContents) {
+            log.info(DISABLED, to, subject);
+            return;
+        }
+
+        log.info(SIMULATED, to, subject, details(html == null ? "" : html));
     }
 
     private String details(String html) {

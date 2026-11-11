@@ -1,78 +1,96 @@
 package com.yuyay.notification;
 
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import com.yuyay.notification.email.LoggingEmailSender;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class LoggingEmailSenderTest {
 
-    private final LoggingEmailSender sender = new LoggingEmailSender();
-    private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
-    private Logger logger;
+    private static final String CODE_EMAIL = "<p><strong>482917</strong></p>";
+    private static final String LINK_EMAIL =
+            "<a href=\"https://web.example/invitaciones/42\">Aceptar</a>";
+
+    private CapturedLog log;
 
     @BeforeEach
     void setUp() {
-        logger = (Logger) LoggerFactory.getLogger(LoggingEmailSender.class);
-        appender.start();
-        logger.addAppender(appender);
+        log = new CapturedLog(LoggingEmailSender.class);
     }
 
     @AfterEach
     void tearDown() {
-        logger.detachAppender(appender);
+        log.close();
     }
 
     @Test
     void logsRecipientAndSubject() {
-        sender.send("ana@example.com", "Bienvenida a Yuyay", "<p>Hola Ana</p>");
+        verbose().send("ana@example.com", "Bienvenida a Yuyay", "<p>Hola Ana</p>");
 
-        assertThat(logged()).contains("ana@example.com").contains("Bienvenida a Yuyay");
+        assertThat(log.onlyMessage()).contains("ana@example.com").contains("Bienvenida a Yuyay");
     }
 
     @Test
     void logsTheVerificationCode() {
-        sender.send("ana@example.com", "Tu código", "<p><strong>482917</strong></p>");
+        verbose().send("ana@example.com", "Tu código", CODE_EMAIL);
 
-        assertThat(logged()).contains("Código: 482917");
+        assertThat(log.onlyMessage()).contains("Código: 482917");
     }
 
     @Test
     void ignoresNumbersThatAreNotTextOfTheEmail() {
-        sender.send("ana@example.com", "Bienvenida", "<p style=\"width: 123456px\">Hola</p>");
+        verbose().send("ana@example.com", "Bienvenida", "<p style=\"width: 123456px\">Hola</p>");
 
-        assertThat(logged()).doesNotContain("Código");
+        assertThat(log.onlyMessage()).doesNotContain("Código");
     }
 
     @Test
     void logsEachLinkOnce() {
-        sender.send(
+        verbose().send(
                 "ana@example.com",
                 "Te invitaron",
-                "<a href=\"https://web.example/invitaciones/42\">Aceptar</a>"
-                        + "<a href=\"https://web.example/invitaciones/42\">o aquí</a>");
+                LINK_EMAIL + "<a href=\"https://web.example/invitaciones/42\">o aquí</a>");
 
-        assertThat(logged()).contains("Enlace: https://web.example/invitaciones/42");
+        assertThat(log.onlyMessage()).contains("Enlace: https://web.example/invitaciones/42");
     }
 
     @Test
     void logsBothLinksWhenThereAreTwo() {
-        sender.send(
+        verbose().send(
                 "ana@example.com",
                 "Acceso compartido",
                 "<a href=\"https://web.example/a\">A</a><a href=\"https://web.example/b\">B</a>");
 
-        assertThat(logged()).contains("Enlaces: https://web.example/a, https://web.example/b");
+        assertThat(log.onlyMessage()).contains("Enlaces: https://web.example/a, https://web.example/b");
     }
 
-    private String logged() {
-        assertThat(appender.list).hasSize(1);
-        return appender.list.getFirst().getFormattedMessage();
+    @Test
+    void doesNotLogTheVerificationCodeWhenContentsAreOff() {
+        quiet().send("ana@example.com", "Tu código", CODE_EMAIL);
+
+        assertThat(log.onlyMessage())
+                .contains("deshabilitado")
+                .contains("ana@example.com")
+                .doesNotContain("482917")
+                .doesNotContain("Código:");
+    }
+
+    @Test
+    void doesNotLogLinksWhenContentsAreOff() {
+        quiet().send("ana@example.com", "Te invitaron", LINK_EMAIL);
+
+        assertThat(log.onlyMessage())
+                .doesNotContain("https://web.example/invitaciones/42")
+                .doesNotContain("Enlace");
+    }
+
+    private LoggingEmailSender verbose() {
+        return new LoggingEmailSender(true);
+    }
+
+    private LoggingEmailSender quiet() {
+        return new LoggingEmailSender(false);
     }
 }
