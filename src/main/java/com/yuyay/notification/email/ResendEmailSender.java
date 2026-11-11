@@ -5,12 +5,12 @@ import com.resend.core.exception.ResendException;
 import com.resend.services.emails.model.CreateEmailOptions;
 import com.yuyay.config.AppProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@Profile("prod")
+@ConditionalOnExpression("!'${app.mail.resend-api-key:}'.isEmpty()")
 public class ResendEmailSender implements EmailSender {
 
     private final Resend resend;
@@ -32,6 +32,7 @@ public class ResendEmailSender implements EmailSender {
 
         try {
             resend.emails().send(email);
+            log.info("Correo enviado a {}: \"{}\"", to, subject);
         } catch (ResendException e) {
             log.error(
                     "No se pudo enviar correo a {}: {}",
