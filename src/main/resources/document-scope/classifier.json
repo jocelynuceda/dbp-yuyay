@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "labels": [
+    "NONMEDICAL",
+    "MEDICAL"
+  ],
+  "max_tokens": 384,
+  "min_alnum": 12,
+  "min_letters": 4,
+  "max_chars": 100000,
+  "nonmedical_max": 0.3602974997441903,
+  "medical_min": 0.46029749974419026,
+  "backend": "tfidf",
+  "aggregation": "whole_document",
+  "scikit_learn": "1.7.2",
+  "seed": 42,
+  "thresholds_calibrated": true,
+  "json_model": "model.json"
+}

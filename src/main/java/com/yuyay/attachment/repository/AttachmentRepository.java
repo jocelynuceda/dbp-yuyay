@@ -1,6 +1,7 @@
 package com.yuyay.attachment.repository;
 
 import com.yuyay.attachment.entity.Attachment;
+import com.yuyay.attachment.entity.OcrStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -13,6 +14,8 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
     List<Attachment> findByCareSubjectIdOrderByUploadedAtDesc(Long careSubjectId);
 
     Optional<Attachment> findByIdAndCareSubjectId(Long id, Long careSubjectId);
+
+    List<Attachment> findByUploadedByIdAndOcrStatus(Long uploadedById, OcrStatus ocrStatus);
 
     /** OCR, reintentos y borrado comparten el bloqueo para impedir escrituras tras eliminar. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
