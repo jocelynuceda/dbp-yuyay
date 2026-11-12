@@ -172,6 +172,23 @@ class PaginationIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void corsAllowsVercelProductionAndPreviewDeployments() throws Exception {
+        for (String origin : List.of("https://yuyay-frontend.vercel.app",
+                "https://yuyay-frontend-git-feat-web-docum-885b6b-jocelynucedas-projects.vercel.app")) {
+            mvc.perform(options("/api/v1/auth/login").header("Origin", origin)
+                            .header("Access-Control-Request-Method", "POST")
+                            .header("Access-Control-Request-Headers", "Content-Type"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin));
+        }
+        for (String origin : List.of("https://yuyay-frontend-git-x-otro-equipo.vercel.app", "https://evil.vercel.app")) {
+            mvc.perform(options("/api/v1/auth/login").header("Origin", origin)
+                            .header("Access-Control-Request-Method", "POST"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
     private long createEntry(String category) throws Exception {
         return send(post(entries), token, "{\"categoryCode\":\"" + category
                 + "\",\"title\":\"Registro\",\"confidenceLevel\":\"CONFIRMED\"}", 201).get("id").asLong();
