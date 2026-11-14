@@ -8,6 +8,7 @@ import com.yuyay.attachment.entity.OcrStatus;
 import com.yuyay.attachment.exception.AttachmentNotFoundException;
 import com.yuyay.attachment.exception.InvalidAttachmentException;
 import com.yuyay.attachment.mapper.AttachmentMapper;
+import com.yuyay.attachment.ratelimit.OcrRateLimiter;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.storage.FileStorage;
 import com.yuyay.audit.entity.AccessAction;
@@ -64,6 +65,7 @@ public class AttachmentService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final OcrRateLimiter ocrRateLimiter;
 
     public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId) {
         Long meId = currentUserService.getCurrentUserId();
@@ -79,13 +81,16 @@ public class AttachmentService {
         // Todo lo que puede fallar con 4xx se valida ANTES de subir a S3: así no quedan archivos huérfanos.
         Consultation consultation = resolveConsultation(subjectId, consultationId);
 
+        // Los audios no pasan por el OCR. Se marcan DONE y no con un estado nuevo porque la columna tiene
+        // un CHECK con los valores actuales y ddl-auto=update no lo modifica en las bases existentes.
+        boolean audio = file.getContentType().startsWith("audio/");
+        // Va después de las validaciones 4xx (un pedido inválido no gasta turno) y antes de guardar el archivo.
+        if (!audio) ocrRateLimiter.acquire(meId);
+
         String key = "care-subjects/" + subjectId + "/" + UUID.randomUUID() + extension;
         fileStorage.store(key, content, file.getContentType());
         deleteFromStorageIfRolledBack(key);
 
-        // Los audios no pasan por el OCR. Se marcan DONE y no con un estado nuevo porque la columna tiene
-        // un CHECK con los valores actuales y ddl-auto=update no lo modifica en las bases existentes.
-        boolean audio = file.getContentType().startsWith("audio/");
         Attachment attachment = attachmentRepo.save(Attachment.builder()
                 .careSubject(subject)
                 .consultation(consultation)
@@ -152,11 +157,13 @@ public class AttachmentService {
     }
 
     public AttachmentResponse retryOcr(Long subjectId, Long attachmentId) {
-        authorizationService.requireAccess(currentUserService.getCurrentUserId(), subjectId);
+        Long meId = currentUserService.getCurrentUserId();
+        authorizationService.requireAccess(meId, subjectId);
         Attachment attachment = loadForUpdate(subjectId, attachmentId);
         if (attachment.getOcrStatus() != OcrStatus.FAILED) {
             throw new InvalidOperationException("Solo se puede reintentar un OCR que falló");
         }
+        ocrRateLimiter.acquire(meId);
         attachment.setOcrStatus(OcrStatus.PENDING);
         attachment.setOcrError(null);
         attachment.setOcrCompletedAt(null);

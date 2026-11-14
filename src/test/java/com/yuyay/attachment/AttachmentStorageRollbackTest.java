@@ -3,6 +3,8 @@ package com.yuyay.attachment;
 import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.exception.InvalidAttachmentException;
 import com.yuyay.attachment.mapper.AttachmentMapper;
+import com.yuyay.attachment.ratelimit.OcrRateLimiter;
+import com.yuyay.attachment.ratelimit.OcrUsageStore;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.service.AttachmentService;
 import com.yuyay.attachment.storage.FileStorage;
@@ -23,6 +25,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,7 +57,8 @@ class AttachmentStorageRollbackTest {
     private final AttachmentService service = new AttachmentService(
             attachmentRepo, careSubjectRepo, mock(ConsultationRepository.class), mock(com.yuyay.health.repository.HealthEntryVersionRepository.class), userRepo,
             mock(AttachmentMapper.class), fileStorage, currentUserService,
-            mock(AuthorizationService.class), mock(ApplicationEventPublisher.class));
+            mock(AuthorizationService.class), mock(ApplicationEventPublisher.class),
+            new OcrRateLimiter(mock(OcrUsageStore.class), Clock.systemUTC(), 0, 0, 0));
 
     @BeforeEach
     void setUp() {

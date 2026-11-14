@@ -1,9 +1,11 @@
 package com.yuyay.exception;
 
+import com.yuyay.attachment.exception.OcrRateLimitException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -26,6 +28,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(YuyayException.class)
     public ResponseEntity<ErrorResponseDTO> handleYuyay(YuyayException ex, HttpServletRequest req) {
         return build(ex.getStatus(), ex.getMessage(), req);
+    }
+
+    @ExceptionHandler(OcrRateLimitException.class)
+    public ResponseEntity<ErrorResponseDTO> handleOcrRateLimit(OcrRateLimitException ex, HttpServletRequest req) {
+        HttpStatus status = ex.getStatus();
+        return ResponseEntity.status(status)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(ErrorResponseDTO.of(status.value(), status.getReasonPhrase(), ex.getMessage(), req.getRequestURI()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
