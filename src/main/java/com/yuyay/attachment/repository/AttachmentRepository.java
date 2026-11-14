@@ -18,7 +18,7 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
 
     List<Attachment> findByUploadedByIdAndOcrStatus(Long uploadedById, OcrStatus ocrStatus);
 
-    long countByUploadedByIdAndOcrStatusAndUploadedAtGreaterThanEqual(Long uploadedById, OcrStatus ocrStatus, Instant since);
+    long countByOcrRequestedByIdAndOcrStatusAndOcrRequestedAtGreaterThanEqual(Long ocrRequestedById, OcrStatus ocrStatus, Instant since);
 
     /** OCR, reintentos y borrado comparten el bloqueo para impedir escrituras tras eliminar. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

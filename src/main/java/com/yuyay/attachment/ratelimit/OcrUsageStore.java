@@ -5,7 +5,7 @@ import java.util.Optional;
 
 /** Persistence needed by {@link OcrRateLimiter}; the limiter itself knows nothing else about storage. */
 public interface OcrUsageStore {
-    /** Documents uploaded by the user at or after {@code since} whose OCR is still PENDING. */
+    /** Documents whose OCR this user requested (upload or retry) at or after {@code since} and that are still PENDING. */
     long countPendingSince(Long userId, Instant since);
 
     /** OCR requests logged for the user at or after {@code since}. */

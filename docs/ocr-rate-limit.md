@@ -9,10 +9,12 @@ Se evalúan en este orden. Un valor `0` (o menor) apaga la regla; con las tres a
 | Regla | Variable de entorno | Por defecto | Qué hace |
 |---|---|---|---|
 | Intervalo mínimo | `OCR_MIN_INTERVAL_SECONDS` | `5` | Segundos que deben pasar entre un documento aceptado y el siguiente |
-| Documentos en proceso | `OCR_MAX_PENDING` | `3` | Máximo de documentos del usuario con OCR `PENDING` subidos en los últimos 10 minutos |
+| Documentos en proceso | `OCR_MAX_PENDING` | `3` | Máximo de documentos con OCR `PENDING` cuya lectura pidió el usuario (al subirlos o al reintentar) en los últimos 10 minutos |
 | Cupo diario | `OCR_DAILY_LIMIT` | `30` | Máximo de solicitudes de OCR del usuario en una ventana móvil de 24 horas |
 
 Solo una solicitud aceptada gasta turno: si se rechaza por cualquiera de las tres reglas, no cambia el intervalo ni el cupo diario.
+
+Si una solicitud aceptada no llega a completarse porque la transacción se revierte (por ejemplo, no se pudo guardar el archivo), devuelve el turno del intervalo y no cuenta en el cupo de 24 horas.
 
 ## Dónde se aplica
 
@@ -48,3 +50,4 @@ Para documentos en proceso, `Retry-After` es 10. Para el cupo diario es el tiemp
 - El intervalo mínimo vive en memoria: se reinicia con la aplicación y es por instancia. Con varias instancias, cada una lleva su propio conteo.
 - El conteo de 24 horas vive en la tabla `ocr_request_log` (solo `user_id` y `requested_at`); las filas viejas de un usuario se borran cuando ese usuario sube un documento nuevo.
 - La regla de documentos en proceso solo mira los últimos 10 minutos: un documento que queda `PENDING` más tiempo deja de contar.
+- Los documentos anteriores a este cambio no se cuentan como en proceso, porque no tienen registrado quién pidió el OCR ni cuándo.

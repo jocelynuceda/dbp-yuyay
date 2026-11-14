@@ -186,6 +186,43 @@ class OcrRateLimiterTest {
     }
 
     @Test
+    void acquireReturnsTheAcceptedInstantEvenWithEveryRuleDisabled() {
+        assertEquals(START, limiter(5, 30, 3).acquire(ANA));
+
+        store.failOnAnyCall = true;
+        clock.advance(Duration.ofSeconds(1));
+        assertEquals(START.plusSeconds(1), limiter(0, 0, 0).acquire(ANA));
+    }
+
+    @Test
+    void releaseGivesBackTheIntervalTurnWithoutTouchingTheStore() {
+        OcrRateLimiter limiter = limiter(5, 30, 0);
+        Instant accepted = limiter.acquire(ANA);
+        assertThrows(OcrRateLimitException.class, () -> limiter.acquire(ANA));
+
+        store.failOnAnyCall = true;
+        limiter.release(ANA, accepted);
+        store.failOnAnyCall = false;
+
+        limiter.acquire(ANA);
+        assertEquals(2, store.requests.size(), "the daily log is rolled back by the transaction, not by release");
+    }
+
+    @Test
+    void releaseOfAnOlderRequestDoesNotFreeANewerTurn() {
+        OcrRateLimiter limiter = limiter(5, 0, 0);
+        Instant first = limiter.acquire(ANA);
+        clock.advance(Duration.ofSeconds(6));
+        limiter.acquire(ANA);
+
+        limiter.release(ANA, first);
+        assertThrows(OcrRateLimitException.class, () -> limiter.acquire(ANA));
+        limiter.release(LUIS, first);
+        limiter.release(null, first);
+        limiter.release(ANA, null);
+    }
+
+    @Test
     void ofManySimultaneousRequestsFromOneUserOnlyOneIsAccepted() throws Exception {
         OcrRateLimiter limiter = limiter(5, 30, 0);
         int threads = 16;

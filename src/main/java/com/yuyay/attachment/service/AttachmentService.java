@@ -38,6 +38,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -85,7 +86,12 @@ public class AttachmentService {
         // un CHECK con los valores actuales y ddl-auto=update no lo modifica en las bases existentes.
         boolean audio = file.getContentType().startsWith("audio/");
         // Va después de las validaciones 4xx (un pedido inválido no gasta turno) y antes de guardar el archivo.
-        if (!audio) ocrRateLimiter.acquire(meId);
+        Instant requestedAt = null;
+        if (!audio) {
+            requestedAt = ocrRateLimiter.acquire(meId);
+            // Se registra antes de guardar el archivo: si el almacenamiento falla, el rollback devuelve el turno.
+            releaseTurnIfRolledBack(meId, requestedAt);
+        }
 
         String key = "care-subjects/" + subjectId + "/" + UUID.randomUUID() + extension;
         fileStorage.store(key, content, file.getContentType());
@@ -100,6 +106,8 @@ public class AttachmentService {
                 .sizeBytes(file.getSize())
                 .storageKey(key)
                 .ocrStatus(audio ? OcrStatus.DONE : OcrStatus.PENDING)
+                .ocrRequestedAt(requestedAt)
+                .ocrRequestedById(audio ? null : meId)
                 .build());
 
         if (!audio) eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
@@ -163,8 +171,11 @@ public class AttachmentService {
         if (attachment.getOcrStatus() != OcrStatus.FAILED) {
             throw new InvalidOperationException("Solo se puede reintentar un OCR que falló");
         }
-        ocrRateLimiter.acquire(meId);
+        Instant requestedAt = ocrRateLimiter.acquire(meId);
+        releaseTurnIfRolledBack(meId, requestedAt);
         attachment.setOcrStatus(OcrStatus.PENDING);
+        attachment.setOcrRequestedAt(requestedAt);
+        attachment.setOcrRequestedById(meId);
         attachment.setOcrError(null);
         attachment.setOcrCompletedAt(null);
         eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
@@ -183,6 +194,23 @@ public class AttachmentService {
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
                     fileStorage.delete(key);
+                }
+            }
+        });
+    }
+
+    /**
+     * El limitador guarda el turno de intervalo en memoria, fuera de la transaccion. Si la transaccion
+     * termina en rollback (por ejemplo, fallo el almacenamiento), se devuelve el turno para que el usuario
+     * no quede bloqueado por una solicitud que no se proceso. La fila del cupo diario se revierte sola.
+     */
+    private void releaseTurnIfRolledBack(Long userId, Instant acceptedAt) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    ocrRateLimiter.release(userId, acceptedAt);
                 }
             }
         });

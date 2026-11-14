@@ -1,5 +1,6 @@
 package com.yuyay.attachment;
 
+import com.yuyay.attachment.exception.FileStorageException;
 import com.yuyay.attachment.ocr.TextExtractor;
 import com.yuyay.attachment.storage.FileStorage;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -111,6 +113,25 @@ class OcrRateLimitIntegrationTest {
         upload(subjectId, token, "nota.txt", "text/plain", FAKE_JPEG).andExpect(status().isBadRequest());
 
         uploadImage(subjectId, token).andExpect(status().isCreated());
+    }
+
+    @Test
+    void aStorageFailureNeitherTakesTheTurnNorCountsInTheQuota() throws Exception {
+        doThrow(new FileStorageException("S3 no disponible")).doNothing()
+                .when(fileStorage).store(anyString(), any(byte[].class), anyString());
+
+        uploadImage(subjectId, token).andExpect(status().isBadGateway());
+        uploadImage(subjectId, token).andExpect(status().isCreated());
+        for (int i = 0; i < 2; i++) {
+            advance(Duration.ofSeconds(6));
+            uploadImage(subjectId, token).andExpect(status().isCreated());
+        }
+
+        advance(Duration.ofSeconds(6));
+        uploadImage(subjectId, token)
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value(
+                        "Llegaste al límite de 3 documentos en 24 horas. Podrás subir otro en unas 24 horas."));
     }
 
     @Test

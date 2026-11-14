@@ -40,10 +40,14 @@ public class OcrRateLimiter {
         this.maxPending = maxPending;
     }
 
-    /** Accepts the request (consuming a turn) or throws {@link OcrRateLimitException}. */
-    public void acquire(Long userId) {
-        if (minIntervalSeconds <= 0 && dailyLimit <= 0 && maxPending <= 0) return;
+    /**
+     * Accepts the request (consuming a turn) or throws {@link OcrRateLimitException}.
+     *
+     * @return the instant at which the request was accepted
+     */
+    public Instant acquire(Long userId) {
         Instant now = clock.instant();
+        if (minIntervalSeconds <= 0 && dailyLimit <= 0 && maxPending <= 0) return now;
 
         checkInterval(lastAccepted.get(userId), now);
         checkPending(userId, now);
@@ -54,6 +58,18 @@ public class OcrRateLimiter {
             store.deleteOlderThan(userId, now.minus(WINDOW));
             store.record(userId, now);
         }
+        return now;
+    }
+
+    /**
+     * Gives back the interval turn of a request accepted at {@code acceptedAt} that did not go through
+     * (for example, the transaction rolled back). The entry is removed only if it is still that exact
+     * instant, so a newer accepted request is not affected. The store is not touched: the daily log row
+     * is rolled back by the transaction itself. No-op when the interval rule is disabled or an argument is null.
+     */
+    public void release(Long userId, Instant acceptedAt) {
+        if (minIntervalSeconds <= 0 || userId == null || acceptedAt == null) return;
+        lastAccepted.remove(userId, acceptedAt);
     }
 
     private void checkInterval(Instant last, Instant now) {

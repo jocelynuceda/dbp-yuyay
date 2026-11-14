@@ -77,6 +77,17 @@ public class Attachment {
 
     private Instant ocrCompletedAt;
 
+    /**
+     * When the last OCR of this document was requested (upload or retry); used by the OCR rate limit.
+     * Null in rows created before this field existed.
+     */
+    @Column(name = "ocr_requested_at")
+    private Instant ocrRequestedAt;
+
+    /** Who asked for the last OCR (upload or retry); may differ from the uploader. Plain id, no relation. */
+    @Column(name = "ocr_requested_by_id")
+    private Long ocrRequestedById;
+
     @PrePersist
     void onCreate() {
         this.uploadedAt = Instant.now();

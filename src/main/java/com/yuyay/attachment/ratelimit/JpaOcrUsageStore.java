@@ -14,9 +14,10 @@ public class JpaOcrUsageStore implements OcrUsageStore {
     private final OcrRequestLogRepository logRepo;
     private final AttachmentRepository attachmentRepo;
 
+    /** Documents whose OCR this user requested (upload or retry) at or after {@code since} and that are still PENDING. */
     @Override
     public long countPendingSince(Long userId, Instant since) {
-        return attachmentRepo.countByUploadedByIdAndOcrStatusAndUploadedAtGreaterThanEqual(
+        return attachmentRepo.countByOcrRequestedByIdAndOcrStatusAndOcrRequestedAtGreaterThanEqual(
                 userId, OcrStatus.PENDING, since);
     }
 
