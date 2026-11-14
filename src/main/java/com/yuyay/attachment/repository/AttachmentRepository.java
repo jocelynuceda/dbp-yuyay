@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,6 +17,8 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
     Optional<Attachment> findByIdAndCareSubjectId(Long id, Long careSubjectId);
 
     List<Attachment> findByUploadedByIdAndOcrStatus(Long uploadedById, OcrStatus ocrStatus);
+
+    long countByUploadedByIdAndOcrStatusAndUploadedAtGreaterThanEqual(Long uploadedById, OcrStatus ocrStatus, Instant since);
 
     /** OCR, reintentos y borrado comparten el bloqueo para impedir escrituras tras eliminar. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
