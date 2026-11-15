@@ -8,6 +8,7 @@ import com.yuyay.attachment.entity.OcrStatus;
 import com.yuyay.attachment.exception.AttachmentNotFoundException;
 import com.yuyay.attachment.exception.InvalidAttachmentException;
 import com.yuyay.attachment.mapper.AttachmentMapper;
+import com.yuyay.attachment.ratelimit.OcrRateLimiter;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.storage.FileStorage;
 import com.yuyay.audit.entity.AccessAction;
@@ -37,6 +38,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -64,6 +66,7 @@ public class AttachmentService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final OcrRateLimiter ocrRateLimiter;
 
     public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId) {
         Long meId = currentUserService.getCurrentUserId();
@@ -79,13 +82,21 @@ public class AttachmentService {
         // Todo lo que puede fallar con 4xx se valida ANTES de subir a S3: así no quedan archivos huérfanos.
         Consultation consultation = resolveConsultation(subjectId, consultationId);
 
+        // Los audios no pasan por el OCR. Se marcan DONE y no con un estado nuevo porque la columna tiene
+        // un CHECK con los valores actuales y ddl-auto=update no lo modifica en las bases existentes.
+        boolean audio = file.getContentType().startsWith("audio/");
+        // Va después de las validaciones 4xx (un pedido inválido no gasta turno) y antes de guardar el archivo.
+        Instant requestedAt = null;
+        if (!audio) {
+            requestedAt = ocrRateLimiter.acquire(meId);
+            // Se registra antes de guardar el archivo: si el almacenamiento falla, el rollback devuelve el turno.
+            releaseTurnIfRolledBack(meId, requestedAt);
+        }
+
         String key = "care-subjects/" + subjectId + "/" + UUID.randomUUID() + extension;
         fileStorage.store(key, content, file.getContentType());
         deleteFromStorageIfRolledBack(key);
 
-        // Los audios no pasan por el OCR. Se marcan DONE y no con un estado nuevo porque la columna tiene
-        // un CHECK con los valores actuales y ddl-auto=update no lo modifica en las bases existentes.
-        boolean audio = file.getContentType().startsWith("audio/");
         Attachment attachment = attachmentRepo.save(Attachment.builder()
                 .careSubject(subject)
                 .consultation(consultation)
@@ -95,6 +106,8 @@ public class AttachmentService {
                 .sizeBytes(file.getSize())
                 .storageKey(key)
                 .ocrStatus(audio ? OcrStatus.DONE : OcrStatus.PENDING)
+                .ocrRequestedAt(requestedAt)
+                .ocrRequestedById(audio ? null : meId)
                 .build());
 
         if (!audio) eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
@@ -152,12 +165,17 @@ public class AttachmentService {
     }
 
     public AttachmentResponse retryOcr(Long subjectId, Long attachmentId) {
-        authorizationService.requireAccess(currentUserService.getCurrentUserId(), subjectId);
+        Long meId = currentUserService.getCurrentUserId();
+        authorizationService.requireAccess(meId, subjectId);
         Attachment attachment = loadForUpdate(subjectId, attachmentId);
         if (attachment.getOcrStatus() != OcrStatus.FAILED) {
             throw new InvalidOperationException("Solo se puede reintentar un OCR que falló");
         }
+        Instant requestedAt = ocrRateLimiter.acquire(meId);
+        releaseTurnIfRolledBack(meId, requestedAt);
         attachment.setOcrStatus(OcrStatus.PENDING);
+        attachment.setOcrRequestedAt(requestedAt);
+        attachment.setOcrRequestedById(meId);
         attachment.setOcrError(null);
         attachment.setOcrCompletedAt(null);
         eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
@@ -176,6 +194,23 @@ public class AttachmentService {
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
                     fileStorage.delete(key);
+                }
+            }
+        });
+    }
+
+    /**
+     * El limitador guarda el turno de intervalo en memoria, fuera de la transaccion. Si la transaccion
+     * termina en rollback (por ejemplo, fallo el almacenamiento), se devuelve el turno para que el usuario
+     * no quede bloqueado por una solicitud que no se proceso. La fila del cupo diario se revierte sola.
+     */
+    private void releaseTurnIfRolledBack(Long userId, Instant acceptedAt) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    ocrRateLimiter.release(userId, acceptedAt);
                 }
             }
         });
