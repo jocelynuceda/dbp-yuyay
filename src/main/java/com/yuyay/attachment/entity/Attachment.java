@@ -88,6 +88,19 @@ public class Attachment {
     @Column(name = "ocr_requested_by_id")
     private Long ocrRequestedById;
 
+    /** What the client says it used to pick the document (camera, gallery...); informational, not trusted. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "upload_source", length = 16)
+    private UploadSource uploadSource;
+
+    /** Width in pixels, measured by the server from the image header; null for PDF/audio or when unreadable. */
+    @Column(name = "image_width")
+    private Integer imageWidth;
+
+    /** Height in pixels, measured by the server from the image header; null for PDF/audio or when unreadable. */
+    @Column(name = "image_height")
+    private Integer imageHeight;
+
     @PrePersist
     void onCreate() {
         this.uploadedAt = Instant.now();

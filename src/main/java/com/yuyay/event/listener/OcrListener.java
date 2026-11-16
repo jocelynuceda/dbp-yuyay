@@ -46,9 +46,10 @@ public class OcrListener {
             attachment.setOcrStatus(OcrStatus.DONE);
             attachment.setOcrError(null);
             // Solo la longitud: nunca se registra el texto extraído (puede ser clínico).
-            log.info("OCR listo adjunto={} contentType={} sizeBytes={} durationMs={} characters={}",
+            log.info("OCR listo adjunto={} contentType={} sizeBytes={} width={} height={} source={} durationMs={} characters={}",
                     attachment.getId(), safeContentType(attachment.getContentType()),
-                    sizeOrUnavailable(attachment.getSizeBytes()), durationMs,
+                    sizeOrUnavailable(attachment.getSizeBytes()), dimensionOrUnavailable(attachment.getImageWidth()),
+                    dimensionOrUnavailable(attachment.getImageHeight()), sourceOrUnavailable(attachment), durationMs,
                     text == null ? 0 : text.length());
         } catch (Exception e) {
             long durationMs = (System.nanoTime() - started) / 1_000_000L;
@@ -63,20 +64,23 @@ public class OcrListener {
         Long attachmentId = attachment.getId();
         String contentType = safeContentType(attachment.getContentType());
         String sizeBytes = sizeOrUnavailable(attachment.getSizeBytes());
+        String width = dimensionOrUnavailable(attachment.getImageWidth());
+        String height = dimensionOrUnavailable(attachment.getImageHeight());
+        String source = sourceOrUnavailable(attachment);
         String exceptionType = safeLogToken(error.getClass().getSimpleName(), 128);
         String causeType = lastCauseType(error);
         SdkServiceException serviceError = findServiceError(error);
         if (serviceError == null) {
-            log.warn("Fallo OCR adjunto={} contentType={} sizeBytes={} durationMs={} exceptionType={} causeType={}",
-                    attachmentId, contentType, sizeBytes, durationMs, exceptionType, causeType);
+            log.warn("Fallo OCR adjunto={} contentType={} sizeBytes={} width={} height={} source={} durationMs={} exceptionType={} causeType={}",
+                    attachmentId, contentType, sizeBytes, width, height, source, durationMs, exceptionType, causeType);
             return;
         }
         String errorCode = serviceError instanceof AwsServiceException awsError && awsError.awsErrorDetails() != null
                 ? awsError.awsErrorDetails().errorCode() : null;
         // No pasar el Throwable: sus mensajes, causas o respuesta HTTP pueden contener
         // URLs firmadas, credenciales o contenido clínico. El requestId permite correlación en AWS.
-        log.warn("Fallo OCR adjunto={} contentType={} sizeBytes={} durationMs={} exceptionType={} causeType={} awsExceptionType={} awsErrorCode={} awsStatus={} awsRequestId={}",
-                attachmentId, contentType, sizeBytes, durationMs, exceptionType, causeType, safeLogToken(serviceError.getClass().getSimpleName(), 128),
+        log.warn("Fallo OCR adjunto={} contentType={} sizeBytes={} width={} height={} source={} durationMs={} exceptionType={} causeType={} awsExceptionType={} awsErrorCode={} awsStatus={} awsRequestId={}",
+                attachmentId, contentType, sizeBytes, width, height, source, durationMs, exceptionType, causeType, safeLogToken(serviceError.getClass().getSimpleName(), 128),
                 safeLogToken(errorCode, 64), serviceError.statusCode(), safeLogToken(serviceError.requestId(), 128));
     }
 
@@ -106,6 +110,15 @@ public class OcrListener {
 
     private String sizeOrUnavailable(Long size) {
         return size == null ? "unavailable" : String.valueOf(size);
+    }
+
+    private String dimensionOrUnavailable(Integer value) {
+        return value == null ? "unavailable" : String.valueOf(value);
+    }
+
+    private String sourceOrUnavailable(Attachment attachment) {
+        return attachment.getUploadSource() == null
+                ? "unavailable" : attachment.getUploadSource().name().toLowerCase();
     }
 
     private String safeLogToken(String value, int maxLength) {

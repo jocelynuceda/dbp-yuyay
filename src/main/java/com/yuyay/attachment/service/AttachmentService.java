@@ -5,8 +5,10 @@ import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.dto.AttachmentResponse;
 import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.entity.OcrStatus;
+import com.yuyay.attachment.entity.UploadSource;
 import com.yuyay.attachment.exception.AttachmentNotFoundException;
 import com.yuyay.attachment.exception.InvalidAttachmentException;
+import com.yuyay.attachment.image.ImageSize;
 import com.yuyay.attachment.mapper.AttachmentMapper;
 import com.yuyay.attachment.ratelimit.OcrRateLimiter;
 import com.yuyay.attachment.repository.AttachmentRepository;
@@ -28,6 +30,7 @@ import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,9 +43,11 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -69,11 +74,18 @@ public class AttachmentService {
     private final OcrRateLimiter ocrRateLimiter;
 
     public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId) {
+        return upload(subjectId, file, consultationId, null);
+    }
+
+    public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId, String source) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireAccess(meId, subjectId);
         String extension = validate(file);
         byte[] content = readBytes(file);
         requireMatchingSignature(file.getContentType(), content);
+        // Diagnostic only: header read, never rejects the upload.
+        ImageSize size = ImageSize.read(content, file.getContentType());
+        UploadSource uploadSource = UploadSource.fromParam(source);
 
         CareSubject subject = careSubjectRepo.findById(subjectId)
                 .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
@@ -108,7 +120,16 @@ public class AttachmentService {
                 .ocrStatus(audio ? OcrStatus.DONE : OcrStatus.PENDING)
                 .ocrRequestedAt(requestedAt)
                 .ocrRequestedById(audio ? null : meId)
+                .uploadSource(uploadSource)
+                .imageWidth(size == null ? null : size.width())
+                .imageHeight(size == null ? null : size.height())
                 .build());
+
+        log.info("Adjunto subido adjunto={} contentType={} sizeBytes={} width={} height={} source={}",
+                attachment.getId(), attachment.getContentType(), attachment.getSizeBytes(),
+                size == null ? "unavailable" : String.valueOf(size.width()),
+                size == null ? "unavailable" : String.valueOf(size.height()),
+                uploadSource == null ? "unavailable" : uploadSource.name().toLowerCase(Locale.ROOT));
 
         if (!audio) eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
         return mapper.toResponse(attachment);
