@@ -57,8 +57,8 @@ class OcrListenerTest {
 
         var event = captureFailure(new IllegalStateException(PRIVATE_DETAILS, error));
 
-        assertEquals("Fallo OCR adjunto=7 exceptionType=IllegalStateException causeType=TextractException awsExceptionType=TextractException "
-                + "awsErrorCode=ThrottlingException awsStatus=429 awsRequestId=request-1234", event.getFormattedMessage());
+        assertEquals("Fallo OCR adjunto=7 contentType=image/jpeg sizeBytes=2847193 width=unavailable height=unavailable source=unavailable client=unavailable durationMs=N exceptionType=IllegalStateException causeType=TextractException awsExceptionType=TextractException "
+                + "awsErrorCode=ThrottlingException awsStatus=429 awsRequestId=request-1234", withoutDuration(event));
         assertSafeLog(event);
     }
 
@@ -66,7 +66,7 @@ class OcrListenerTest {
     void nonAwsFailureStillIdentifiesAttachmentAndExceptionType() {
         var event = captureFailure(new IllegalArgumentException(PRIVATE_DETAILS));
 
-        assertEquals("Fallo OCR adjunto=7 exceptionType=IllegalArgumentException causeType=IllegalArgumentException", event.getFormattedMessage());
+        assertEquals("Fallo OCR adjunto=7 contentType=image/jpeg sizeBytes=2847193 width=unavailable height=unavailable source=unavailable client=unavailable durationMs=N exceptionType=IllegalArgumentException causeType=IllegalArgumentException", withoutDuration(event));
         assertSafeLog(event);
     }
 
@@ -77,7 +77,7 @@ class OcrListenerTest {
 
         var event = captureFailure(new IllegalStateException(PRIVATE_DETAILS, clientError));
 
-        assertEquals("Fallo OCR adjunto=7 exceptionType=IllegalStateException causeType=SocketTimeoutException", event.getFormattedMessage());
+        assertEquals("Fallo OCR adjunto=7 contentType=image/jpeg sizeBytes=2847193 width=unavailable height=unavailable source=unavailable client=unavailable durationMs=N exceptionType=IllegalStateException causeType=SocketTimeoutException", withoutDuration(event));
         assertSafeLog(event);
     }
 
@@ -113,14 +113,122 @@ class OcrListenerTest {
 
         var event = assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), () -> captureFailure(first));
 
-        assertEquals("Fallo OCR adjunto=7 exceptionType=RuntimeException causeType=IllegalStateException", event.getFormattedMessage());
+        assertEquals("Fallo OCR adjunto=7 contentType=image/jpeg sizeBytes=2847193 width=unavailable height=unavailable source=unavailable client=unavailable durationMs=N exceptionType=RuntimeException causeType=IllegalStateException", withoutDuration(event));
         assertSafeLog(event);
     }
 
-    private ILoggingEvent captureFailure(Exception error) {
+    @Test
+    void successLogsTypeSizeDurationAndLengthButNeverTheText() {
         var repository = mock(AttachmentRepository.class);
         var extractor = mock(TextExtractor.class);
-        var attachment = Attachment.builder().id(7L).storageKey("care-subjects/7/private.jpg").build();
+        var attachment = attachment("application/pdf", 512_000L);
+        when(repository.findForUpdateById(7L)).thenReturn(Optional.of(attachment));
+        when(extractor.extractText(attachment.getStorageKey())).thenReturn("Losartan 50 mg private-clinical-text");
+
+        var event = captureOnly(() -> new OcrListener(repository, extractor).onAttachmentUploaded(new AttachmentUploadedEvent(7L)));
+
+        assertEquals(OcrStatus.DONE, attachment.getOcrStatus());
+        assertEquals(Level.INFO, event.getLevel());
+        assertEquals("OCR listo adjunto=7 contentType=application/pdf sizeBytes=512000 width=unavailable height=unavailable source=unavailable client=unavailable durationMs=N characters=36",
+                withoutDuration(event));
+        assertFalse(event.getFormattedMessage().contains("private-clinical-text"));
+        assertFalse(event.getFormattedMessage().contains("care-subjects/"));
+    }
+
+    @Test
+    void sourceAndImageSizeAreLoggedWhenKnown() {
+        var repository = mock(AttachmentRepository.class);
+        var extractor = mock(TextExtractor.class);
+        var attachment = attachment("image/jpeg", 9_500_000L);
+        attachment.setUploadSource("camera");
+        attachment.setUploadClient("android/1.0.0+0f3a9c12");
+        attachment.setImageWidth(16_320);
+        attachment.setImageHeight(12_240);
+        when(repository.findForUpdateById(7L)).thenReturn(Optional.of(attachment));
+        when(extractor.extractText(attachment.getStorageKey())).thenThrow(new IllegalArgumentException(PRIVATE_DETAILS));
+
+        var event = captureOnly(() -> new OcrListener(repository, extractor).onAttachmentUploaded(new AttachmentUploadedEvent(7L)));
+
+        assertTrue(withoutDuration(event).startsWith(
+                "Fallo OCR adjunto=7 contentType=image/jpeg sizeBytes=9500000 width=16320 height=12240 source=camera client=android/1.0.0+0f3a9c12 durationMs=N "),
+                event.getFormattedMessage());
+        assertSafeLog(event);
+    }
+
+    @Test
+    void emptyTextIsLoggedAsZeroCharacters() {
+        var repository = mock(AttachmentRepository.class);
+        var extractor = mock(TextExtractor.class);
+        var attachment = attachment("image/png", 1_024L);
+        when(repository.findForUpdateById(7L)).thenReturn(Optional.of(attachment));
+        when(extractor.extractText(attachment.getStorageKey())).thenReturn(null);
+
+        var event = captureOnly(() -> new OcrListener(repository, extractor).onAttachmentUploaded(new AttachmentUploadedEvent(7L)));
+
+        assertTrue(event.getFormattedMessage().endsWith("characters=0"), event.getFormattedMessage());
+    }
+
+    @Test
+    void missingOrUnexpectedTypeAndSizeAreLoggedAsUnavailable() {
+        for (String type : new String[]{null, "", "IMAGE/JPEG", "image/jpeg; charset=x", "image/jpeg\nforged-log-line",
+                "text/" + "a".repeat(100)}) {
+            var event = captureFailure(attachment(type, null), new IllegalArgumentException(PRIVATE_DETAILS));
+
+            assertTrue(withoutDuration(event).startsWith("Fallo OCR adjunto=7 contentType=unavailable sizeBytes=unavailable width=unavailable height=unavailable source=unavailable client=unavailable durationMs=N "),
+                    String.valueOf(type));
+            assertSafeLog(event);
+        }
+    }
+
+    @Test
+    void durationIsANonNegativeNumberOfMilliseconds() {
+        var event = captureFailure(new IllegalArgumentException(PRIVATE_DETAILS));
+
+        assertTrue(event.getFormattedMessage().matches(".* durationMs=\\d+ .*"), event.getFormattedMessage());
+    }
+
+    /**
+     * The logger is shared with the whole test JVM: Spring tests that upload files run OCR on async threads and
+     * may log while this appender is attached. The listener runs on the test thread here, so only those count.
+     */
+    private static java.util.List<ILoggingEvent> ownEvents(ListAppender<ILoggingEvent> appender) {
+        String thread = Thread.currentThread().getName();
+        return appender.list.stream().filter(event -> thread.equals(event.getThreadName())).toList();
+    }
+
+    private static Attachment attachment(String contentType, Long sizeBytes) {
+        return Attachment.builder().id(7L).storageKey("care-subjects/7/private.jpg")
+                .contentType(contentType).sizeBytes(sizeBytes).build();
+    }
+
+    /** La duración cambia en cada ejecución: se reemplaza por N para comparar el resto de la línea. */
+    private static String withoutDuration(ILoggingEvent event) {
+        return event.getFormattedMessage().replaceAll("durationMs=\\d+", "durationMs=N");
+    }
+
+    private ILoggingEvent captureOnly(Runnable action) {
+        var logger = (Logger) LoggerFactory.getLogger(OcrListener.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+            var mine = ownEvents(appender);
+            assertEquals(1, mine.size());
+            return mine.getFirst();
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    private ILoggingEvent captureFailure(Exception error) {
+        return captureFailure(attachment("image/jpeg", 2_847_193L), error);
+    }
+
+    private ILoggingEvent captureFailure(Attachment attachment, Exception error) {
+        var repository = mock(AttachmentRepository.class);
+        var extractor = mock(TextExtractor.class);
         when(repository.findForUpdateById(7L)).thenReturn(Optional.of(attachment));
         when(extractor.extractText(attachment.getStorageKey())).thenThrow(error);
         var logger = (Logger) LoggerFactory.getLogger(OcrListener.class);
@@ -132,8 +240,9 @@ class OcrListenerTest {
             assertEquals(OcrStatus.FAILED, attachment.getOcrStatus());
             assertEquals(SAFE_ERROR, attachment.getOcrError());
             assertEquals(SAFE_ERROR, Mappers.getMapper(AttachmentMapper.class).toResponse(attachment).ocrError());
-            assertEquals(1, appender.list.size());
-            return appender.list.getFirst();
+            var mine = ownEvents(appender);
+            assertEquals(1, mine.size());
+            return mine.getFirst();
         } finally {
             logger.detachAppender(appender);
             appender.stop();

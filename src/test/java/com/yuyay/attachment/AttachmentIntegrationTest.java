@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -232,6 +233,39 @@ class AttachmentIntegrationTest {
     }
 
     // ---------- Validacion del archivo ----------
+
+    @Test
+    void uploadRecordsTheDeclaredSourceAndTheMeasuredImageSize() throws Exception {
+        byte[] png = pngOf(30, 20);
+        MockMultipartFile file = new MockMultipartFile("file", "foto.png", "image/png", png);
+        long id = json.readTree(mvc.perform(multipart(url(subjectId)).file(file).param("source", "camera")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.uploadSource").doesNotExist())
+                .andReturn().getResponse().getContentAsString()).get("id").asLong();
+
+        var stored = attachmentRepository.findById(id).orElseThrow();
+        assertEquals("camera", stored.getUploadSource());
+        assertEquals(Integer.valueOf(30), stored.getImageWidth());
+        assertEquals(Integer.valueOf(20), stored.getImageHeight());
+    }
+
+    @Test
+    void anUnknownOrMissingSourceNeverBlocksTheUpload() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "receta.pdf", "application/pdf", FAKE_PDF);
+        long unknown = json.readTree(mvc.perform(multipart(url(subjectId)).file(file).param("source", "drone")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString()).get("id").asLong();
+        long missing = upload(subjectId, ownerToken, "receta.jpg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+
+        var pdf = attachmentRepository.findById(unknown).orElseThrow();
+        assertNull(pdf.getUploadSource());
+        assertNull(pdf.getImageWidth(), "a PDF has no image size");
+        var unreadable = attachmentRepository.findById(missing).orElseThrow();
+        assertNull(unreadable.getUploadSource());
+        assertNull(unreadable.getImageWidth(), "a truncated JPEG header is stored without size");
+    }
 
     @Test
     void invalidFilesReturn400() throws Exception {
@@ -579,6 +613,12 @@ class AttachmentIntegrationTest {
         return postJson("/api/v1/care-subjects/" + subject + "/consultations", ownerToken,
                 "{\"date\":\"" + LocalDate.now().minusDays(1) + "\",\"reason\":\"Control\"}", 201)
                 .get("id").asLong();
+    }
+
+    private static byte[] pngOf(int width, int height) throws java.io.IOException {
+        var out = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", out);
+        return out.toByteArray();
     }
 
     private JsonNode uploadWithConsultation(long consultationId, int expected) throws Exception {

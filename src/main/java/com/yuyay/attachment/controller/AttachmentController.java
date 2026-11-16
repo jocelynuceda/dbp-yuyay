@@ -5,6 +5,7 @@ import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.dto.AttachmentResponse;
 import com.yuyay.attachment.scope.DocumentScopeService;
 import com.yuyay.attachment.service.AttachmentService;
+import com.yuyay.common.ClientHeader;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -30,9 +31,11 @@ public class AttachmentController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AttachmentResponse> upload(@PathVariable Long subjectId,
                                                      @RequestParam("file") MultipartFile file,
-                                                     @RequestParam(required = false) Long consultationId) {
+                                                     @RequestParam(required = false) Long consultationId,
+                                                     @RequestParam(required = false) String source,
+                                                     @RequestAttribute(name = ClientHeader.ATTRIBUTE, required = false) String client) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(documentScopeService.annotate(attachmentService.upload(subjectId, file, consultationId)));
+                .body(documentScopeService.annotate(attachmentService.upload(subjectId, file, consultationId, source, client)));
     }
 
     @GetMapping
