@@ -5,6 +5,7 @@ import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.dto.AttachmentResponse;
 import com.yuyay.attachment.scope.DocumentScopeService;
 import com.yuyay.attachment.service.AttachmentService;
+import com.yuyay.common.ClientHeader;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
@@ -31,9 +33,10 @@ public class AttachmentController {
     public ResponseEntity<AttachmentResponse> upload(@PathVariable Long subjectId,
                                                      @RequestParam("file") MultipartFile file,
                                                      @RequestParam(required = false) Long consultationId,
-                                                     @RequestParam(required = false) String source) {
+                                                     @RequestParam(required = false) String source,
+                                                     @RequestAttribute(name = ClientHeader.ATTRIBUTE, required = false) String client) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(documentScopeService.annotate(attachmentService.upload(subjectId, file, consultationId, source)));
+                .body(documentScopeService.annotate(attachmentService.upload(subjectId, file, consultationId, source, client)));
     }
 
     @GetMapping

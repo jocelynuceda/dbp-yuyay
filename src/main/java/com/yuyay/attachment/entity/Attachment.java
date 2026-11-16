@@ -95,6 +95,13 @@ public class Attachment {
     @Column(name = "upload_source", length = 16)
     private String uploadSource;
 
+    /**
+     * Sanitized value of the X-Yuyay-Client header (web, android/ios app and build) or null when absent or invalid.
+     * Sent by the client; informational, never trusted.
+     */
+    @Column(name = "upload_client", length = 64)
+    private String uploadClient;
+
     /** Width in pixels, measured by the server from the image header; null for PDF/audio or when unreadable. */
     @Column(name = "image_width")
     private Integer imageWidth;

@@ -14,6 +14,7 @@ import com.yuyay.attachment.ratelimit.OcrRateLimiter;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.storage.FileStorage;
 import com.yuyay.audit.entity.AccessAction;
+import com.yuyay.common.ClientHeader;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.exception.CareSubjectNotFoundException;
@@ -78,6 +79,11 @@ public class AttachmentService {
     }
 
     public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId, String source) {
+        return upload(subjectId, file, consultationId, source, null);
+    }
+
+    public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId, String source,
+                                     String client) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireAccess(meId, subjectId);
         String extension = validate(file);
@@ -87,6 +93,9 @@ public class AttachmentService {
         ImageSize size = ImageSize.read(content, file.getContentType());
         UploadSource parsedSource = UploadSource.fromParam(source);
         String uploadSource = parsedSource == null ? null : parsedSource.name().toLowerCase(Locale.ROOT);
+        // Informativo: si falta o es inválido se guarda null, no el marcador "unavailable".
+        String sanitizedClient = ClientHeader.sanitize(client);
+        String uploadClient = "unavailable".equals(sanitizedClient) ? null : sanitizedClient;
 
         CareSubject subject = careSubjectRepo.findById(subjectId)
                 .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
@@ -122,15 +131,17 @@ public class AttachmentService {
                 .ocrRequestedAt(requestedAt)
                 .ocrRequestedById(audio ? null : meId)
                 .uploadSource(uploadSource)
+                .uploadClient(uploadClient)
                 .imageWidth(size == null ? null : size.width())
                 .imageHeight(size == null ? null : size.height())
                 .build());
 
-        log.info("Adjunto subido adjunto={} contentType={} sizeBytes={} width={} height={} source={}",
+        log.info("Adjunto subido adjunto={} contentType={} sizeBytes={} width={} height={} source={} client={}",
                 attachment.getId(), attachment.getContentType(), attachment.getSizeBytes(),
                 size == null ? "unavailable" : String.valueOf(size.width()),
                 size == null ? "unavailable" : String.valueOf(size.height()),
-                uploadSource == null ? "unavailable" : uploadSource);
+                uploadSource == null ? "unavailable" : uploadSource,
+                uploadClient == null ? "unavailable" : uploadClient);
 
         if (!audio) eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
         return mapper.toResponse(attachment);
