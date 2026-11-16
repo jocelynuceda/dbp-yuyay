@@ -14,7 +14,7 @@ public final class ClientHeader {
      * de Spring Security y por eso lee la cabecera cruda sin que el firewall la rechace; el resto del backend
      * debe leer este atributo y nunca la cabecera.
      */
-    public static final String ATTRIBUTE = ClientHeader.class.getName() + ".value";
+    public static final String ATTRIBUTE = "com.yuyay.common.ClientHeader.value";
 
     private static final String UNAVAILABLE = "unavailable";
     private static final Pattern SAFE = Pattern.compile("[A-Za-z0-9._/+-]{1,64}");
