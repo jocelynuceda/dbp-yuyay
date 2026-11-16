@@ -17,11 +17,15 @@ import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 
 import java.time.Instant;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OcrListener {
+    // Solo tipos MIME simples en minúscula, p. ej. application/pdf o image/svg+xml.
+    private static final Pattern SAFE_CONTENT_TYPE = Pattern.compile("[a-z]+/[a-z0-9.+-]+");
+
     private final AttachmentRepository attachmentRepository;
     private final TextExtractor textExtractor;
 
@@ -34,32 +38,45 @@ public class OcrListener {
             log.warn("Adjunto {} no encontrado para OCR", event.attachmentId());
             return;
         }
+        long started = System.nanoTime();
         try {
-            attachment.setOcrText(textExtractor.extractText(attachment.getStorageKey()));
+            String text = textExtractor.extractText(attachment.getStorageKey());
+            long durationMs = (System.nanoTime() - started) / 1_000_000L;
+            attachment.setOcrText(text);
             attachment.setOcrStatus(OcrStatus.DONE);
             attachment.setOcrError(null);
+            // Solo la longitud: nunca se registra el texto extraído (puede ser clínico).
+            log.info("OCR listo adjunto={} contentType={} sizeBytes={} durationMs={} characters={}",
+                    attachment.getId(), safeContentType(attachment.getContentType()),
+                    sizeOrUnavailable(attachment.getSizeBytes()), durationMs,
+                    text == null ? 0 : text.length());
         } catch (Exception e) {
-            logFailure(attachment.getId(), e);
+            long durationMs = (System.nanoTime() - started) / 1_000_000L;
+            logFailure(attachment, durationMs, e);
             attachment.setOcrStatus(OcrStatus.FAILED);
             attachment.setOcrError("No se pudo extraer el texto. Puedes reintentar el OCR.");
         }
         attachment.setOcrCompletedAt(Instant.now());
     }
 
-    private void logFailure(Long attachmentId, Exception error) {
+    private void logFailure(Attachment attachment, long durationMs, Exception error) {
+        Long attachmentId = attachment.getId();
+        String contentType = safeContentType(attachment.getContentType());
+        String sizeBytes = sizeOrUnavailable(attachment.getSizeBytes());
         String exceptionType = safeLogToken(error.getClass().getSimpleName(), 128);
         String causeType = lastCauseType(error);
         SdkServiceException serviceError = findServiceError(error);
         if (serviceError == null) {
-            log.warn("Fallo OCR adjunto={} exceptionType={} causeType={}", attachmentId, exceptionType, causeType);
+            log.warn("Fallo OCR adjunto={} contentType={} sizeBytes={} durationMs={} exceptionType={} causeType={}",
+                    attachmentId, contentType, sizeBytes, durationMs, exceptionType, causeType);
             return;
         }
         String errorCode = serviceError instanceof AwsServiceException awsError && awsError.awsErrorDetails() != null
                 ? awsError.awsErrorDetails().errorCode() : null;
         // No pasar el Throwable: sus mensajes, causas o respuesta HTTP pueden contener
         // URLs firmadas, credenciales o contenido clínico. El requestId permite correlación en AWS.
-        log.warn("Fallo OCR adjunto={} exceptionType={} causeType={} awsExceptionType={} awsErrorCode={} awsStatus={} awsRequestId={}",
-                attachmentId, exceptionType, causeType, safeLogToken(serviceError.getClass().getSimpleName(), 128),
+        log.warn("Fallo OCR adjunto={} contentType={} sizeBytes={} durationMs={} exceptionType={} causeType={} awsExceptionType={} awsErrorCode={} awsStatus={} awsRequestId={}",
+                attachmentId, contentType, sizeBytes, durationMs, exceptionType, causeType, safeLogToken(serviceError.getClass().getSimpleName(), 128),
                 safeLogToken(errorCode, 64), serviceError.statusCode(), safeLogToken(serviceError.requestId(), 128));
     }
 
@@ -77,6 +94,18 @@ public class OcrListener {
             type = safeLogToken(error.getClass().getSimpleName(), 128);
         }
         return type;
+    }
+
+    private String safeContentType(String value) {
+        // El tipo MIME lo informa el cliente: solo se registra si tiene forma de tipo/subtipo válida.
+        if (value == null || value.length() > 64 || !SAFE_CONTENT_TYPE.matcher(value).matches()) {
+            return "unavailable";
+        }
+        return value;
+    }
+
+    private String sizeOrUnavailable(Long size) {
+        return size == null ? "unavailable" : String.valueOf(size);
     }
 
     private String safeLogToken(String value, int maxLength) {
