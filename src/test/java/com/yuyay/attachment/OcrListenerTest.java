@@ -6,7 +6,6 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.entity.OcrStatus;
-import com.yuyay.attachment.entity.UploadSource;
 import com.yuyay.attachment.mapper.AttachmentMapper;
 import com.yuyay.attachment.ocr.TextExtractor;
 import com.yuyay.attachment.repository.AttachmentRepository;
@@ -141,7 +140,7 @@ class OcrListenerTest {
         var repository = mock(AttachmentRepository.class);
         var extractor = mock(TextExtractor.class);
         var attachment = attachment("image/jpeg", 9_500_000L);
-        attachment.setUploadSource(UploadSource.CAMERA);
+        attachment.setUploadSource("camera");
         attachment.setImageWidth(16_320);
         attachment.setImageHeight(12_240);
         when(repository.findForUpdateById(7L)).thenReturn(Optional.of(attachment));
@@ -187,6 +186,15 @@ class OcrListenerTest {
         assertTrue(event.getFormattedMessage().matches(".* durationMs=\\d+ .*"), event.getFormattedMessage());
     }
 
+    /**
+     * The logger is shared with the whole test JVM: Spring tests that upload files run OCR on async threads and
+     * may log while this appender is attached. The listener runs on the test thread here, so only those count.
+     */
+    private static java.util.List<ILoggingEvent> ownEvents(ListAppender<ILoggingEvent> appender) {
+        String thread = Thread.currentThread().getName();
+        return appender.list.stream().filter(event -> thread.equals(event.getThreadName())).toList();
+    }
+
     private static Attachment attachment(String contentType, Long sizeBytes) {
         return Attachment.builder().id(7L).storageKey("care-subjects/7/private.jpg")
                 .contentType(contentType).sizeBytes(sizeBytes).build();
@@ -204,8 +212,9 @@ class OcrListenerTest {
         logger.addAppender(appender);
         try {
             action.run();
-            assertEquals(1, appender.list.size());
-            return appender.list.getFirst();
+            var mine = ownEvents(appender);
+            assertEquals(1, mine.size());
+            return mine.getFirst();
         } finally {
             logger.detachAppender(appender);
             appender.stop();
@@ -230,8 +239,9 @@ class OcrListenerTest {
             assertEquals(OcrStatus.FAILED, attachment.getOcrStatus());
             assertEquals(SAFE_ERROR, attachment.getOcrError());
             assertEquals(SAFE_ERROR, Mappers.getMapper(AttachmentMapper.class).toResponse(attachment).ocrError());
-            assertEquals(1, appender.list.size());
-            return appender.list.getFirst();
+            var mine = ownEvents(appender);
+            assertEquals(1, mine.size());
+            return mine.getFirst();
         } finally {
             logger.detachAppender(appender);
             appender.stop();

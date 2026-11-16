@@ -2,7 +2,6 @@ package com.yuyay.attachment;
 
 import com.yuyay.attachment.dto.AttachmentAccessResponse;
 import com.yuyay.attachment.entity.OcrStatus;
-import com.yuyay.attachment.entity.UploadSource;
 import com.yuyay.attachment.exception.FileStorageException;
 import com.yuyay.attachment.ocr.TextExtractor;
 import com.yuyay.attachment.repository.AttachmentRepository;
@@ -246,7 +245,7 @@ class AttachmentIntegrationTest {
                 .andReturn().getResponse().getContentAsString()).get("id").asLong();
 
         var stored = attachmentRepository.findById(id).orElseThrow();
-        assertEquals(UploadSource.CAMERA, stored.getUploadSource());
+        assertEquals("camera", stored.getUploadSource());
         assertEquals(Integer.valueOf(30), stored.getImageWidth());
         assertEquals(Integer.valueOf(20), stored.getImageHeight());
     }

@@ -85,7 +85,8 @@ public class AttachmentService {
         requireMatchingSignature(file.getContentType(), content);
         // Diagnostic only: header read, never rejects the upload.
         ImageSize size = ImageSize.read(content, file.getContentType());
-        UploadSource uploadSource = UploadSource.fromParam(source);
+        UploadSource parsedSource = UploadSource.fromParam(source);
+        String uploadSource = parsedSource == null ? null : parsedSource.name().toLowerCase(Locale.ROOT);
 
         CareSubject subject = careSubjectRepo.findById(subjectId)
                 .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
@@ -129,7 +130,7 @@ public class AttachmentService {
                 attachment.getId(), attachment.getContentType(), attachment.getSizeBytes(),
                 size == null ? "unavailable" : String.valueOf(size.width()),
                 size == null ? "unavailable" : String.valueOf(size.height()),
-                uploadSource == null ? "unavailable" : uploadSource.name().toLowerCase(Locale.ROOT));
+                uploadSource == null ? "unavailable" : uploadSource);
 
         if (!audio) eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
         return mapper.toResponse(attachment);

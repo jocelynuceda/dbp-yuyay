@@ -3,6 +3,7 @@ package com.yuyay.attachment.image;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.MemoryCacheImageInputStream;
 import java.io.ByteArrayInputStream;
 import java.util.Iterator;
 import java.util.Locale;
@@ -22,8 +23,8 @@ public record ImageSize(int width, int height) {
         if (content == null || contentType == null) return null;
         String type = contentType.trim().toLowerCase(Locale.ROOT);
         if (!type.equals("image/jpeg") && !type.equals("image/png")) return null;
-        try (ImageInputStream stream = ImageIO.createImageInputStream(new ByteArrayInputStream(content))) {
-            if (stream == null) return null;
+        // In-memory cache on purpose: ImageIO.createImageInputStream(InputStream) may spill the bytes to a temp file.
+        try (ImageInputStream stream = new MemoryCacheImageInputStream(new ByteArrayInputStream(content))) {
             Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
             if (!readers.hasNext()) return null;
             ImageReader reader = readers.next();
@@ -36,7 +37,7 @@ public record ImageSize(int width, int height) {
             } finally {
                 reader.dispose();
             }
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             return null;
         }
     }

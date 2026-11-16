@@ -31,6 +31,15 @@ class ImageSizeTest {
         assertEquals(new ImageSize(20_000, 15_000), ImageSize.read(pngHeaderOnly(20_000, 15_000), "image/png"));
     }
 
+    /**
+     * Same idea for JPEG, the format phone cameras use: a real JPEG whose frame header is rewritten to
+     * 65 000 x 50 000 pixels and cut right after the scan header, so there is no pixel data at all.
+     */
+    @Test
+    void readsOnlyTheHeaderOfAHugeJpeg() throws IOException {
+        assertEquals(new ImageSize(65_000, 50_000), ImageSize.read(jpegHeaderOnly(65_000, 50_000), "image/jpeg"));
+    }
+
     @Test
     void returnsNullForOtherTypesOrUnreadableContent() throws IOException {
         byte[] jpeg = encode("jpg", 64, 48);
@@ -54,6 +63,23 @@ class ImageSizeTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         if (!ImageIO.write(image, format, out)) throw new IllegalStateException("No writer for " + format);
         return out.toByteArray();
+    }
+
+    /** Keeps the tables and headers of a real JPEG, declares other dimensions and drops the scan data. */
+    private static byte[] jpegHeaderOnly(int width, int height) throws IOException {
+        byte[] jpeg = encode("jpg", 16, 16);
+        int frame = marker(jpeg, 0xC0);
+        int scan = marker(jpeg, 0xDA);
+        ByteBuffer.wrap(jpeg, frame + 5, 4).putShort((short) height).putShort((short) width);
+        int scanHeaderLength = ((jpeg[scan + 2] & 0xFF) << 8) | (jpeg[scan + 3] & 0xFF);
+        return Arrays.copyOf(jpeg, scan + 2 + scanHeaderLength);
+    }
+
+    private static int marker(byte[] jpeg, int code) {
+        for (int i = 2; i < jpeg.length - 1; i++) {
+            if ((jpeg[i] & 0xFF) == 0xFF && (jpeg[i + 1] & 0xFF) == code) return i;
+        }
+        throw new IllegalStateException("JPEG marker not found: " + Integer.toHexString(code));
     }
 
     /** PNG signature plus a valid IHDR chunk and nothing else. */

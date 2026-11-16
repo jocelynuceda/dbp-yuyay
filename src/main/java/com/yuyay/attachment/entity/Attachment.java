@@ -88,10 +88,12 @@ public class Attachment {
     @Column(name = "ocr_requested_by_id")
     private Long ocrRequestedById;
 
-    /** What the client says it used to pick the document (camera, gallery...); informational, not trusted. */
-    @Enumerated(EnumType.STRING)
+    /**
+     * Lowercase name of {@link UploadSource} (camera, gallery, files, web) or null. What the client says it used;
+     * informational, not trusted. Stored as text on purpose so new values never need a schema change.
+     */
     @Column(name = "upload_source", length = 16)
-    private UploadSource uploadSource;
+    private String uploadSource;
 
     /** Width in pixels, measured by the server from the image header; null for PDF/audio or when unreadable. */
     @Column(name = "image_width")

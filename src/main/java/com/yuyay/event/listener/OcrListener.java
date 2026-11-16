@@ -117,8 +117,8 @@ public class OcrListener {
     }
 
     private String sourceOrUnavailable(Attachment attachment) {
-        return attachment.getUploadSource() == null
-                ? "unavailable" : attachment.getUploadSource().name().toLowerCase();
+        String source = attachment.getUploadSource();
+        return source == null ? "unavailable" : source;
     }
 
     private String safeLogToken(String value, int maxLength) {
