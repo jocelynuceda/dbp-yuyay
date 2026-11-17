@@ -27,6 +27,7 @@ public class UserService {
     public UserResponseDTO updateMe(UpdateUserDTO dto) {
         User user = findById(currentUser.getCurrentUserId());
         user.setName(dto.name());
+        if (dto.gender() != null) user.setGender(dto.gender());
         return userMapper.toResponse(user);
     }
 

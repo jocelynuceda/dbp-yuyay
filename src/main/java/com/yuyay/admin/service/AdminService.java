@@ -68,6 +68,7 @@ public class AdminService {
 
     private AdminUserResponse toResponse(User user) {
         return new AdminUserResponse(user.getId(), user.getEmail(), user.getName(), user.getRole(),
-                user.getCreatedAt(), relationshipRepo.countByUserIdAndStatus(user.getId(), CareStatus.ACTIVE));
+                user.getGender(), user.getCreatedAt(),
+                relationshipRepo.countByUserIdAndStatus(user.getId(), CareStatus.ACTIVE));
     }
 }

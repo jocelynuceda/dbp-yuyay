@@ -1,6 +1,7 @@
 package com.yuyay.care.entity;
 
 import com.yuyay.audit.entity.AccessLog;
+import com.yuyay.common.Gender;
 import com.yuyay.consultation.entity.Consultation;
 import com.yuyay.consultation.entity.Handoff;
 import com.yuyay.health.entity.HealthEntry;
@@ -32,6 +33,10 @@ public class CareSubject {
     private String name;
 
     private LocalDate birthDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Gender gender;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
