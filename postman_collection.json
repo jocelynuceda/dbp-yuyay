@@ -171,7 +171,7 @@
             "description": "Crea la cuenta. Devuelve access token (60 min) y refresh token (7 días). El password debe tener 8–72 caracteres con al menos una letra y un número.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\"\n}",
+              "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"gender\": \"FEMALE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -223,7 +223,7 @@
                 "description": "Crea la cuenta. Devuelve access token (60 min) y refresh token (7 días). El password debe tener 8–72 caracteres con al menos una letra y un número.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\"\n}",
+                  "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"gender\": \"FEMALE\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -243,7 +243,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"gender\": \"FEMALE\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
             }
           ]
         },
@@ -342,7 +342,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"gender\": \"FEMALE\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
             }
           ]
         },
@@ -440,7 +440,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"gender\": \"FEMALE\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
             }
           ]
         },
@@ -539,7 +539,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"gender\": \"FEMALE\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
             }
           ]
         },
@@ -639,7 +639,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"kq3Z...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"ana.demo@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"gender\": \"FEMALE\",\n    \"createdAt\": \"2026-09-22T15:00:00Z\"\n  }\n}"
             }
           ]
         },
@@ -1219,7 +1219,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"1g4W...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 13,\n    \"email\": \"ana.1790390049282@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"createdAt\": \"2026-09-26T02:34:09.670221Z\"\n  }\n}"
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"1g4W...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 13,\n    \"email\": \"ana.1790390049282@yuyay.app\",\n    \"name\": \"Ana Torres\",\n    \"role\": \"USER\",\n    \"gender\": \"FEMALE\",\n    \"createdAt\": \"2026-09-26T02:34:09.670221Z\"\n  }\n}"
             }
           ]
         }
@@ -1288,7 +1288,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": 1,\n  \"email\": \"ana.demo@yuyay.app\",\n  \"name\": \"Ana Torres\",\n  \"role\": \"USER\",\n  \"createdAt\": \"2026-09-22T15:00:00Z\"\n}"
+              "body": "{\n  \"id\": 1,\n  \"email\": \"ana.demo@yuyay.app\",\n  \"name\": \"Ana Torres\",\n  \"role\": \"USER\",\n  \"gender\": \"FEMALE\",\n  \"createdAt\": \"2026-09-22T15:00:00Z\"\n}"
             }
           ]
         },
@@ -1317,7 +1317,7 @@
             "description": "Actualización parcial (PATCH) del perfil propio. Solo se cambian los campos enviados; el email y el rol no son editables desde aquí.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Ana Torres Vega\"\n}",
+              "raw": "{\n  \"name\": \"Ana Torres Vega\",\n  \"gender\": \"FEMALE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1362,7 +1362,7 @@
                 "description": "",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Ana Torres Vega\"\n}",
+                  "raw": "{\n  \"name\": \"Ana Torres Vega\",\n  \"gender\": \"FEMALE\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1379,7 +1379,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": 1,\n  \"email\": \"ana.demo@yuyay.app\",\n  \"name\": \"Ana Torres Vega\",\n  \"role\": \"USER\",\n  \"createdAt\": \"2026-09-22T15:00:00Z\"\n}"
+              "body": "{\n  \"id\": 1,\n  \"email\": \"ana.demo@yuyay.app\",\n  \"name\": \"Ana Torres Vega\",\n  \"role\": \"USER\",\n  \"gender\": \"FEMALE\",\n  \"createdAt\": \"2026-09-22T15:00:00Z\"\n}"
             }
           ]
         }
@@ -1413,7 +1413,7 @@
             "description": "Crea el CareSubject y deja al creador como PRINCIPAL activo automáticamente.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso, vive con su hija\"\n}",
+              "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1459,7 +1459,7 @@
                 "description": "Crea el CareSubject y deja al creador como PRINCIPAL activo automáticamente.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso, vive con su hija\"\n}",
+                  "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1476,7 +1476,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": 1,\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso, vive con su hija\",\n  \"createdAt\": \"2026-09-22T15:00:00Z\",\n  \"myRole\": \"PRINCIPAL\"\n}"
+              "body": "{\n  \"id\": 1,\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\",\n  \"createdAt\": \"2026-09-22T15:00:00Z\",\n  \"myRole\": \"PRINCIPAL\"\n}"
             }
           ]
         },
@@ -1600,7 +1600,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": 1,\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso, vive con su hija\",\n  \"createdAt\": \"2026-09-22T15:00:00Z\",\n  \"myRole\": \"PRINCIPAL\"\n}"
+              "body": "{\n  \"id\": 1,\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\",\n  \"createdAt\": \"2026-09-22T15:00:00Z\",\n  \"myRole\": \"PRINCIPAL\"\n}"
             }
           ]
         },
@@ -1629,7 +1629,7 @@
             "description": "Edita nombre, fecha de nacimiento o notas de la persona a cargo. Cualquier cuidador con vínculo activo puede hacerlo.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso y diabético\"\n}",
+              "raw": "{\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso y diabético\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1674,7 +1674,7 @@
                 "description": "Edita nombre, fecha de nacimiento o notas de la persona a cargo. Cualquier cuidador con vínculo activo puede hacerlo.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso y diabético\"\n}",
+                  "raw": "{\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso y diabético\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1691,7 +1691,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": 9,\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso y diabético\",\n  \"createdAt\": \"2026-09-26T02:34:11.947425Z\",\n  \"myRole\": \"PRINCIPAL\"\n}"
+              "body": "{\n  \"id\": 9,\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso y diabético\",\n  \"createdAt\": \"2026-09-26T02:34:11.947425Z\",\n  \"myRole\": \"PRINCIPAL\"\n}"
             }
           ]
         },
@@ -2546,7 +2546,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": 9,\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"notes\": \"Hipertenso y diabético\",\n  \"createdAt\": \"2026-09-26T02:34:11.947425Z\",\n  \"myRole\": \"CAREGIVER\"\n}"
+              "body": "{\n  \"id\": 9,\n  \"name\": \"Pedro Torres Díaz\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso y diabético\",\n  \"createdAt\": \"2026-09-26T02:34:11.947425Z\",\n  \"myRole\": \"CAREGIVER\"\n}"
             }
           ]
         },
@@ -6978,7 +6978,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"sfQS...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"admin@yuyay.app\",\n    \"name\": \"Administrador Yuyay\",\n    \"role\": \"ADMIN\",\n    \"createdAt\": \"2026-09-24T21:33:47.025514Z\"\n  }\n}"
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzM4NCJ9...\",\n  \"refreshToken\": \"sfQS...\",\n  \"tokenType\": \"Bearer\",\n  \"expiresInSeconds\": 3600,\n  \"user\": {\n    \"id\": 1,\n    \"email\": \"admin@yuyay.app\",\n    \"name\": \"Administrador Yuyay\",\n    \"role\": \"ADMIN\",\n    \"gender\": null,\n    \"createdAt\": \"2026-09-24T21:33:47.025514Z\"\n  }\n}"
             }
           ]
         },
@@ -7082,7 +7082,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"content\": [\n    {\n      \"id\": 1,\n      \"email\": \"admin@yuyay.app\",\n      \"name\": \"Administrador Yuyay\",\n      \"role\": \"ADMIN\",\n      \"createdAt\": \"2026-09-22T14:00:00Z\",\n      \"careSubjectsCount\": 0\n    }\n  ],\n  \"totalElements\": 4,\n  \"totalPages\": 1,\n  \"size\": 10,\n  \"number\": 0\n}"
+              "body": "{\n  \"content\": [\n    {\n      \"id\": 1,\n      \"email\": \"admin@yuyay.app\",\n      \"name\": \"Administrador Yuyay\",\n      \"role\": \"ADMIN\",\n      \"gender\": null,\n      \"createdAt\": \"2026-09-22T14:00:00Z\",\n      \"careSubjectsCount\": 0\n    }\n  ],\n  \"totalElements\": 4,\n  \"totalPages\": 1,\n  \"size\": 10,\n  \"number\": 0\n}"
             }
           ]
         },
@@ -7250,7 +7250,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": 1,\n  \"email\": \"admin@yuyay.app\",\n  \"name\": \"Administrador Yuyay\",\n  \"role\": \"ADMIN\",\n  \"createdAt\": \"2026-09-22T14:00:00Z\",\n  \"careSubjectsCount\": 0\n}"
+              "body": "{\n  \"id\": 1,\n  \"email\": \"admin@yuyay.app\",\n  \"name\": \"Administrador Yuyay\",\n  \"role\": \"ADMIN\",\n  \"gender\": null,\n  \"createdAt\": \"2026-09-22T14:00:00Z\",\n  \"careSubjectsCount\": 0\n}"
             }
           ]
         },

@@ -138,6 +138,7 @@ erDiagram
         varchar password_hash
         varchar name
         enum role "USER | ADMIN"
+        enum gender "FEMALE | MALE | OTHER | PREFER_NOT_TO_SAY"
         timestamp created_at
     }
     REFRESH_TOKEN {
@@ -151,6 +152,7 @@ erDiagram
         bigint id PK
         varchar name
         date birth_date
+        enum gender "FEMALE | MALE | OTHER | PREFER_NOT_TO_SAY"
         text notes
         timestamp created_at
     }
@@ -275,7 +277,7 @@ erDiagram
 
 ### Descripción de las entidades principales
 
-**User** es la cuenta con la que alguien inicia sesión y **RefreshToken** guarda el hash de cada refresh para rotarlo y revocarlo. **CareSubject** es la persona cuidada, que puede no tener cuenta, y **CareRelationship** es la entidad puente entre ambas: una relación muchos a muchos con datos propios (rol, parentesco, estado `PENDING`/`ACTIVE`/`REVOKED` y marcas de tiempo), razón por la cual es entidad y no un `@ManyToMany` simple. Solo `ACTIVE` otorga acceso.
+**User** es la cuenta con la que alguien inicia sesión y **RefreshToken** guarda el hash de cada refresh para rotarlo y revocarlo. Tanto `User` como `CareSubject` describen a una persona, así que ambas llevan el enum compartido `Gender` (`FEMALE`, `MALE`, `OTHER`, `PREFER_NOT_TO_SAY`): es opcional —nullable— porque declararlo es decisión de cada quien y las cuentas y personas ya registradas no lo tienen. **CareSubject** es la persona cuidada, que puede no tener cuenta, y **CareRelationship** es la entidad puente entre ambas: una relación muchos a muchos con datos propios (rol, parentesco, estado `PENDING`/`ACTIVE`/`REVOKED` y marcas de tiempo), razón por la cual es entidad y no un `@ManyToMany` simple. Solo `ACTIVE` otorga acceso.
 
 **HealthCategory** es el catálogo de tipos de dato (`ALLERGY`, `CONDITION`, `MEDICATION`, `IMMUNIZATION`, `EPISODE`). **HealthEntry** es solo la cabecera y no contiene el dato clínico: ese contenido vive en **HealthEntryVersion**, inmutable, donde cada edición inserta una versión nueva con número correlativo, tipo de cambio, nivel de confianza, autor y, si procede, el adjunto del que salió. Esa separación cumple la promesa del producto: reconstruir qué se declaró en cada momento y quién lo hizo.
 

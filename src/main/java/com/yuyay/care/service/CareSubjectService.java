@@ -95,6 +95,7 @@ public class CareSubjectService {
 
         cs.setName(req.name());
         cs.setBirthDate(req.birthDate());
+        if (req.gender() != null) cs.setGender(req.gender());
         cs.setNotes(req.notes());
 
         CareRole role = relationshipRepo

@@ -46,6 +46,7 @@ public class AuthService {
                 .email(dto.email().toLowerCase())
                 .passwordHash(passwordEncoder.encode(dto.password()))
                 .name(dto.name())
+                .gender(dto.gender())
                 .role(Role.USER)
                 .build();
         userRepository.save(user);
