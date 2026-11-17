@@ -88,6 +88,44 @@ class GenderIntegrationTest {
     }
 
     @Test
+    void careSubjectUpdateKeepsGenderWhenOmitted() throws Exception {
+        String token = send(post("/api/v1/auth/register"), null, body("gina", "Gina", ""), 201)
+                .get("accessToken").asText();
+
+        long subjectId = send(post("/api/v1/care-subjects"), token,
+                "{\"name\":\"Rosa\",\"birthDate\":\"1950-06-01\",\"gender\":\"FEMALE\"}", 201).get("id").asLong();
+
+        JsonNode withoutGender = send(patch("/api/v1/care-subjects/" + subjectId), token,
+                "{\"name\":\"Rosa Quispe\",\"birthDate\":\"1950-06-01\"}", 200);
+        assertEquals("Rosa Quispe", withoutGender.get("name").asText());
+        assertEquals("FEMALE", withoutGender.get("gender").asText());
+
+        JsonNode withNull = send(patch("/api/v1/care-subjects/" + subjectId), token,
+                "{\"name\":\"Rosa Quispe\",\"birthDate\":\"1950-06-01\",\"gender\":null}", 200);
+        assertEquals("FEMALE", withNull.get("gender").asText());
+
+        assertEquals("FEMALE", send(get("/api/v1/care-subjects/" + subjectId), token, null, 200)
+                .get("gender").asText());
+    }
+
+    @Test
+    void emptyGenderReturns400() throws Exception {
+        send(post("/api/v1/auth/register"), null, body("hugo", "Hugo", "\"gender\":\"\","), 400);
+
+        String token = send(post("/api/v1/auth/register"), null, body("ines", "Ines", ""), 201)
+                .get("accessToken").asText();
+        send(patch("/api/v1/users/me"), token, "{\"name\":\"Ines\",\"gender\":\"\"}", 400);
+        send(post("/api/v1/care-subjects"), token, "{\"name\":\"Luz\",\"gender\":\"\"}", 400);
+
+        long subjectId = send(post("/api/v1/care-subjects"), token,
+                "{\"name\":\"Luz\",\"gender\":\"FEMALE\"}", 201).get("id").asLong();
+        send(patch("/api/v1/care-subjects/" + subjectId), token, "{\"name\":\"Luz\",\"gender\":\"\"}", 400);
+        // El 400 no cambia nada: la persona conserva su género
+        assertEquals("FEMALE", send(get("/api/v1/care-subjects/" + subjectId), token, null, 200)
+                .get("gender").asText());
+    }
+
+    @Test
     void careSubjectWithoutGenderLeavesItNull() throws Exception {
         String token = send(post("/api/v1/auth/register"), null, body("fabio", "Fabio", ""), 201)
                 .get("accessToken").asText();

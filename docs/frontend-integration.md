@@ -92,6 +92,18 @@ funcional. El listado
 de salud conserva la consulta existente de última versión por registro (N+1), ahora limitada al
 tamaño de página; optimizarla y medir latencia corresponde a la revisión de rendimiento del plan.
 
+## Género (opcional)
+
+`gender` acepta `FEMALE`, `MALE`, `OTHER` o `PREFER_NOT_TO_SAY` en el registro, en `PATCH /users/me`
+y al crear o editar una persona (`POST`/`PATCH /care-subjects`).
+
+- Para no declararlo, **omitir el campo o mandar `null`**. Un texto vacío (`"gender": ""`) o un valor
+  desconocido responde **400**: los formularios que usan `''` como "sin elegir" deben convertirlo a
+  `null` antes de enviar.
+- En los dos `PATCH`, omitirlo o mandar `null` **conserva** el valor guardado; no lo borra. Para dejar de
+  declararlo está `PREFER_NOT_TO_SAY`.
+- Las respuestas devuelven `gender: null` en las cuentas y personas que no lo tienen.
+
 ## Acceso y borrado de adjuntos
 
 Ver [contrato de adjuntos privados](attachment-access.md) para abrir imágenes/PDF con
