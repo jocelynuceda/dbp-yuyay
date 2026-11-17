@@ -116,6 +116,13 @@ class GenderIntegrationTest {
                 .get("accessToken").asText();
         send(patch("/api/v1/users/me"), token, "{\"name\":\"Ines\",\"gender\":\"\"}", 400);
         send(post("/api/v1/care-subjects"), token, "{\"name\":\"Luz\",\"gender\":\"\"}", 400);
+
+        long subjectId = send(post("/api/v1/care-subjects"), token,
+                "{\"name\":\"Luz\",\"gender\":\"FEMALE\"}", 201).get("id").asLong();
+        send(patch("/api/v1/care-subjects/" + subjectId), token, "{\"name\":\"Luz\",\"gender\":\"\"}", 400);
+        // El 400 no cambia nada: la persona conserva su género
+        assertEquals("FEMALE", send(get("/api/v1/care-subjects/" + subjectId), token, null, 200)
+                .get("gender").asText());
     }
 
     @Test
