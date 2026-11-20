@@ -97,3 +97,33 @@ tamaño de página; optimizarla y medir latencia corresponde a la revisión de r
 Ver [contrato de adjuntos privados](attachment-access.md) para abrir imágenes/PDF con
 un enlace temporal de cinco minutos, eliminar adjuntos sin referencias y manejar
 403/404/409/502. La edición clínica conserva su evidencia original.
+
+## Orígenes permitidos: web por proxy, móvil directo
+
+Los dos clientes llegan a la API por caminos distintos, y conviene tenerlo presente al depurar:
+
+| Cliente | Camino | ¿Hay CORS? |
+| --- | --- | --- |
+| Web (Vercel) | El navegador pide `/api/...` al mismo dominio de la web y Vercel lo reenvía a la API | Solo si Vercel propaga el `Origin` del navegador |
+| Móvil (Expo) | Pide directamente a `APP_BASE_URL` | Sí, siempre |
+
+De ahí que un fallo de CORS aparezca en uno de los dos clientes y no en el otro. Si un cambio de
+orígenes se valida solo en la web, puede romper el móvil sin que nadie lo note.
+
+La API permite un origen cuando coincide con `CORS_ALLOWED_ORIGINS` **o** con
+`CORS_ALLOWED_ORIGIN_PATTERNS`: ambas listas se concatenan y se evalúan con el mismo mecanismo de
+patrones de Spring, que acepta tanto orígenes exactos como comodines. Los valores en blanco y los
+repetidos se descartan. Esto reemplaza la configuración anterior, que usaba `setAllowedOrigins` y
+`setAllowedOriginPatterns` por separado.
+
+En la práctica: los orígenes nuevos van en `CORS_ALLOWED_ORIGINS`, aunque lleven comodín.
+`CORS_ALLOWED_ORIGIN_PATTERNS` se mantiene porque el `~/.env` de la EC2 ya la define, y su contenido
+se suma al de la otra. Definir cualquiera de las dos reemplaza su propio valor por defecto, no el de
+la otra.
+
+Los valores por defecto incluyen el dominio de producción de la web, `https://yuyay-web.vercel.app`,
+y el patrón de las vistas previas de cada rama. Si Vercel cambia el nombre del proyecto, el patrón de
+vistas previas deja de coincidir y hay que actualizarlo.
+
+Falta la otra mitad de la simetría, que vive en `yuyay-frontend`: que web y móvil usen la misma URL
+base. Mientras eso no ocurra, un cambio de orígenes se prueba en ambos clientes.
