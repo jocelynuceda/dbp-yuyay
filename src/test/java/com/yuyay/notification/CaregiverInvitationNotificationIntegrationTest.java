@@ -37,7 +37,7 @@ class CaregiverInvitationNotificationIntegrationTest {
     @Test
     void inviteNotifiesInviteeAndAcceptNotifiesPrincipal() throws Exception {
         String ownerToken = register("owner." + UUID.randomUUID() + "@yuyay.app", "Ana Torres");
-        long subjectId = postJson("/api/v1/care-subjects", ownerToken, "{\"name\":\"Lucía\"}", 201).get("id").asLong();
+        long subjectId = postJson("/api/v1/care-subjects", ownerToken, "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Lucía\"}", 201).get("id").asLong();
 
         String inviteeEmail = "invitee." + UUID.randomUUID() + "@yuyay.app";
         String inviteeToken = register(inviteeEmail, "Bruno Torres");
@@ -74,7 +74,7 @@ class CaregiverInvitationNotificationIntegrationTest {
     @Test
     void acceptingRightAfterInviteLeavesNoPendingNotice() throws Exception {
         String ownerToken = register("owner." + UUID.randomUUID() + "@yuyay.app", "Ana Torres");
-        long subjectId = postJson("/api/v1/care-subjects", ownerToken, "{\"name\":\"Rosa\"}", 201).get("id").asLong();
+        long subjectId = postJson("/api/v1/care-subjects", ownerToken, "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa\"}", 201).get("id").asLong();
         String inviteeEmail = "invitee." + UUID.randomUUID() + "@yuyay.app";
         String inviteeToken = register(inviteeEmail, "Bruno Torres");
         long relationshipId = invite(ownerToken, subjectId, inviteeEmail, "CAREGIVER");
@@ -96,7 +96,7 @@ class CaregiverInvitationNotificationIntegrationTest {
     @Test
     void revokingAPendingInvitationMarksItsNoticeRead() throws Exception {
         String ownerToken = register("owner." + UUID.randomUUID() + "@yuyay.app", "Ana Torres");
-        long subjectId = postJson("/api/v1/care-subjects", ownerToken, "{\"name\":\"Pedro\"}", 201).get("id").asLong();
+        long subjectId = postJson("/api/v1/care-subjects", ownerToken, "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\"}", 201).get("id").asLong();
         String inviteeEmail = "invitee." + UUID.randomUUID() + "@yuyay.app";
         String inviteeToken = register(inviteeEmail, "Bruno Torres");
         long relationshipId = invite(ownerToken, subjectId, inviteeEmail, "CAREGIVER");
@@ -114,7 +114,7 @@ class CaregiverInvitationNotificationIntegrationTest {
     @Test
     void theNoticeNamesThePrincipalWhoActuallyInvited() throws Exception {
         String anaToken = register("ana." + UUID.randomUUID() + "@yuyay.app", "Ana Torres");
-        long subjectId = postJson("/api/v1/care-subjects", anaToken, "{\"name\":\"Lucía\"}", 201).get("id").asLong();
+        long subjectId = postJson("/api/v1/care-subjects", anaToken, "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Lucía\"}", 201).get("id").asLong();
 
         // Carla se vuelve segunda principal.
         String carlaEmail = "carla." + UUID.randomUUID() + "@yuyay.app";

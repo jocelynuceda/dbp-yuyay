@@ -47,7 +47,7 @@ class HealthIntegrationTest {
         strangerToken = register("carla." + UUID.randomUUID() + "@yuyay.app", "Carla");
 
         long subjectId = send(post("/api/v1/care-subjects"), anaToken,
-                "{\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
         long relationshipId = send(post("/api/v1/care-subjects/" + subjectId + "/relationships"), anaToken,
                 "{\"email\":\"" + brunoEmail + "\",\"role\":\"CAREGIVER\"}", 201).get("id").asLong();
         send(post("/api/v1/me/relationships/" + relationshipId + "/accept"), brunoToken, "{}", 200);

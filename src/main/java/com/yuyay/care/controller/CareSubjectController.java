@@ -1,8 +1,12 @@
 package com.yuyay.care.controller;
 
+import com.yuyay.care.dto.CareAuthorizationDeclarationResponse;
+import com.yuyay.care.dto.CareAuthorizationPolicyResponse;
+import com.yuyay.care.dto.CareAuthorizationUpdateRequest;
 import com.yuyay.care.dto.CareSubjectCreateRequest;
 import com.yuyay.care.dto.CareSubjectResponse;
 import com.yuyay.care.dto.CareSubjectUpdateRequest;
+import com.yuyay.care.service.CareAuthorizationDeclarationService;
 import com.yuyay.care.service.CareSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +22,7 @@ import java.util.List;
 public class CareSubjectController {
 
     private final CareSubjectService service;
+    private final CareAuthorizationDeclarationService declarations;
 
     @PostMapping
     public ResponseEntity<CareSubjectResponse> create(@Valid @RequestBody CareSubjectCreateRequest req) {
@@ -27,6 +32,22 @@ public class CareSubjectController {
     @GetMapping
     public List<CareSubjectResponse> listMine() {
         return service.listMine();
+    }
+
+    @GetMapping("/authorization-policy")
+    public CareAuthorizationPolicyResponse getAuthorizationPolicy() {
+        return declarations.getPolicy();
+    }
+
+    @GetMapping("/{id}/authorization-declarations")
+    public List<CareAuthorizationDeclarationResponse> getAuthorizationDeclarations(@PathVariable Long id) {
+        return declarations.history(id);
+    }
+
+    @PostMapping("/{id}/authorization-declarations")
+    public CareAuthorizationDeclarationResponse declareAuthorization(
+            @PathVariable Long id, @Valid @RequestBody CareAuthorizationUpdateRequest req) {
+        return declarations.declare(id, req);
     }
 
     @GetMapping("/{id}")

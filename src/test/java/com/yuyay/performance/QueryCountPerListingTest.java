@@ -149,7 +149,7 @@ class QueryCountPerListingTest {
     }
 
     private long createSubject(String token, String name) throws Exception {
-        return json.readTree(postJson(token, "/api/v1/care-subjects", "{\"name\":\"" + name + "\"}")).get("id").asLong();
+        return json.readTree(postJson(token, "/api/v1/care-subjects", "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"" + name + "\"}")).get("id").asLong();
     }
 
     private String postJson(String token, String path, String body) throws Exception {
