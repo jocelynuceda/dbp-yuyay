@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "handoffs", indexes = @Index(name = "idx_handoff_subject", columnList = "care_subject_id"))
+@Table(name = "handoffs", uniqueConstraints = @UniqueConstraint(name = "uk_handoff_confirmation", columnNames = {"created_by", "confirmation_request_id"}), indexes = @Index(name = "idx_handoff_subject", columnList = "care_subject_id"))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,6 +30,12 @@ public class Handoff {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    @Column(name = "confirmation_request_id", length = 36)
+    private String confirmationRequestId;
+
+    @Column(name = "confirmation_fingerprint", length = 64)
+    private String confirmationFingerprint;
+
     @NotBlank
     @Column(nullable = false, columnDefinition = "TEXT")
     private String reason;
@@ -41,6 +47,7 @@ public class Handoff {
     private Instant createdAt;
 
     @OneToMany(mappedBy = "handoff", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("position ASC, id ASC")
     @Builder.Default
     private List<HandoffItem> items = new ArrayList<>();
 

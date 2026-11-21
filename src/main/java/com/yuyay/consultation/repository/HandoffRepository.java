@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface HandoffRepository extends JpaRepository<Handoff, Long> {
+    Optional<Handoff> findByCreatedByIdAndConfirmationRequestId(Long userId, String requestId);
+
     @EntityGraph(attributePaths = {"createdBy"})
     List<Handoff> findByCareSubjectIdOrderByCreatedAtDesc(Long careSubjectId);
 
