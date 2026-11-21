@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -51,9 +52,25 @@ class ReminderDelivery {
         return due;
     }
 
-    /** Guarda el aviso en la app y su control en la misma transacción. false si ya existía. */
+    /**
+     * Vuelve a comprobar, dentro de la transacción que escribe, que el destinatario sigue activo y que
+     * la cita no cambió desde que se armó la lista. Entre ambos momentos alguien pudo revocar el acceso,
+     * borrar la cita o cambiarle la fecha o la hora.
+     */
+    private boolean stillValid(DueReminder due) {
+        if (!relationships.existsByUserIdAndCareSubjectIdAndStatus(due.userId(), due.careSubjectId(), CareStatus.ACTIVE)) {
+            return false;
+        }
+        return consultations.findById(due.consultationId())
+                .filter(c -> c.getCareSubject().getId().equals(due.careSubjectId()))
+                .filter(c -> c.getDate().equals(due.date()) && Objects.equals(c.getTime(), due.time()))
+                .isPresent();
+    }
+
+    /** Guarda el aviso en la app y su control en la misma transacción. false si ya existía o ya no corresponde. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean deliverInApp(DueReminder due, Instant now, String title, String body) {
+        if (!stillValid(due)) return false;
         if (reminders.findByConsultationIdAndUserIdAndChannelAndRemindAt(
                 due.consultationId(), due.userId(), ReminderChannel.IN_APP, due.remindAt()).isPresent()) {
             return false;
@@ -76,11 +93,12 @@ class ReminderDelivery {
 
     /**
      * Reserva un intento de correo antes de enviarlo. Devuelve el id del control, o vacío si ya se
-     * envió, está en curso o agotó sus intentos. Si el servidor cae justo al enviar, el control queda
+     * envió, está en curso, agotó sus intentos o el destinatario ya no debe recibirlo. Si el servidor cae justo al enviar, el control queda
      * en PENDING y no se reenvía: es preferible a mandar el mismo correo dos veces.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<Long> claimEmail(DueReminder due, Instant now, int maxAttempts) {
+        if (!stillValid(due)) return Optional.empty();
         Optional<AppointmentReminder> existing = reminders.findByConsultationIdAndUserIdAndChannelAndRemindAt(
                 due.consultationId(), due.userId(), ReminderChannel.EMAIL, due.remindAt());
         if (existing.isEmpty()) {
