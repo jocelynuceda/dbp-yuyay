@@ -55,6 +55,23 @@ jobs:
               output.write(f'API_HEALTH_URL={url}\n')
           PY
 
+      # Misma protección que en ci.yml: el wrapper baja Maven en cada ejecución.
+      - name: Caché de la distribución de Maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper
+          key: maven-wrapper-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}
+
+      - name: Obtener Maven
+        run: |
+          for intento in 1 2 3; do
+            if ./mvnw -B --version; then exit 0; fi
+            echo "Intento $intento: no se pudo obtener Maven; se reintenta en 15 s" >&2
+            sleep 15
+          done
+          echo "Maven no se pudo descargar tras 3 intentos" >&2
+          exit 1
+
       - name: Tests antes de desplegar
         run: ./mvnw -B verify
 

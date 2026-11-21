@@ -119,3 +119,55 @@ El alta requiere `declaration` y `requestId`. Consultar el [contrato de declarac
 para obtener el catálogo de textos, conservar la clave de reintento y tratar los perfiles anteriores.
 Coordinar la publicación con frontend #52: los clientes antiguos reciben un 400 legible al intentar
 crear una persona. El registro de una declaración no equivale a verificar una autorización legal.
+
+## Orígenes permitidos: quién llega con `Origin` y quién no
+
+CORS lo aplica el navegador, no el servidor: solo un navegador decide bloquear una respuesta por el
+origen. Lo que la API sí hace es rechazar con 403 cualquier petición que traiga una cabecera `Origin`
+no permitida, sin importar qué cliente la envió. Por eso, al depurar, la pregunta útil no es «¿es web
+o móvil?» sino «¿esta petición lleva `Origin` y, si lo lleva, está en la lista?».
+
+| Cliente | Camino a la API | `Origin` y efecto |
+| --- | --- | --- |
+| Web en el navegador | `VITE_API_URL` vacío deja la ruta relativa `/api/v1`, que Vercel reenvía a la API (`web/vercel.json`) | Para el navegador es mismo origen: no hay preflight. Pero en POST/PUT/PATCH/DELETE el navegador sí envía `Origin` con el dominio de la web y el reenvío lo propaga; si ese origen no está permitido, la API responde 403 sin llegar al controlador |
+| Móvil, binarios `preview` y `production` | `EXPO_PUBLIC_API_URL=https://yuyay-frontend.vercel.app` (`mobile/eas.json`): el móvil también pasa por Vercel, no va directo a la API | React Native nativo no aplica las restricciones CORS del navegador y no envía `Origin`. La petición llega sin esa cabecera y la API no evalúa nada: un origen mal configurado no rompe este camino |
+| Móvil en desarrollo (Expo Go, emulador) | Sin `EXPO_PUBLIC_API_URL` usa el host de Metro o `http://10.0.2.2:8080` (`mobile/src/services/http.ts`) | Igual que el anterior: sin `Origin`, sin CORS |
+| Expo Web | Es un navegador; sin `EXPO_PUBLIC_API_URL` la URL base es `window.location.origin` | Sí aplica CORS, con las mismas reglas que la web |
+
+Es decir: hoy un fallo de CORS solo puede aparecer en los clientes que corren dentro de un navegador
+—la web y Expo Web—, nunca en el binario móvil. Lo que sí puede romper al móvil es el otro extremo:
+depende del despliegue de Vercel de la web, no de la API.
+
+Comprobado contra la API desplegada (`https://api.34-193-16-240.sslip.io`) el 20-nov-2026: un
+preflight con un origen no permitido devuelve 403 y con `https://yuyay-web.vercel.app` devuelve 200;
+un POST con `Origin` no permitido devuelve 403, y el mismo POST sin `Origin` llega al controlador
+(400 por el cuerpo vacío). A través de `https://yuyay-frontend.vercel.app` el resultado es idéntico,
+lo que confirma que el reenvío de Vercel propaga la cabecera `Origin`.
+
+Un detalle del despliegue que conviene revisar: `https://yuyay-web.vercel.app/api/v1/notifications`
+devuelve el `index.html` de la SPA (200, `text/html`) en lugar de la respuesta de la API, mientras que
+`https://yuyay-frontend.vercel.app/api/v1/notifications` sí responde 401 del backend. En ese dominio
+los reenvíos de `web/vercel.json` no están activos, así que la web publicada ahí solo puede hablar con
+la API con una URL absoluta y, entonces, con CORS real. Añadir su origen a la lista permitida, como
+hace este cambio, es necesario en cualquiera de los dos escenarios.
+
+La API permite un origen cuando coincide con `CORS_ALLOWED_ORIGINS` **o** con
+`CORS_ALLOWED_ORIGIN_PATTERNS`: ambas listas se concatenan y se evalúan con el mismo mecanismo de
+patrones de Spring, que acepta tanto orígenes exactos como comodines. Los valores en blanco y los
+repetidos se descartan. Esto reemplaza la configuración anterior, que usaba `setAllowedOrigins` y
+`setAllowedOriginPatterns` por separado.
+
+En la práctica: los orígenes nuevos van en `CORS_ALLOWED_ORIGINS`, aunque lleven comodín.
+`CORS_ALLOWED_ORIGIN_PATTERNS` se mantiene porque el `~/.env` de la EC2 ya la define, y su contenido
+se suma al de la otra. Definir cualquiera de las dos reemplaza su propio valor por defecto, no el de
+la otra.
+
+Los valores por defecto incluyen el dominio de producción de la web, `https://yuyay-web.vercel.app`,
+y el patrón de las vistas previas de cada rama. Si Vercel cambia el nombre del proyecto, el patrón de
+vistas previas deja de coincidir y hay que actualizarlo.
+
+Queda una decisión de arquitectura en `yuyay-frontend`, fuera de este PR: el móvil apunta a un dominio
+de la web (`yuyay-frontend.vercel.app`) y no a la API, de modo que cada binario depende del despliegue
+web y añade un salto por Vercel. Darle al móvil la URL de la API —propia o compartida con la web, pero
+decidida a propósito— es probablemente lo correcto; mientras no se decida, un cambio de orígenes se
+prueba en ambos clientes.
