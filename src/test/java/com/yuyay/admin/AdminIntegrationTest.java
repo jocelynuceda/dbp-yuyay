@@ -122,7 +122,7 @@ class AdminIntegrationTest {
     private Registered register(String email) throws Exception {
         String body = mvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"Test\"}"))
+                        .content("{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         var node = json.readTree(body);

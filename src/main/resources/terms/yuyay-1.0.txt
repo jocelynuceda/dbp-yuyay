@@ -1,0 +1,89 @@
+TÉRMINOS DE USO Y AVISO DE PRIVACIDAD DE YUYAY
+Versión 1.0 · 20 de noviembre de 2026
+
+1. Qué es Yuyay
+
+Yuyay es un producto mínimo viable de un proyecto académico dirigido a personas y familias en Perú. Permite organizar información de cuidado, conservar documentos, coordinar a quienes cuidan y preparar información para una consulta. Para diagnóstico, tratamiento o atención de una urgencia, acude a profesionales o servicios de salud.
+
+2. Responsable y banco de datos
+
+Luis Felipe Augusto Huapaya Nuñez es el responsable del tratamiento y titular del banco de datos personales denominado «yuyay-db».
+
+Domicilio: Calle San Antonio 183, Santiago de Surco, Lima, Perú.
+Correo de privacidad: luisfelipe.28h@gmail.com.
+
+Este banco comprende los datos de cuenta, perfiles de cuidado, registros, relaciones de acceso y archivos asociados a Yuyay. Los registros estructurados se almacenan en Amazon RDS y los documentos y audios en Amazon S3, en la región Norte de Virginia, Estados Unidos.
+
+3. Cuenta, acceso y uso responsable
+
+Tratamos tu nombre, correo, credenciales y datos técnicos de conexión para crear y administrar tu cuenta, iniciar sesión, recuperar el acceso y proteger el servicio. Los campos obligatorios se identifican en el formulario; sin ellos no podemos completar el método de registro elegido. Puedes crear una cuenta sin incorporar información de salud.
+
+Si eliges acceder con Google, recibimos el identificador de tu cuenta de Google, tu nombre y tu correo. Este acceso no autoriza a Yuyay a leer tu correo de Gmail ni tu calendario. Google gestiona la autenticación conforme a su política de privacidad.
+
+Protege tus credenciales, mantén operativo tu correo y cierra sesión en dispositivos compartidos. Utiliza únicamente información y documentos que puedas incorporar legítimamente. Puedes explorar Yuyay con datos completamente ficticios, identificándolos como tales. Usar un alias no vuelve anónimos los documentos, grabaciones o datos que permitan identificar a alguien.
+
+4. Datos de salud y autorización para cuidar
+
+Según lo que incorpores, tratamos datos del perfil, antecedentes, medicamentos, alergias, citas, notas, imágenes, documentos y grabaciones. Los utilizamos para organizar la información de cuidado, conservar su historial, identificar quién hizo cada cambio, gestionar accesos y preparar resúmenes que puedas revisar y compartir. Los datos de salud son sensibles y su incorporación es voluntaria.
+
+Tu autorización debe ser libre, previa, informada, expresa e inequívoca. Para datos de salud debe quedar por escrito. Puedes darla electrónicamente si es posible acreditar quién aceptó, qué texto aceptó y qué usos autorizó; no requiere necesariamente papel, una foto ni una firma manuscrita.
+
+Si registras datos propios, la autorización corresponde a ti. Si registras datos de otra persona, ésta debe haber recibido este aviso y autorizado por escrito, incluida una modalidad electrónica válida, el tratamiento en Yuyay y tu intervención como cuidador dentro del alcance acordado. También puedes actuar con facultades legales suficientes para otorgar esa autorización en su representación. Ser familiar o tener el rol de cuidador principal en Yuyay no concede por sí solo esas facultades.
+
+Una persona mayor puede decidir sobre sus datos y recibir ayuda para expresar su voluntad. Para menores o personas por quienes actúa un representante, la autorización debe corresponder a las facultades y reglas legales aplicables a su situación.
+
+Al añadir una persona, declaras cómo estás autorizado. Respondes por la veracidad de esa declaración, por respetar su alcance y por comunicar cualquier revocación o cambio relevante que conozcas. Conserva la constancia que sustente la autorización o representación invocada. Si no puedes confirmarla, no continúes con la incorporación de sus datos reales. Puedes corregir una selección hecha por error.
+
+Yuyay registra tu declaración; esa selección no equivale a una verificación de la identidad, la voluntad del titular o tus facultades legales. El responsable de Yuyay conserva sus obligaciones de información, seguridad, acreditación del consentimiento y atención de derechos. La aceptación de los términos de tu cuenta no sustituye la autorización de otra persona.
+
+5. Documentos, resúmenes y ubicación
+
+Los documentos e imágenes compatibles se envían a Amazon Textract para extraer su texto. En Yuyay esta función reconoce texto; no determina la validez médica de una receta ni confirma diagnósticos o tratamientos. Revisa el resultado con el original, especialmente nombres, dosis, fechas y cifras.
+
+Las condiciones de AWS permiten conservar y utilizar contenido procesado por Textract para mantener y mejorar ese servicio. También contemplan el uso de contenido que no sea dato personal para mejorar otras tecnologías de AWS y la conservación en otras regiones para esas finalidades, salvo que la cuenta tenga activada la exclusión correspondiente. Puedes registrar la información manualmente sin subir documentos para extracción de texto. Las condiciones de este procesamiento se pueden consultar en https://aws.amazon.com/service-terms/ y https://aws.amazon.com/textract/faqs/.
+
+Los resúmenes reúnen información registrada. Revísalos antes de confirmarlos y comprueba que incluyan sólo lo que deseas comunicar. Confirmar un resumen no certifica la autenticidad ni la exactitud clínica de sus fuentes.
+
+La ubicación es opcional. Cuando solicitas buscar hospitales o clínicas cercanos y otorgas permiso, utilizamos la ubicación del dispositivo para calcular la zona de búsqueda. Esa zona se calcula alrededor de tu posición y permite inferir dónde estás. La zona y los datos de conexión de la solicitud, incluida la dirección IP, se comunican al servicio de búsqueda de OpenStreetMap Foundation. La ubicación no se incorpora al historial de salud. Puedes denegar o retirar el permiso desde tu dispositivo y seguir utilizando las demás funciones de Yuyay.
+
+6. Accesos y proveedores
+
+Los cuidadores y destinatarios autorizados consultan la información conforme a sus permisos. Comparte los enlaces únicamente con las personas correspondientes: quien obtenga un enlace activo podría acceder al contenido que permite ese enlace. Revocar un acceso no elimina las copias que su destinatario haya obtenido previamente.
+
+Para operar Yuyay intervienen los siguientes proveedores:
+
+• Amazon Web Services, Inc., 410 Terry Avenue North, Seattle, WA 98109-5210, Estados Unidos. Aloja la aplicación de servidor, las cuentas, los registros y archivos; procesa los documentos enviados a extracción de texto. El almacenamiento principal de Yuyay está en Norte de Virginia, Estados Unidos. El procesamiento adicional de Textract se explica en el apartado anterior. Información: https://aws.amazon.com/privacy/.
+
+• Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, Estados Unidos. Sirve la aplicación web y transmite las solicitudes que pasan por su infraestructura, que pueden contener datos de cuenta, de cuidado y archivos. Sus instalaciones principales de procesamiento están en Estados Unidos y su red puede tratar datos en otros países donde operan sus proveedores. Información de tratamiento y destinatarios: https://vercel.com/legal/dpa y https://vercel.com/legal/sub-processors.
+
+• Plus Five Five, Inc. (Resend), 2261 Market Street #5039, San Francisco, CA 94114, Estados Unidos. Entrega los correos de acceso, recuperación, invitaciones y avisos de Yuyay. Recibe la dirección del destinatario y el contenido del mensaje, que puede incluir nombres e información sobre cambios en un perfil. Su procesamiento principal se realiza en Estados Unidos. Información: https://resend.com/legal/dpa.
+
+• Google LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043, Estados Unidos. Interviene cuando eliges acceder con Google y procesa la autenticación y sus datos técnicos. También presta el servicio de correo donde el responsable recibe las consultas y solicitudes de privacidad que le envías. Google utiliza infraestructura internacional conforme a su política: https://policies.google.com/privacy?hl=es.
+
+• OpenStreetMap Foundation, St John's Innovation Centre, Cowley Road, Cambridge CB4 0WS, Reino Unido. Recibe la consulta de lugares cercanos y sus datos de conexión cuando utilizas esa función. Su infraestructura de búsqueda incluye servidores en Países Bajos, Irlanda y Estados Unidos. Información: https://osmfoundation.org/wiki/Privacy_Policy y https://hardware.openstreetmap.org/.
+
+Aunque Yuyay se dirige a usuarios en Perú, estas operaciones implican tratamiento de datos fuera del país. Puedes consultar al responsable sobre los destinatarios de tus datos y ejercer los derechos descritos en este aviso.
+
+7. Almacenamiento en el dispositivo
+
+La web utiliza almacenamiento del navegador para mantener la sesión y determinadas preferencias. La aplicación móvil utiliza almacenamiento seguro del dispositivo para datos de acceso y preferencias. Si descargas o compartes un archivo fuera de Yuyay, protege también esa copia y el medio por el que la envías.
+
+8. Conservación, eliminación y cierre
+
+Conservamos los datos de cuenta y de cuidado mientras se mantenga la relación de uso y sean necesarios para las finalidades descritas. Para los datos de tu cuenta, ese criterio termina al hacerse efectivo su cierre. Para los datos de un perfil de cuidado, termina al cerrarse el perfil, finalizar su finalidad o concluir el servicio del proyecto. También procede atender una solicitud de supresión antes de esos acontecimientos, conforme a ley. Cerrar la cuenta de un cuidador no elimina por sí solo los datos de un perfil compartido que el titular haya autorizado mantener con otras personas. No exigimos que mantengas una cuenta para solicitar la atención de tus derechos.
+
+Quitar una entrada de salud de la aplicación la retira del historial habitual, pero conserva sus versiones para reconstruir los cambios. Un archivo que respalda un registro puede permanecer vinculado al historial aunque otras opciones permitan borrar archivos independientes. Estas funciones no equivalen a una supresión integral de todos los datos relacionados.
+
+Puedes solicitar la supresión de tus datos o el cierre de tu cuenta escribiendo a luisfelipe.28h@gmail.com. La solicitud puede comprender registros retirados, versiones, documentos asociados y copias de seguridad. La atención de una solicitud de supresión comprende el bloqueo de los datos objeto de la solicitud mientras evaluamos su eliminación y la comunicación del resultado dentro del plazo legal. Si una obligación legal exige conservar información, se restringirá su uso y se te indicarán el fundamento y el plazo aplicables. Los registros de interacción lógica sujetos al artículo 46 del Reglamento de la Ley de Protección de Datos Personales se conservan durante el mínimo legal de dos años.
+
+9. Tus derechos
+
+Puedes solicitar información sobre el tratamiento, acceder a tus datos, rectificarlos, actualizarlos o completarlos, pedir su cancelación o supresión, oponerte al tratamiento y revocar tu consentimiento cuando corresponda. También puedes solicitar los datos que hayas proporcionado en un formato estructurado y de uso común, en los supuestos previstos por la normativa aplicable.
+
+Envía tu solicitud a luisfelipe.28h@gmail.com e indica qué necesitas, a qué datos o perfil se refiere y cómo podemos responderte. Solicitaremos únicamente la información necesaria para verificar tu identidad o las facultades con las que actúas. El canal está disponible también para una persona cuidada que no tenga cuenta en Yuyay.
+
+La atención es gratuita y se realiza dentro de los plazos legales. Retirar el consentimiento puede impedir que continúen las funciones que necesitan esos datos. Si no recibes respuesta dentro del plazo aplicable o consideras que tus derechos no fueron atendidos, puedes acudir a la Autoridad Nacional de Protección de Datos Personales: https://www.gob.pe/anpd.
+
+10. Cambios
+
+Identificaremos cada versión de estos términos y del aviso de privacidad e informaremos los cambios relevantes. Si un cambio exige una nueva autorización, la solicitaremos antes de aplicar el tratamiento correspondiente. Este documento se interpreta conforme a la legislación peruana de protección de datos personales.

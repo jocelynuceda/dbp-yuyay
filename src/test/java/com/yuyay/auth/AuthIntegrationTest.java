@@ -1,9 +1,13 @@
 package com.yuyay.auth;
 
+import com.yuyay.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -11,24 +15,31 @@ import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @ActiveProfiles("test")
 class AuthIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired UserRepository users;
 
     private static final String REGISTER = """
-            {"email": "%s", "password": "Secreta123", "name": "Ana"}
+            {"email": "%s", "password": "Secreta123", "name": "Ana", "termsAccepted": true, "termsVersion": "1.0"}
             """;
 
     @Test
     void registerReturns201WithTokensAndNoPasswordHash() throws Exception {
+        Instant before = Instant.now();
         mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(REGISTER.formatted("ana1@yuyay.app")))
                 .andExpect(status().isCreated())
@@ -36,6 +47,63 @@ class AuthIntegrationTest {
                 .andExpect(jsonPath("$.refreshToken").isNotEmpty())
                 .andExpect(jsonPath("$.user.email").value("ana1@yuyay.app"))
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist());
+        var user = users.findByEmailIgnoreCase("ana1@yuyay.app").orElseThrow();
+        assertEquals("1.0", user.getTermsVersion());
+        assertTrue(user.getTermsAcceptedAt().isAfter(before));
+        assertTrue(user.getTermsAcceptedAt().isBefore(Instant.now()));
+    }
+
+    @Test
+    void publishesTheCurrentTermsInFullWithoutAuthentication() throws Exception {
+        var response = mvc.perform(get("/api/v1/auth/terms"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-cache"))
+                .andExpect(jsonPath("$.version").value("1.0"))
+                .andReturn().getResponse();
+        String published = json.readTree(response.getContentAsString(StandardCharsets.UTF_8)).path("text").asString();
+        String resource = new ClassPathResource("terms/yuyay-1.0.txt").getContentAsString(StandardCharsets.UTF_8);
+        assertEquals(resource, published);
+    }
+
+    @Test
+    void registrationRejectsAbsentFalseOrCoercedAcceptanceAndInvalidVersion() throws Exception {
+        String email = "terms-required@yuyay.app";
+        String prefix = """
+                {"email": "%s", "password": "Secreta123", "name": "Ana"
+                """.formatted(email);
+        assertRegistrationError(prefix + "}", "TERMS_ACCEPTANCE_REQUIRED");
+        assertRegistrationError(prefix + """
+                ,"termsAccepted":false,"termsVersion":"1.0"}
+                """, "TERMS_ACCEPTANCE_REQUIRED");
+        assertRegistrationError(prefix + """
+                ,"termsAccepted":"true","termsVersion":"1.0"}
+                """, "TERMS_ACCEPTANCE_REQUIRED");
+        assertRegistrationError(prefix + """
+                ,"termsAccepted":true}
+                """, "TERMS_VERSION_OUTDATED");
+        assertRegistrationError(prefix + """
+                ,"termsAccepted":true,"termsVersion":1.0}
+                """, "TERMS_VERSION_OUTDATED");
+        assertRegistrationError(prefix + """
+                ,"termsAccepted":true,"termsVersion":"0.9"}
+                """, "TERMS_VERSION_OUTDATED");
+        assertTrue(users.findByEmailIgnoreCase(email).isEmpty());
+    }
+
+    @Test
+    void googleWithoutConfiguredAudienceReturnsControlledUnavailable() throws Exception {
+        mvc.perform(post("/api/v1/auth/google").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"idToken":"synthetic"}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("GOOGLE_AUTH_UNAVAILABLE"));
+    }
+
+    private void assertRegistrationError(String body, String code) throws Exception {
+        mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(code));
     }
 
     @Test

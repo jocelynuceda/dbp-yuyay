@@ -1,5 +1,8 @@
 # Backend: bloque inmediato de la entrega final
 
+Para altas por correo, ingreso con Google y términos vigentes, consultar el
+[contrato de autenticación](google-auth-and-terms.md).
+
 ## Contrato de paginación
 
 Estos tres GET autenticados ahora devuelven un objeto, en lugar de un array:

@@ -29,9 +29,16 @@ public class User {
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
-    @NotBlank
-    @Column(nullable = false)
     private String passwordHash;
+
+    @Column(length = 255, updatable = false)
+    private String googleSubject;
+
+    @Column(length = 32, updatable = false)
+    private String termsVersion;
+
+    @Column(updatable = false)
+    private Instant termsAcceptedAt;
 
     @NotBlank
     @Size(max = 120)
@@ -53,6 +60,10 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<CareRelationship> careRelationships = new ArrayList<>();
+
+    public boolean hasPasswordCredential() {
+        return googleSubject == null && passwordHash != null && !passwordHash.isBlank();
+    }
 
     @PrePersist
     void onCreate() {
