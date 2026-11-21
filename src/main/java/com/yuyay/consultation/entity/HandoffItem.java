@@ -15,6 +15,9 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class HandoffItem {
+    @Column(name = "confirmed_position")
+    private Integer position;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

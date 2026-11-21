@@ -10,6 +10,14 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class ConsultationPreparationController {
     private final ConsultationPreparationService service;
+    private final com.yuyay.consultation.service.ConsultationConfirmationService confirmation;
+
+    @PostMapping("/{id}/preparation/confirm")
+    public com.yuyay.consultation.dto.HandoffDetailDTO confirm(@PathVariable Long id,
+            @jakarta.validation.Valid @RequestBody com.yuyay.consultation.dto.ConfirmPreparationDTO request) {
+        return confirmation.confirm(id, request);
+    }
+
 
     @GetMapping("/{id}/preparation")
     public ConsultationPreparationDTO prepare(@PathVariable Long id) {
