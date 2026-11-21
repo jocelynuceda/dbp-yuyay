@@ -163,7 +163,7 @@ class CaregiverInvitationNotificationIntegrationTest {
 
     private String register(String email, String name) throws Exception {
         return postJson("/api/v1/auth/register", null,
-                "{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201)
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201)
                 .get("accessToken").asText();
     }
 

@@ -24,8 +24,11 @@ echo "1. Health check"
 
 echo "2. Registro de cuidadora de prueba"
 EMAIL="smoke.$(date +%s).$RANDOM@yuyay.app"
+TERMS_VERSION=$(curl -fsS "$API/auth/terms" | jq -er .version)
+REGISTRATION=$(jq -n --arg email "$EMAIL" --arg version "$TERMS_VERSION" \
+  '{email:$email,password:"Secreta123",name:"Smoke OCR",termsAccepted:true,termsVersion:$version}')
 TOKEN=$(curl -s -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"Secreta123\",\"name\":\"Smoke OCR\"}" | jq -r .accessToken)
+  -d "$REGISTRATION" | jq -r .accessToken)
 [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] && ok "token obtenido ($EMAIL)" || fail "registro fallido"
 AUTH="Authorization: Bearer $TOKEN"
 

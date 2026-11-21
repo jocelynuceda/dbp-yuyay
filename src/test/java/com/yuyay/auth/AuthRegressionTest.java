@@ -12,6 +12,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -91,8 +92,13 @@ class AuthRegressionTest {
     }
 
     private tools.jackson.databind.JsonNode request(String path, Map<String, String> body, int expected) throws Exception {
+        Map<String, Object> payload = new HashMap<>(body);
+        if (path.equals("/register")) {
+            payload.put("termsAccepted", true);
+            payload.put("termsVersion", "1.0");
+        }
         var response = mvc.perform(post("/api/v1/auth" + path).contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(body))).andReturn().getResponse();
+                .content(json.writeValueAsString(payload))).andReturn().getResponse();
         // Compare statuses directly so a failed assertion does not dump passwords or tokens.
         assertEquals(expected, response.getStatus(), "Status at " + path);
         return response.getContentAsString().isEmpty() ? null : json.readTree(response.getContentAsString());

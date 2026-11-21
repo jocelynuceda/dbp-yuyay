@@ -30,6 +30,13 @@ public class GlobalExceptionHandler {
         return build(ex.getStatus(), ex.getMessage(), req);
     }
 
+    @ExceptionHandler(AuthFlowException.class)
+    public ResponseEntity<ErrorResponseDTO> handleAuthFlow(AuthFlowException ex, HttpServletRequest req) {
+        HttpStatus status = ex.getStatus();
+        return ResponseEntity.status(status).body(new ErrorResponseDTO(Instant.now(), status.value(),
+                status.getReasonPhrase(), ex.getMessage(), req.getRequestURI(), null, ex.getCode()));
+    }
+
     @ExceptionHandler(OcrRateLimitException.class)
     public ResponseEntity<ErrorResponseDTO> handleOcrRateLimit(OcrRateLimitException ex, HttpServletRequest req) {
         HttpStatus status = ex.getStatus();
@@ -44,7 +51,7 @@ public class GlobalExceptionHandler {
                 .map(fe -> new ErrorResponseDTO.FieldErrorDTO(fe.getField(), fe.getDefaultMessage()))
                 .toList();
         ErrorResponseDTO body = new ErrorResponseDTO(Instant.now(), 400, "Bad Request",
-                "Datos inválidos", req.getRequestURI(), fields);
+                "Datos inválidos", req.getRequestURI(), fields, null);
         return ResponseEntity.badRequest().body(body);
     }
 
@@ -65,7 +72,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponseDTO> handleIntegrity(DataIntegrityViolationException ex, HttpServletRequest req) {
-        log.warn("Violación de integridad en {}: {}", req.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        log.warn("Violación de integridad en {}", req.getRequestURI());
         return build(HttpStatus.CONFLICT, "La operación viola una restricción de datos", req);
     }
 

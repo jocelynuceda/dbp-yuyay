@@ -654,7 +654,7 @@ class AttachmentIntegrationTest {
 
     private String register(String email) throws Exception {
         return postJson("/api/v1/auth/register", null,
-                "{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"Test\"}", 201)
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}", 201)
                 .get("accessToken").asText();
     }
 
