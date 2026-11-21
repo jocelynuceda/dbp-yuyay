@@ -1,8 +1,12 @@
 package com.yuyay.attachment;
 
 import com.yuyay.attachment.entity.Attachment;
+import com.yuyay.attachment.exception.FileStorageException;
 import com.yuyay.attachment.exception.InvalidAttachmentException;
+import com.yuyay.attachment.exception.OcrRateLimitException;
 import com.yuyay.attachment.mapper.AttachmentMapper;
+import com.yuyay.attachment.ratelimit.OcrRateLimiter;
+import com.yuyay.attachment.ratelimit.OcrUsageStore;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.service.AttachmentService;
 import com.yuyay.attachment.storage.FileStorage;
@@ -23,12 +27,17 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -54,7 +63,8 @@ class AttachmentStorageRollbackTest {
     private final AttachmentService service = new AttachmentService(
             attachmentRepo, careSubjectRepo, mock(ConsultationRepository.class), mock(com.yuyay.health.repository.HealthEntryVersionRepository.class), userRepo,
             mock(AttachmentMapper.class), fileStorage, currentUserService,
-            mock(AuthorizationService.class), mock(ApplicationEventPublisher.class));
+            mock(AuthorizationService.class), mock(ApplicationEventPublisher.class),
+            new OcrRateLimiter(mock(OcrUsageStore.class), Clock.systemUTC(), 0, 0, 0));
 
     @BeforeEach
     void setUp() {
@@ -101,6 +111,43 @@ class AttachmentStorageRollbackTest {
         completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         verifyNoInteractions(fileStorage);
+    }
+
+    @Test
+    void aStorageFailureGivesTheIntervalTurnBack() {
+        AttachmentService limited = serviceWithInterval();
+        doThrow(new FileStorageException("S3 no disponible"))
+                .when(fileStorage).store(anyString(), any(byte[].class), anyString());
+
+        assertThrows(FileStorageException.class, () -> limited.upload(7L, jpeg(), null));
+        completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
+        TransactionSynchronizationManager.clearSynchronization();
+        TransactionSynchronizationManager.initSynchronization();
+
+        when(attachmentRepo.save(any(Attachment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(fileStorage).store(anyString(), any(byte[].class), anyString());
+        limited.upload(7L, jpeg(), null);
+    }
+
+    @Test
+    void aCommittedUploadKeepsTheIntervalTurn() {
+        AttachmentService limited = serviceWithInterval();
+        when(attachmentRepo.save(any(Attachment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        limited.upload(7L, jpeg(), null);
+        completeTransaction(TransactionSynchronization.STATUS_COMMITTED);
+
+        assertThrows(OcrRateLimitException.class, () -> limited.upload(7L, jpeg(), null));
+    }
+
+    /** Same service, but with a 5 s interval and a clock that does not move between the two uploads. */
+    private AttachmentService serviceWithInterval() {
+        Clock fixed = Clock.fixed(Instant.parse("2026-11-14T15:00:00Z"), ZoneOffset.UTC);
+        return new AttachmentService(
+                attachmentRepo, careSubjectRepo, mock(ConsultationRepository.class), mock(com.yuyay.health.repository.HealthEntryVersionRepository.class), userRepo,
+                mock(AttachmentMapper.class), fileStorage, currentUserService,
+                mock(AuthorizationService.class), mock(ApplicationEventPublisher.class),
+                new OcrRateLimiter(mock(OcrUsageStore.class), fixed, 5, 0, 0));
     }
 
     private MockMultipartFile jpeg() {

@@ -77,6 +77,39 @@ public class Attachment {
 
     private Instant ocrCompletedAt;
 
+    /**
+     * When the last OCR of this document was requested (upload or retry); used by the OCR rate limit.
+     * Null in rows created before this field existed.
+     */
+    @Column(name = "ocr_requested_at")
+    private Instant ocrRequestedAt;
+
+    /** Who asked for the last OCR (upload or retry); may differ from the uploader. Plain id, no relation. */
+    @Column(name = "ocr_requested_by_id")
+    private Long ocrRequestedById;
+
+    /**
+     * Lowercase name of {@link UploadSource} (camera, gallery, files, web) or null. What the client says it used;
+     * informational, not trusted. Stored as text on purpose so new values never need a schema change.
+     */
+    @Column(name = "upload_source", length = 16)
+    private String uploadSource;
+
+    /**
+     * Sanitized value of the X-Yuyay-Client header (web, android/ios app and build) or null when absent or invalid.
+     * Sent by the client; informational, never trusted.
+     */
+    @Column(name = "upload_client", length = 64)
+    private String uploadClient;
+
+    /** Width in pixels, measured by the server from the image header; null for PDF/audio or when unreadable. */
+    @Column(name = "image_width")
+    private Integer imageWidth;
+
+    /** Height in pixels, measured by the server from the image header; null for PDF/audio or when unreadable. */
+    @Column(name = "image_height")
+    private Integer imageHeight;
+
     @PrePersist
     void onCreate() {
         this.uploadedAt = Instant.now();

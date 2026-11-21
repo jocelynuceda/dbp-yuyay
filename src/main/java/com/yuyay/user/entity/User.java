@@ -1,6 +1,7 @@
 package com.yuyay.user.entity;
 
 import com.yuyay.care.entity.CareRelationship;
+import com.yuyay.common.Gender;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -41,6 +42,10 @@ public class User {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private Role role = Role.USER;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Gender gender;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

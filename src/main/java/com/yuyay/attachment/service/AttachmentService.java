@@ -5,12 +5,16 @@ import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.dto.AttachmentResponse;
 import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.entity.OcrStatus;
+import com.yuyay.attachment.entity.UploadSource;
 import com.yuyay.attachment.exception.AttachmentNotFoundException;
 import com.yuyay.attachment.exception.InvalidAttachmentException;
+import com.yuyay.attachment.image.ImageSize;
 import com.yuyay.attachment.mapper.AttachmentMapper;
+import com.yuyay.attachment.ratelimit.OcrRateLimiter;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.storage.FileStorage;
 import com.yuyay.audit.entity.AccessAction;
+import com.yuyay.common.ClientHeader;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.exception.CareSubjectNotFoundException;
@@ -27,6 +31,7 @@ import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,10 +42,13 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -64,13 +72,30 @@ public class AttachmentService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final OcrRateLimiter ocrRateLimiter;
 
     public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId) {
+        return upload(subjectId, file, consultationId, null);
+    }
+
+    public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId, String source) {
+        return upload(subjectId, file, consultationId, source, null);
+    }
+
+    public AttachmentResponse upload(Long subjectId, MultipartFile file, Long consultationId, String source,
+                                     String client) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireAccess(meId, subjectId);
         String extension = validate(file);
         byte[] content = readBytes(file);
         requireMatchingSignature(file.getContentType(), content);
+        // Diagnostic only: header read, never rejects the upload.
+        ImageSize size = ImageSize.read(content, file.getContentType());
+        UploadSource parsedSource = UploadSource.fromParam(source);
+        String uploadSource = parsedSource == null ? null : parsedSource.name().toLowerCase(Locale.ROOT);
+        // Informativo: si falta o es inválido se guarda null, no el marcador "unavailable".
+        String sanitizedClient = ClientHeader.sanitize(client);
+        String uploadClient = "unavailable".equals(sanitizedClient) ? null : sanitizedClient;
 
         CareSubject subject = careSubjectRepo.findById(subjectId)
                 .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
@@ -79,13 +104,21 @@ public class AttachmentService {
         // Todo lo que puede fallar con 4xx se valida ANTES de subir a S3: así no quedan archivos huérfanos.
         Consultation consultation = resolveConsultation(subjectId, consultationId);
 
+        // Los audios no pasan por el OCR. Se marcan DONE y no con un estado nuevo porque la columna tiene
+        // un CHECK con los valores actuales y ddl-auto=update no lo modifica en las bases existentes.
+        boolean audio = file.getContentType().startsWith("audio/");
+        // Va después de las validaciones 4xx (un pedido inválido no gasta turno) y antes de guardar el archivo.
+        Instant requestedAt = null;
+        if (!audio) {
+            requestedAt = ocrRateLimiter.acquire(meId);
+            // Se registra antes de guardar el archivo: si el almacenamiento falla, el rollback devuelve el turno.
+            releaseTurnIfRolledBack(meId, requestedAt);
+        }
+
         String key = "care-subjects/" + subjectId + "/" + UUID.randomUUID() + extension;
         fileStorage.store(key, content, file.getContentType());
         deleteFromStorageIfRolledBack(key);
 
-        // Los audios no pasan por el OCR. Se marcan DONE y no con un estado nuevo porque la columna tiene
-        // un CHECK con los valores actuales y ddl-auto=update no lo modifica en las bases existentes.
-        boolean audio = file.getContentType().startsWith("audio/");
         Attachment attachment = attachmentRepo.save(Attachment.builder()
                 .careSubject(subject)
                 .consultation(consultation)
@@ -95,7 +128,20 @@ public class AttachmentService {
                 .sizeBytes(file.getSize())
                 .storageKey(key)
                 .ocrStatus(audio ? OcrStatus.DONE : OcrStatus.PENDING)
+                .ocrRequestedAt(requestedAt)
+                .ocrRequestedById(audio ? null : meId)
+                .uploadSource(uploadSource)
+                .uploadClient(uploadClient)
+                .imageWidth(size == null ? null : size.width())
+                .imageHeight(size == null ? null : size.height())
                 .build());
+
+        log.info("Adjunto subido adjunto={} contentType={} sizeBytes={} width={} height={} source={} client={}",
+                attachment.getId(), attachment.getContentType(), attachment.getSizeBytes(),
+                size == null ? "unavailable" : String.valueOf(size.width()),
+                size == null ? "unavailable" : String.valueOf(size.height()),
+                uploadSource == null ? "unavailable" : uploadSource,
+                uploadClient == null ? "unavailable" : uploadClient);
 
         if (!audio) eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
         return mapper.toResponse(attachment);
@@ -152,12 +198,17 @@ public class AttachmentService {
     }
 
     public AttachmentResponse retryOcr(Long subjectId, Long attachmentId) {
-        authorizationService.requireAccess(currentUserService.getCurrentUserId(), subjectId);
+        Long meId = currentUserService.getCurrentUserId();
+        authorizationService.requireAccess(meId, subjectId);
         Attachment attachment = loadForUpdate(subjectId, attachmentId);
         if (attachment.getOcrStatus() != OcrStatus.FAILED) {
             throw new InvalidOperationException("Solo se puede reintentar un OCR que falló");
         }
+        Instant requestedAt = ocrRateLimiter.acquire(meId);
+        releaseTurnIfRolledBack(meId, requestedAt);
         attachment.setOcrStatus(OcrStatus.PENDING);
+        attachment.setOcrRequestedAt(requestedAt);
+        attachment.setOcrRequestedById(meId);
         attachment.setOcrError(null);
         attachment.setOcrCompletedAt(null);
         eventPublisher.publishEvent(new AttachmentUploadedEvent(attachment.getId()));
@@ -176,6 +227,23 @@ public class AttachmentService {
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
                     fileStorage.delete(key);
+                }
+            }
+        });
+    }
+
+    /**
+     * El limitador guarda el turno de intervalo en memoria, fuera de la transaccion. Si la transaccion
+     * termina en rollback (por ejemplo, fallo el almacenamiento), se devuelve el turno para que el usuario
+     * no quede bloqueado por una solicitud que no se proceso. La fila del cupo diario se revierte sola.
+     */
+    private void releaseTurnIfRolledBack(Long userId, Instant acceptedAt) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    ocrRateLimiter.release(userId, acceptedAt);
                 }
             }
         });
