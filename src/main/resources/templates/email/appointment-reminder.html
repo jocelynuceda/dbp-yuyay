@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Recordatorio de cita</title>
+</head>
+<body>
+<h2>Recordatorio de cita</h2>
+
+<p>
+    Hay una cita de <strong th:text="${careSubjectName}">la persona a tu cuidado</strong>
+    <span th:text="${when}">mañana</span>.
+</p>
+
+<p>
+    <a th:href="${link}">Ver la cita en Yuyay</a>
+    (necesitas iniciar sesión).
+</p>
+
+<p>Recibes este aviso porque cuidas a esta persona en Yuyay.</p>
+
+<p>Yuyay</p>
+</body>
+</html>
