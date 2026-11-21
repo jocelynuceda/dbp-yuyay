@@ -48,6 +48,8 @@ public class ConsultationPreparationService {
     // Incluye los campos revisables de la cita, sin depender del reloj ni de orden de consultas.
     public static String snapshot(Consultation consultation) {
         return TokenHasher.sha256(java.util.Arrays.asList(consultation.getId(), consultation.getDate(),
-                consultation.getTime(), consultation.getReason(), consultation.getNotes()).toString());
+                consultation.getTime(), consultation.getReason(), consultation.getNotes()).stream()
+                .map(value -> value == null ? "-1:" : value.toString().length() + ":" + value)
+                .collect(Collectors.joining()));
     }
 }

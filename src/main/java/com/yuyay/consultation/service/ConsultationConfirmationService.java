@@ -86,7 +86,10 @@ public class ConsultationConfirmationService {
                     .healthEntryVersion(version).position(position++).build());
         }
         authorization.requireAccess(userId, subjectId);
-        return mapper.toDetail(handoffs.save(handoff));
+        var saved = handoffs.saveAndFlush(handoff);
+        // Devuelve también en el primer intento los valores normalizados por la base.
+        entityManager.refresh(saved);
+        return mapper.toDetail(saved);
     }
 
     private static String encode(String value) {
