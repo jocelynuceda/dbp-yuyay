@@ -1413,7 +1413,7 @@
             "description": "Crea el CareSubject y deja al creador como PRINCIPAL activo automáticamente.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\"\n}",
+              "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\",\n  \"declaration\": {\n    \"type\": \"FICTITIOUS\",\n    \"textVersion\": \"1\",\n    \"confirmed\": true\n  },\n  \"requestId\": \"{{$guid}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1459,7 +1459,7 @@
                 "description": "Crea el CareSubject y deja al creador como PRINCIPAL activo automáticamente.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\"\n}",
+                  "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\",\n  \"declaration\": {\n    \"type\": \"FICTITIOUS\",\n    \"textVersion\": \"1\",\n    \"confirmed\": true\n  },\n  \"requestId\": \"{{$guid}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1719,7 +1719,7 @@
             "description": "name @NotBlank y birthDate @Past.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\"\n}",
+              "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\",\n  \"declaration\": {\n    \"type\": \"FICTITIOUS\",\n    \"textVersion\": \"1\",\n    \"confirmed\": true\n  },\n  \"requestId\": \"{{$guid}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1763,7 +1763,7 @@
                 "description": "name @NotBlank y birthDate @Past.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\"\n}",
+                  "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\",\n  \"declaration\": {\n    \"type\": \"FICTITIOUS\",\n    \"textVersion\": \"1\",\n    \"confirmed\": true\n  },\n  \"requestId\": \"{{$guid}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"

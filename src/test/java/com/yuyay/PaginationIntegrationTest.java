@@ -61,7 +61,7 @@ class PaginationIntegrationTest {
         strangerToken = other.get("accessToken").asText();
         stranger = users.findById(other.get("user").get("id").asLong()).orElseThrow();
         subjectId = send(post("/api/v1/care-subjects"), token,
-                "{\"name\":\"Rosa\",\"birthDate\":\"1954-01-01\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa\",\"birthDate\":\"1954-01-01\"}", 201).get("id").asLong();
         entries = "/api/v1/care-subjects/" + subjectId + "/health-entries";
     }
 
@@ -139,7 +139,7 @@ class PaginationIntegrationTest {
                     .occurredAt(Instant.parse("2026-01-01T00:00:00Z")).build()).getId());
         }
         long otherId = send(post("/api/v1/care-subjects"), token,
-                "{\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
         logs.saveAndFlush(AccessLog.builder().careSubject(subjects.findById(otherId).orElseThrow())
                 .user(owner).action(AccessAction.VIEW).targetType("HEALTH_ENTRY").build());
         String path = "/api/v1/care-subjects/" + subjectId + "/access-logs";

@@ -37,7 +37,7 @@ class DelegationIntegrationTest {
     void setUp() throws Exception {
         ownerToken = register("owner." + UUID.randomUUID() + "@yuyay.app");
         subjectId = postJson("/api/v1/care-subjects", ownerToken,
-                "{\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
         medicationId = postJson("/api/v1/care-subjects/" + subjectId + "/health-entries", ownerToken,
                 "{\"categoryCode\":\"MEDICATION\",\"title\":\"Losartán\",\"dose\":\"50 mg\",\"confidenceLevel\":\"CONFIRMED\"}", 201).get("id").asLong();
         allergyId = postJson("/api/v1/care-subjects/" + subjectId + "/health-entries", ownerToken,

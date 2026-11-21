@@ -39,7 +39,7 @@ class HealthEntryDoseRuleTest {
     void setUp() throws Exception {
         token = register("dose." + UUID.randomUUID() + "@yuyay.app");
         long subjectId = send(post("/api/v1/care-subjects"),
-                "{\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
         entriesPath = "/api/v1/care-subjects/" + subjectId + "/health-entries";
     }
 

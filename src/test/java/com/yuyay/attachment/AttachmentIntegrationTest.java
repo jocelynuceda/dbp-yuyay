@@ -84,9 +84,9 @@ class AttachmentIntegrationTest {
     void setUp() throws Exception {
         ownerToken = register("owner." + UUID.randomUUID() + "@yuyay.app");
         subjectId = postJson("/api/v1/care-subjects", ownerToken,
-                "{\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}", 201).get("id").asLong();
         otherSubjectId = postJson("/api/v1/care-subjects", ownerToken,
-                "{\"name\":\"Diego Ramos\",\"birthDate\":\"2020-05-01\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Diego Ramos\",\"birthDate\":\"2020-05-01\"}", 201).get("id").asLong();
         strangerToken = register("stranger." + UUID.randomUUID() + "@yuyay.app");
     }
 
