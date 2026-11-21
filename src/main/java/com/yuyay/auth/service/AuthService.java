@@ -63,8 +63,9 @@ public class AuthService {
 
     @Transactional
     public AuthResponseDTO loginOrRegisterGoogle(GoogleIdentity identity, GoogleAuthRequestDTO dto) {
+        String acceptedVersion = termsService.parseGoogleAcceptedVersion(dto.acceptedTermsVersion());
         return existingGoogleSession(identity).orElseGet(() -> {
-            String version = termsService.requireCurrentAcceptance(dto.termsAccepted(), dto.termsVersion());
+            String version = termsService.requireCurrentGoogleAcceptance(acceptedVersion);
             User user = User.builder()
                     .email(identity.email())
                     .googleSubject(identity.subject())

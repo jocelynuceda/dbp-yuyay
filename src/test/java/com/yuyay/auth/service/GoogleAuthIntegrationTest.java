@@ -10,6 +10,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.PasswordResetCodeRepository;
+import com.yuyay.user.repository.RefreshTokenRepository;
 import com.yuyay.user.repository.UserRepository;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,11 +31,13 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.NullNode;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -61,6 +66,7 @@ class GoogleAuthIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired UserRepository users;
     @Autowired PasswordResetCodeRepository resetCodes;
+    @Autowired RefreshTokenRepository refreshTokens;
     @Autowired PlatformTransactionManager transactionManager;
 
     @TestConfiguration
@@ -97,9 +103,11 @@ class GoogleAuthIntegrationTest {
         };
         for (String idToken : invalid) {
             JsonNode error = request("/google", Map.of("idToken", idToken,
-                    "termsAccepted", true, "termsVersion", "1.0"), 401);
+                    "acceptedTermsVersion", "1.0"), 401);
             assertEquals("GOOGLE_TOKEN_INVALID", error.path("code").asString());
         }
+        JsonNode invalidToken = request("/google", Map.of("idToken", "malformed", "acceptedTermsVersion", true), 401);
+        assertEquals("GOOGLE_TOKEN_INVALID", invalidToken.path("code").asString());
         assertTrue(users.findByGoogleSubject(subject).isEmpty());
     }
 
@@ -108,12 +116,17 @@ class GoogleAuthIntegrationTest {
         String subject = UUID.randomUUID().toString();
         String email = uniqueEmail();
         String idToken = token(subject, email, builder -> builder.issuer("accounts.google.com"));
-        assertEquals("TERMS_ACCEPTANCE_REQUIRED", request("/google", Map.of("idToken", idToken),
-                400).path("code").asString());
-        assertEquals("TERMS_VERSION_OUTDATED", request("/google",
-                Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "0.9"),
-                400).path("code").asString());
+        long sessionsBefore = refreshTokens.count();
+        assertTermsChallenge(Map.of("idToken", idToken), "TERMS_ACCEPTANCE_REQUIRED");
+        assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", NullNode.getInstance()),
+                "TERMS_ACCEPTANCE_REQUIRED");
+        assertTermsChallenge(Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "1.0"),
+                "TERMS_ACCEPTANCE_REQUIRED");
+        assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", "2026-11"),
+                "TERMS_VERSION_OUTDATED");
         assertTrue(users.findByGoogleSubject(subject).isEmpty());
+        assertTrue(users.findByEmailIgnoreCase(email).isEmpty());
+        assertEquals(sessionsBefore, refreshTokens.count());
 
         JsonNode created = signUp(idToken);
         User saved = users.findByGoogleSubject(subject).orElseThrow();
@@ -132,6 +145,8 @@ class GoogleAuthIntegrationTest {
         assertEquals(email, returned.path("user").path("email").asString());
         assertTrue(users.findByEmailIgnoreCase(changedEmail).isEmpty());
         assertEquals(NOW, users.findByGoogleSubject(subject).orElseThrow().getTermsAcceptedAt());
+        JsonNode withOldVersion = request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "0.9"), 200);
+        assertEquals(saved.getId().longValue(), withOldVersion.path("user").path("id").asLong());
 
         mvc.perform(get("/api/v1/users/me")
                         .header("Authorization", "Bearer " + created.path("accessToken").asString()))
@@ -146,6 +161,23 @@ class GoogleAuthIntegrationTest {
     }
 
     @Test
+    void rejectsMalformedAcceptanceVersionWithoutCreatingAccountOrSession() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        String email = uniqueEmail();
+        String idToken = token(subject, email, builder -> builder);
+        long sessionsBefore = refreshTokens.count();
+        for (Object invalid : List.of(1.0, true, Map.of("version", "1.0"), "", " ", " 1.0", "x".repeat(33))) {
+            JsonNode error = request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", invalid), 400);
+            assertEquals("TERMS_VERSION_INVALID", error.path("code").asString());
+            assertFalse(error.has("currentVersion"));
+            assertFalse(error.has("accessToken"));
+            assertFalse(error.has("refreshToken"));
+        }
+        assertTrue(users.findByGoogleSubject(subject).isEmpty());
+        assertEquals(sessionsBefore, refreshTokens.count());
+    }
+
+    @Test
     void googleDoesNotLinkAnExistingPasswordAccountOrAnotherGoogleSubject() throws Exception {
         String localEmail = uniqueEmail();
         String password = "Original123";
@@ -153,10 +185,10 @@ class GoogleAuthIntegrationTest {
                 "termsAccepted", true, "termsVersion", "1.0"), 201);
         String unlinkedSubject = UUID.randomUUID().toString();
         String localToken = token(unlinkedSubject, localEmail.toUpperCase(java.util.Locale.ROOT), builder -> builder);
-        JsonNode conflict = request("/google", Map.of("idToken", localToken,
-                "termsAccepted", true, "termsVersion", "1.0"), 409);
+        JsonNode conflict = request("/google", Map.of("idToken", localToken), 409);
         assertEquals("GOOGLE_EMAIL_CONFLICT", conflict.path("code").asString());
         assertTrue(conflict.path("message").asString().contains("contraseña"));
+        assertFalse(conflict.has("currentVersion"));
         assertTrue(users.findByGoogleSubject(unlinkedSubject).isEmpty());
         request("/login", Map.of("email", localEmail, "password", password), 200);
 
@@ -218,15 +250,31 @@ class GoogleAuthIntegrationTest {
     }
 
     private JsonNode signUp(String idToken) throws Exception {
-        return request("/google", Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "1.0"), 200);
+        return request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.0"), 200);
+    }
+
+    private void assertTermsChallenge(Map<String, ?> body, String code) throws Exception {
+        MockHttpServletResponse response = performRequest("/google", body);
+        assertEquals(428, response.getStatus());
+        assertEquals("no-store", response.getHeader(HttpHeaders.CACHE_CONTROL));
+        JsonNode error = json.readTree(response.getContentAsByteArray());
+        assertEquals(428, error.path("status").asInt());
+        assertEquals(code, error.path("code").asString());
+        assertEquals("1.0", error.path("currentVersion").asString());
+        assertFalse(error.has("accessToken"));
+        assertFalse(error.has("refreshToken"));
     }
 
     private JsonNode request(String path, Map<String, ?> body, int expected) throws Exception {
-        var response = mvc.perform(post("/api/v1/auth" + path).contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(body))).andReturn().getResponse();
+        MockHttpServletResponse response = performRequest(path, body);
         assertEquals(expected, response.getStatus(), "Status at " + path);
         byte[] content = response.getContentAsByteArray();
         return content.length == 0 ? null : json.readTree(content);
+    }
+
+    private MockHttpServletResponse performRequest(String path, Map<String, ?> body) throws Exception {
+        return mvc.perform(post("/api/v1/auth" + path).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(body))).andReturn().getResponse();
     }
 
     private String token(String subject, String email, UnaryOperator<JWTClaimsSet.Builder> custom) throws JOSEException {

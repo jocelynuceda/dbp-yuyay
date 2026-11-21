@@ -2,6 +2,7 @@ package com.yuyay.auth.service;
 
 import com.yuyay.auth.dto.TermsResponseDTO;
 import com.yuyay.exception.AuthFlowException;
+import com.yuyay.exception.GoogleTermsRequiredException;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -36,5 +37,36 @@ public class TermsService {
                     "Consulta y acepta la versión vigente de los términos y el aviso de privacidad");
         }
         return current.version();
+    }
+
+    public String parseGoogleAcceptedVersion(JsonNode acceptedVersion) {
+        if (acceptedVersion == null || acceptedVersion.isNull()) {
+            return null;
+        }
+        if (!acceptedVersion.isString()) {
+            throw invalidGoogleVersion();
+        }
+        String version = acceptedVersion.stringValue();
+        if (version.isBlank() || version.length() > 32 || !version.equals(version.strip())) {
+            throw invalidGoogleVersion();
+        }
+        return version;
+    }
+
+    public String requireCurrentGoogleAcceptance(String acceptedVersion) {
+        if (acceptedVersion == null) {
+            throw new GoogleTermsRequiredException("TERMS_ACCEPTANCE_REQUIRED",
+                    "Debes aceptar los términos y el aviso de privacidad para crear una cuenta", current.version());
+        }
+        if (!current.version().equals(acceptedVersion)) {
+            throw new GoogleTermsRequiredException("TERMS_VERSION_OUTDATED",
+                    "Consulta y acepta la versión vigente de los términos y el aviso de privacidad", current.version());
+        }
+        return current.version();
+    }
+
+    private AuthFlowException invalidGoogleVersion() {
+        return new AuthFlowException(HttpStatus.BAD_REQUEST, "TERMS_VERSION_INVALID",
+                "acceptedTermsVersion debe ser una cadena de versión válida");
     }
 }

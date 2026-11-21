@@ -30,16 +30,22 @@ la confirmación booleana `termsAccepted: true` y la cadena `termsVersion` vigen
 ## Alta e ingreso con Google
 
 `POST /google` recibe el **ID token** que obtiene el cliente web o móvil de Google.
-Para intentar ingresar con una cuenta existente basta enviar `{"idToken":"<ID token>"}`.
-Para el alta se agregan los campos de términos.
+El primer intento puede enviar `{"idToken":"<ID token>"}`. Para una cuenta nueva,
+el backend devuelve `428` con `currentVersion`. El cliente consulta `GET /terms`,
+muestra el texto y espera la confirmación explícita del usuario. Al confirmar,
+envía `acceptedTermsVersion` con la versión que mostró.
 
 ```json
 {
   "idToken": "<ID token>",
-  "termsAccepted": true,
-  "termsVersion": "1.0"
+  "acceptedTermsVersion": "1.0"
 }
 ```
+
+Si el usuario cancela, el cliente descarta el intento de registro. Si la versión
+cambió, el cliente obtiene y presenta el texto vigente antes de solicitar una
+nueva confirmación. Una cuenta vinculada puede iniciar sesión sin enviar una
+versión ni repetir su aceptación.
 
 Yuyay valida la firma RS256 con las claves públicas de Google, el emisor, las
 audiencias admitidas, la caducidad, el correo verificado y el `sub`. La cuenta
@@ -81,11 +87,16 @@ Los siguientes errores agregan `code` al objeto habitual de error
 
 | HTTP | `code` | Comportamiento |
 | --- | --- | --- |
-| 400 | `TERMS_ACCEPTANCE_REQUIRED` | Presentar el texto vigente y solicitar confirmación para crear la cuenta. |
-| 400 | `TERMS_VERSION_OUTDATED` | Volver a obtener el texto y solicitar confirmación de la versión nueva. |
+| 400 en `/register`, 428 en `/google` | `TERMS_ACCEPTANCE_REQUIRED` | Presentar el texto vigente y solicitar confirmación para crear la cuenta. |
+| 400 en `/register`, 428 en `/google` | `TERMS_VERSION_OUTDATED` | Volver a obtener el texto y solicitar confirmación de la versión nueva. |
+| 400 en `/google` | `TERMS_VERSION_INVALID` | Enviar la versión como una cadena de hasta 32 caracteres, con contenido y sin espacios en los extremos. |
 | 401 | `GOOGLE_TOKEN_INVALID` | Reiniciar el flujo de Google y obtener un ID token nuevo. |
 | 409 | `GOOGLE_EMAIL_CONFLICT` | Mostrar el mensaje del servidor, que indica el método de ingreso de la cuenta existente. |
 | 503 | `GOOGLE_AUTH_UNAVAILABLE` | Mostrar que Google no está disponible en este momento. |
+
+El `428` es la señal acordada por Yuyay para el alta con Google. Incluye
+`currentVersion` con la versión vigente y `Cache-Control: no-store`.
+`acceptedTermsVersion` omitido o `null` indica que aún falta la confirmación.
 
 Un ID token ausente, vacío o mayor a 8192 caracteres produce un 400 de validación.
 El registro duplicado por correo conserva su 409. Ante un alta desde un APK
