@@ -39,7 +39,7 @@ class HealthEntryDoseRuleTest {
     void setUp() throws Exception {
         token = register("dose." + UUID.randomUUID() + "@yuyay.app");
         long subjectId = send(post("/api/v1/care-subjects"),
-                "{\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
         entriesPath = "/api/v1/care-subjects/" + subjectId + "/health-entries";
     }
 
@@ -80,7 +80,7 @@ class HealthEntryDoseRuleTest {
     }
 
     private String register(String email) throws Exception {
-        String body = "{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"Test\"}";
+        String body = "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}";
         String response = mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

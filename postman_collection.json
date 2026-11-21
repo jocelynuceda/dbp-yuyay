@@ -29,6 +29,11 @@
   ],
   "variable": [
     {
+      "key": "termsVersion",
+      "value": "1.0",
+      "type": "string"
+    },
+    {
       "key": "baseUrl",
       "value": "http://localhost:8080"
     },
@@ -147,6 +152,42 @@
       "description": "Registro, login, refresh con rotación y logout. Los tokens se guardan en variables de colección automáticamente.",
       "item": [
         {
+          "name": "Términos vigentes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/terms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "terms"
+              ]
+            },
+            "description": "Consulta el texto y la versión que requiere el registro de una cuenta.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"termsVersion\", pm.response.json().version);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
           "name": "Register · Ana (cuidadora principal)",
           "request": {
             "method": "POST",
@@ -171,7 +212,7 @@
             "description": "Crea la cuenta. Devuelve access token (60 min) y refresh token (7 días). El password debe tener 8–72 caracteres con al menos una letra y un número.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"gender\": \"FEMALE\"\n}",
+              "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"gender\": \"FEMALE\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -223,7 +264,7 @@
                 "description": "Crea la cuenta. Devuelve access token (60 min) y refresh token (7 días). El password debe tener 8–72 caracteres con al menos una letra y un número.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"gender\": \"FEMALE\"\n}",
+                  "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"gender\": \"FEMALE\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -272,7 +313,7 @@
             "description": "Segunda cuenta: será invitado como cuidador de Pedro.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"bruno.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Bruno Torres\"\n}",
+              "raw": "{\n  \"email\": \"bruno.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Bruno Torres\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -322,7 +363,7 @@
                 "description": "Segunda cuenta: será invitado como cuidador de Pedro.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"bruno.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Bruno Torres\"\n}",
+                  "raw": "{\n  \"email\": \"bruno.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Bruno Torres\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -371,7 +412,7 @@
             "description": "Tercera cuenta: se usa en la carpeta de seguridad para demostrar que no puede ver datos ajenos.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Carla Ruiz\"\n}",
+              "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Carla Ruiz\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -420,7 +461,7 @@
                 "description": "Tercera cuenta: se usa en la carpeta de seguridad para demostrar que no puede ver datos ajenos.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Carla Ruiz\"\n}",
+                  "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Carla Ruiz\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -765,7 +806,7 @@
             "description": "Email único.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\"\n}",
+              "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -813,7 +854,7 @@
                 "description": "Email único.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\"\n}",
+                  "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -862,7 +903,7 @@
             "description": "Validación de @Size y @Pattern: devuelve fieldErrors.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"x.{{runId}}@yuyay.app\",\n  \"password\": \"corta\",\n  \"name\": \"X\"\n}",
+              "raw": "{\n  \"email\": \"x.{{runId}}@yuyay.app\",\n  \"password\": \"corta\",\n  \"name\": \"X\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -911,7 +952,7 @@
                 "description": "Validación de @Size y @Pattern: devuelve fieldErrors.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"x.{{runId}}@yuyay.app\",\n  \"password\": \"corta\",\n  \"name\": \"X\"\n}",
+                  "raw": "{\n  \"email\": \"x.{{runId}}@yuyay.app\",\n  \"password\": \"corta\",\n  \"name\": \"X\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1413,7 +1454,7 @@
             "description": "Crea el CareSubject y deja al creador como PRINCIPAL activo automáticamente.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\"\n}",
+              "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\",\n  \"declaration\": {\n    \"type\": \"FICTITIOUS\",\n    \"textVersion\": \"1\",\n    \"confirmed\": true\n  },\n  \"requestId\": \"{{$guid}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1459,7 +1500,7 @@
                 "description": "Crea el CareSubject y deja al creador como PRINCIPAL activo automáticamente.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\"\n}",
+                  "raw": "{\n  \"name\": \"Pedro Torres\",\n  \"birthDate\": \"1948-03-12\",\n  \"gender\": \"MALE\",\n  \"notes\": \"Hipertenso, vive con su hija\",\n  \"declaration\": {\n    \"type\": \"FICTITIOUS\",\n    \"textVersion\": \"1\",\n    \"confirmed\": true\n  },\n  \"requestId\": \"{{$guid}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1719,7 +1760,7 @@
             "description": "name @NotBlank y birthDate @Past.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\"\n}",
+              "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\",\n  \"declaration\": {\n    \"type\": \"FICTITIOUS\",\n    \"textVersion\": \"1\",\n    \"confirmed\": true\n  },\n  \"requestId\": \"{{$guid}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1763,7 +1804,7 @@
                 "description": "name @NotBlank y birthDate @Past.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\"\n}",
+                  "raw": "{\n  \"name\": \"\",\n  \"birthDate\": \"2050-01-01\",\n  \"declaration\": {\n    \"type\": \"FICTITIOUS\",\n    \"textVersion\": \"1\",\n    \"confirmed\": true\n  },\n  \"requestId\": \"{{$guid}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"

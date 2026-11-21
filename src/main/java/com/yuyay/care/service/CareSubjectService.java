@@ -1,5 +1,7 @@
 package com.yuyay.care.service;
 
+import com.yuyay.care.dto.CareAuthorizationDeclarationRequest;
+import com.yuyay.care.dto.CareAuthorizationPolicyResponse.Option;
 import com.yuyay.care.dto.CareSubjectCreateRequest;
 import com.yuyay.care.dto.CareSubjectResponse;
 import com.yuyay.care.dto.CareSubjectUpdateRequest;
@@ -8,29 +10,35 @@ import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareStatus;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.exception.CareSubjectNotFoundException;
+import com.yuyay.care.exception.InvalidCareAuthorizationDeclarationException;
 import com.yuyay.care.mapper.CareSubjectMapper;
 import com.yuyay.care.repository.CareRelationshipRepository;
 import com.yuyay.care.repository.CareSubjectRepository;
-import com.yuyay.security.AuthorizationService;
-import com.yuyay.security.CurrentUserService;
-import com.yuyay.user.entity.User;
-import com.yuyay.user.repository.UserRepository;
 import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
 import com.yuyay.health.repository.HealthEntryRepository;
+import com.yuyay.security.AuthorizationService;
+import com.yuyay.security.CurrentUserService;
+import com.yuyay.security.TokenHasher;
+import com.yuyay.user.entity.User;
+import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class CareSubjectService {
+
+    private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9_-]{1,64}");
 
     private final CareSubjectRepository subjectRepo;
     private final CareRelationshipRepository relationshipRepo;
@@ -39,10 +47,27 @@ public class CareSubjectService {
     private final CareSubjectMapper mapper;
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
+    private final CareAuthorizationDeclarationService declarations;
+    private final ObjectMapper objectMapper;
 
     public CareSubjectResponse create(CareSubjectCreateRequest req) {
+        if (req.declaration() == null) {
+            throw new InvalidCareAuthorizationDeclarationException(
+                    "Actualiza Yuyay para registrar la declaración de esta persona");
+        }
+        String requestId = req.requestId();
+        if (requestId == null || !REQUEST_ID.matcher(requestId).matches()) {
+            throw new InvalidCareAuthorizationDeclarationException("Indica un identificador de solicitud válido");
+        }
+        String payloadHash = creationPayloadHash(req);
         Long meId = currentUserService.getCurrentUserId();
-        User me = loadUser(meId);
+        User me = userRepo.findForUpdateById(meId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + meId));
+        CareSubject previous = declarations.replayCreation(meId, requestId, payloadHash).orElse(null);
+        if (previous != null) {
+            return get(previous.getId());
+        }
+        Option option = CareAuthorizationPolicy.validate(req.declaration());
 
         CareSubject subject = mapper.toEntity(req);
         subjectRepo.save(subject);
@@ -55,6 +80,7 @@ public class CareSubjectService {
                 .acceptedAt(Instant.now())
                 .build();
         relationshipRepo.save(ownerRelationship);
+        declarations.append(subject, me, option, requestId, payloadHash);
 
         return mapper.toResponse(subject, CareRole.PRINCIPAL);
     }
@@ -108,18 +134,23 @@ public class CareSubjectService {
 
     public void delete(Long subjectId) {
         Long meId = currentUserService.getCurrentUserId();
-        authorizationService.requireRole(meId, subjectId, CareRole.PRINCIPAL);
-
-        CareSubject cs = loadSubject(subjectId);
+        CareSubject cs = authorizationService.requireRoleForUpdate(meId, subjectId, CareRole.PRINCIPAL);
         if (healthEntryRepo.existsByCareSubjectId(subjectId)) {
             throw new InvalidOperationException("No se puede eliminar una persona con historial de salud");
         }
         subjectRepo.delete(cs);
     }
 
-    private User loadUser(Long id) {
-        return userRepo.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
+    private String creationPayloadHash(CareSubjectCreateRequest request) {
+        CareAuthorizationDeclarationRequest declaration = request.declaration();
+        // Mantener el orden y los valores de estos campos al comparar reintentos de altas ya guardadas.
+        Object[] fields = {
+                request.name(), request.birthDate() == null ? null : request.birthDate().toString(),
+                request.gender() == null ? null : request.gender().name(), request.notes(),
+                declaration.type() == null ? null : declaration.type().name(),
+                declaration.textVersion(), declaration.confirmed()
+        };
+        return TokenHasher.sha256(objectMapper.writeValueAsString(fields));
     }
 
     private CareSubject loadSubject(Long id) {

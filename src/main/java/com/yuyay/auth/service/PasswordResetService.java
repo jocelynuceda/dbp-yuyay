@@ -39,7 +39,9 @@ public class PasswordResetService {
     /** Responde igual exista o no la cuenta, para no revelar qué correos están registrados. */
     @Transactional
     public void requestCode(String email) {
-        userRepository.findByEmailIgnoreCase(email).ifPresent(this::issueCode);
+        userRepository.findByEmailIgnoreCase(email)
+                .filter(User::hasPasswordCredential)
+                .ifPresent(this::issueCode);
     }
 
     // Sin noRollbackFor, el intento fallido se perdería al lanzar la excepción
@@ -48,7 +50,9 @@ public class PasswordResetService {
         if (dto.newPassword().getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
             throw new InvalidOperationException("La contraseña es demasiado larga");
         }
-        User user = userRepository.findByEmailIgnoreCase(dto.email()).orElseThrow(this::invalidCode);
+        User user = userRepository.findByEmailIgnoreCase(dto.email())
+                .filter(User::hasPasswordCredential)
+                .orElseThrow(this::invalidCode);
         PasswordResetCode stored = codeRepository.findByUserId(user.getId()).orElseThrow(this::invalidCode);
         if (stored.getExpiresAt().isBefore(Instant.now()) || stored.getAttempts() >= MAX_ATTEMPTS) {
             throw invalidCode();

@@ -144,12 +144,12 @@ class QueryCountPerListingTest {
     }
 
     private String registerAs(String email) throws Exception {
-        String body = "{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"Prueba\"}";
+        String body = "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Prueba\"}";
         return json.readTree(postJson(null, "/api/v1/auth/register", body)).get("accessToken").asText();
     }
 
     private long createSubject(String token, String name) throws Exception {
-        return json.readTree(postJson(token, "/api/v1/care-subjects", "{\"name\":\"" + name + "\"}")).get("id").asLong();
+        return json.readTree(postJson(token, "/api/v1/care-subjects", "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"" + name + "\"}")).get("id").asLong();
     }
 
     private String postJson(String token, String path, String body) throws Exception {

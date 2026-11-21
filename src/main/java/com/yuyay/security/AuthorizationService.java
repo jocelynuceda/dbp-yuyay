@@ -2,13 +2,17 @@ package com.yuyay.security;
 
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareStatus;
+import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.entity.Delegation;
+import com.yuyay.care.exception.CareSubjectNotFoundException;
 import com.yuyay.care.repository.CareRelationshipRepository;
+import com.yuyay.care.repository.CareSubjectRepository;
 import com.yuyay.care.repository.DelegationRepository;
 import com.yuyay.exception.DelegationExpiredException;
 import com.yuyay.exception.ForbiddenCareSubjectAccessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -16,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AuthorizationService {
     private final CareRelationshipRepository careRelationships;
+    private final CareSubjectRepository careSubjects;
     private final DelegationRepository delegations;
 
     public void requireAccess(Long userId, Long careSubjectId) {
@@ -32,6 +37,16 @@ public class AuthorizationService {
         if (!careRelationships.existsByUserIdAndCareSubjectIdAndStatusAndRole(userId, careSubjectId, CareStatus.ACTIVE, role)) {
             throw new ForbiddenCareSubjectAccessException("Se requiere rol " + role + " sobre esta persona");
         }
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public CareSubject requireRoleForUpdate(Long userId, Long careSubjectId, CareRole role) {
+        requireRole(userId, careSubjectId, role);
+        CareSubject subject = careSubjects.findForUpdateById(careSubjectId)
+                .orElseThrow(() -> new CareSubjectNotFoundException(careSubjectId));
+        // Una revocación puede haberse confirmado mientras esperábamos el bloqueo.
+        requireRole(userId, careSubjectId, role);
+        return subject;
     }
 
     public Delegation requireDelegateAccess(Long delegationId, Long careSubjectId, String categoryCode) {

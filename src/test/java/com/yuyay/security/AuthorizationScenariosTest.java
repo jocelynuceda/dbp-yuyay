@@ -70,7 +70,7 @@ class AuthorizationScenariosTest {
         // 1. El owner se registra y crea el sujeto. Al crearlo queda como PRINCIPAL.
         ownerToken = register("owner." + UUID.randomUUID() + "@yuyay.app");
         subjectId = postJson("/api/v1/care-subjects", ownerToken,
-                "{\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}", 201).get("id").asLong();
 
         // 2. Un dato de salud del sujeto, para probar el acceso fino en S3.
         entryId = postJson("/api/v1/care-subjects/" + subjectId + "/health-entries", ownerToken,
@@ -271,7 +271,7 @@ class AuthorizationScenariosTest {
     /** Registra una cuenta nueva y devuelve su access token. */
     private String register(String email) throws Exception {
         return postJson("/api/v1/auth/register", null,
-                "{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"Test\"}", 201)
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}", 201)
                 .get("accessToken").asText();
     }
 

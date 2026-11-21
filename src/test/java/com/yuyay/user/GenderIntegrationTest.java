@@ -75,7 +75,7 @@ class GenderIntegrationTest {
                 .get("accessToken").asText();
 
         JsonNode subject = send(post("/api/v1/care-subjects"), token,
-                "{\"name\":\"Pedro\",\"birthDate\":\"1948-03-12\",\"gender\":\"MALE\"}", 201);
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\",\"birthDate\":\"1948-03-12\",\"gender\":\"MALE\"}", 201);
         long subjectId = subject.get("id").asLong();
         assertEquals("MALE", subject.get("gender").asText());
 
@@ -93,7 +93,7 @@ class GenderIntegrationTest {
                 .get("accessToken").asText();
 
         long subjectId = send(post("/api/v1/care-subjects"), token,
-                "{\"name\":\"Rosa\",\"birthDate\":\"1950-06-01\",\"gender\":\"FEMALE\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa\",\"birthDate\":\"1950-06-01\",\"gender\":\"FEMALE\"}", 201).get("id").asLong();
 
         JsonNode withoutGender = send(patch("/api/v1/care-subjects/" + subjectId), token,
                 "{\"name\":\"Rosa Quispe\",\"birthDate\":\"1950-06-01\"}", 200);
@@ -115,10 +115,10 @@ class GenderIntegrationTest {
         String token = send(post("/api/v1/auth/register"), null, body("ines", "Ines", ""), 201)
                 .get("accessToken").asText();
         send(patch("/api/v1/users/me"), token, "{\"name\":\"Ines\",\"gender\":\"\"}", 400);
-        send(post("/api/v1/care-subjects"), token, "{\"name\":\"Luz\",\"gender\":\"\"}", 400);
+        send(post("/api/v1/care-subjects"), token, "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Luz\",\"gender\":\"\"}", 400);
 
         long subjectId = send(post("/api/v1/care-subjects"), token,
-                "{\"name\":\"Luz\",\"gender\":\"FEMALE\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Luz\",\"gender\":\"FEMALE\"}", 201).get("id").asLong();
         send(patch("/api/v1/care-subjects/" + subjectId), token, "{\"name\":\"Luz\",\"gender\":\"\"}", 400);
         // El 400 no cambia nada: la persona conserva su género
         assertEquals("FEMALE", send(get("/api/v1/care-subjects/" + subjectId), token, null, 200)
@@ -130,13 +130,13 @@ class GenderIntegrationTest {
         String token = send(post("/api/v1/auth/register"), null, body("fabio", "Fabio", ""), 201)
                 .get("accessToken").asText();
 
-        JsonNode subject = send(post("/api/v1/care-subjects"), token, "{\"name\":\"Rosa\"}", 201);
+        JsonNode subject = send(post("/api/v1/care-subjects"), token, "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa\"}", 201);
         assertTrue(subject.get("gender").isNull());
     }
 
     private String body(String prefix, String name, String genderField) {
         return "{\"email\":\"" + prefix + "." + UUID.randomUUID() + "@yuyay.app\""
-                + ",\"password\":\"Secreta123\"," + genderField + "\"name\":\"" + name + "\"}";
+                + ",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\"," + genderField + "\"name\":\"" + name + "\"}";
     }
 
     private JsonNode send(MockHttpServletRequestBuilder req, String token, String body, int expected) throws Exception {

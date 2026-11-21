@@ -67,7 +67,7 @@ class OcrPendingLimitIntegrationTest {
         when(clock.instant()).thenAnswer(invocation -> now.get());
         token = register("pending." + UUID.randomUUID() + "@yuyay.app");
         subjectId = postJson("/api/v1/care-subjects", token,
-                "{\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}").get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}").get("id").asLong();
     }
 
     @Test
@@ -132,7 +132,7 @@ class OcrPendingLimitIntegrationTest {
 
     private String register(String email) throws Exception {
         return postJson("/api/v1/auth/register", null,
-                "{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"Test\"}")
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}")
                 .get("accessToken").asText();
     }
 

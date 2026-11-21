@@ -126,7 +126,7 @@ public class CareRelationshipService {
 
     public void revoke(Long subjectId, Long relationshipId) {
         Long meId = currentUserService.getCurrentUserId();
-        authorizationService.requireRole(meId, subjectId, CareRole.PRINCIPAL);
+        authorizationService.requireRoleForUpdate(meId, subjectId, CareRole.PRINCIPAL);
 
         CareRelationship rel = loadRelationship(relationshipId);
         if (!rel.getCareSubject().getId().equals(subjectId)) {

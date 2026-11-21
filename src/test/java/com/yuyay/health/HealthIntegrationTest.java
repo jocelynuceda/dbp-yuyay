@@ -47,7 +47,7 @@ class HealthIntegrationTest {
         strangerToken = register("carla." + UUID.randomUUID() + "@yuyay.app", "Carla");
 
         long subjectId = send(post("/api/v1/care-subjects"), anaToken,
-                "{\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
         long relationshipId = send(post("/api/v1/care-subjects/" + subjectId + "/relationships"), anaToken,
                 "{\"email\":\"" + brunoEmail + "\",\"role\":\"CAREGIVER\"}", 201).get("id").asLong();
         send(post("/api/v1/me/relationships/" + relationshipId + "/accept"), brunoToken, "{}", 200);
@@ -120,7 +120,7 @@ class HealthIntegrationTest {
 
     private String register(String email, String name) throws Exception {
         return send(post("/api/v1/auth/register"), null,
-                "{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201).get("accessToken").asText();
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201).get("accessToken").asText();
     }
 
     private JsonNode send(MockHttpServletRequestBuilder req, String token, String body, int expected) throws Exception {

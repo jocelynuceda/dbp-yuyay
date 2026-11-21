@@ -63,7 +63,7 @@ class AttachmentRequestLogIntegrationTest {
     void setUp() throws Exception {
         token = register("requests." + UUID.randomUUID() + "@yuyay.app");
         subjectId = json.readTree(mvc.perform(post("/api/v1/care-subjects").header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong();
         appender.start();
         logger.addAppender(appender);
@@ -199,7 +199,7 @@ class AttachmentRequestLogIntegrationTest {
 
     private String register(String email) throws Exception {
         JsonNode node = json.readTree(mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"Test\"}"))
+                        .content("{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
         return node.get("accessToken").asText();
     }

@@ -200,12 +200,12 @@ class OcrRateLimitIntegrationTest {
 
     private long createSubject(String userToken) throws Exception {
         return postJson("/api/v1/care-subjects", userToken,
-                "{\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}").get("id").asLong();
+                "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Rosa Quispe\",\"birthDate\":\"1948-03-12\"}").get("id").asLong();
     }
 
     private String register(String email) throws Exception {
         return postJson("/api/v1/auth/register", null,
-                "{\"email\":\"" + email + "\",\"password\":\"Secreta123\",\"name\":\"Test\"}")
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}")
                 .get("accessToken").asText();
     }
 

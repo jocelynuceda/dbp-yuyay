@@ -2,6 +2,7 @@
 # Prueba de humo E2E del OCR contra un despliegue REAL (EC2 + RDS + S3 + Textract), sin mocks.
 # Uso:   ./scripts/smoke-ocr.sh http://34.193.16.240:8080 ruta/a/receta.jpg
 # Requiere: curl y jq. Crea un usuario y una persona de prueba nuevos en cada corrida.
+# Utilizar exclusivamente documentos sintéticos: el perfil se declara ficticio.
 set -euo pipefail
 
 BASE="${1:?Uso: $0 BASE_URL IMAGEN}"
@@ -23,14 +24,20 @@ echo "1. Health check"
 
 echo "2. Registro de cuidadora de prueba"
 EMAIL="smoke.$(date +%s).$RANDOM@yuyay.app"
+TERMS_VERSION=$(curl -fsS "$API/auth/terms" | jq -er .version)
+REGISTRATION=$(jq -n --arg email "$EMAIL" --arg version "$TERMS_VERSION" \
+  '{email:$email,password:"Secreta123",name:"Smoke OCR",termsAccepted:true,termsVersion:$version}')
 TOKEN=$(curl -s -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"Secreta123\",\"name\":\"Smoke OCR\"}" | jq -r .accessToken)
+  -d "$REGISTRATION" | jq -r .accessToken)
 [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] && ok "token obtenido ($EMAIL)" || fail "registro fallido"
 AUTH="Authorization: Bearer $TOKEN"
 
 echo "3. Persona a cargo"
+DECLARATION_VERSION=$(curl -fsS "$API/care-subjects/authorization-policy" -H "$AUTH" | jq -er .textVersion)
+PERSON=$(jq -n --arg version "$DECLARATION_VERSION" --arg requestId "smoke-$(date +%s)-$RANDOM" \
+  '{requestId:$requestId,name:"Paciente Smoke",birthDate:"1950-01-01",declaration:{type:"FICTITIOUS",textVersion:$version,confirmed:true}}')
 SID=$(curl -s -X POST "$API/care-subjects" -H "$AUTH" -H 'Content-Type: application/json' \
-  -d '{"name":"Paciente Smoke","birthDate":"1950-01-01"}' | jq -r .id)
+  -d "$PERSON" | jq -r .id)
 [[ "$SID" =~ ^[0-9]+$ ]] && ok "careSubjectId=$SID" || fail "no se creo la persona"
 
 echo "4. Subida del documento (S3)"

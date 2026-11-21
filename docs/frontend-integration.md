@@ -1,5 +1,8 @@
 # Backend: bloque inmediato de la entrega final
 
+Para altas por correo, ingreso con Google y términos vigentes, consultar el
+[contrato de autenticación](google-auth-and-terms.md).
+
 ## Contrato de paginación
 
 Estos tres GET autenticados ahora devuelven un objeto, en lugar de un array:
@@ -109,6 +112,13 @@ y al crear o editar una persona (`POST`/`PATCH /care-subjects`).
 Ver [contrato de adjuntos privados](attachment-access.md) para abrir imágenes/PDF con
 un enlace temporal de cinco minutos, eliminar adjuntos sin referencias y manejar
 403/404/409/502. La edición clínica conserva su evidencia original.
+
+## Declaraciones al añadir una persona
+
+El alta requiere `declaration` y `requestId`. Consultar el [contrato de declaraciones](care-authorization.md)
+para obtener el catálogo de textos, conservar la clave de reintento y tratar los perfiles anteriores.
+Coordinar la publicación con frontend #52: los clientes antiguos reciben un 400 legible al intentar
+crear una persona. El registro de una declaración no equivale a verificar una autorización legal.
 
 ## Orígenes permitidos: quién llega con `Origin` y quién no
 
