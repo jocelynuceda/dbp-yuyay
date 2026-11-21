@@ -5,6 +5,7 @@ import com.resend.core.exception.ResendException;
 import com.resend.services.emails.model.CreateEmailOptions;
 import com.yuyay.config.AppProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
@@ -16,9 +17,14 @@ public class ResendEmailSender implements EmailSender {
     private final Resend resend;
     private final String from;
 
+    @Autowired
     public ResendEmailSender(AppProperties appProperties) {
-        this.resend = new Resend(appProperties.mail().resendApiKey());
-        this.from = appProperties.mail().from();
+        this(new Resend(appProperties.mail().resendApiKey()), appProperties.mail().from());
+    }
+
+    ResendEmailSender(Resend resend, String from) {
+        this.resend = resend;
+        this.from = from;
     }
 
     @Override
@@ -40,6 +46,8 @@ public class ResendEmailSender implements EmailSender {
                     e.getMessage(),
                     e
             );
+            // Quien llama decide: los avisos solo lo registran y los recordatorios lo reintentan
+            throw new EmailDeliveryException("Resend rechazó el correo", e);
         }
     }
 }

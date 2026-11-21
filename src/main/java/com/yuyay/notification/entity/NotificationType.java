@@ -4,5 +4,6 @@ public enum NotificationType {
     ENTRY_CHANGED,
     INVITATION,
     DELEGATION,
-    CAREGIVER_JOINED
+    CAREGIVER_JOINED,
+    APPOINTMENT_REMINDER
 }

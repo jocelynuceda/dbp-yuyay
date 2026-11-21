@@ -171,3 +171,28 @@ de la web (`yuyay-frontend.vercel.app`) y no a la API, de modo que cada binario 
 web y añade un salto por Vercel. Darle al móvil la URL de la API —propia o compartida con la web, pero
 decidida a propósito— es probablemente lo correcto; mientras no se decida, un cambio de orígenes se
 prueba en ambos clientes.
+
+## Recordatorios de citas
+
+El servidor revisa las citas cada 5 minutos y envía un aviso **el día anterior a las 18:00, hora de
+Lima** (`REMINDERS_ZONE`, `REMINDERS_SEND_AT`). Lo reciben todos los cuidadores con relación activa en
+ese momento, por dos canales:
+
+- **En la app:** una notificación de tipo `APPOINTMENT_REMINDER` con `careSubjectId`, título «Cita de
+  {persona} mañana» y cuerpo «Mañana a las 10:00: {motivo}». Conviene enlazarla a la pestaña de consultas
+  de la persona (`/people/{careSubjectId}?tab=appointments`).
+- **Por correo:** texto discreto, sin el motivo de la cita, con un enlace que exige iniciar sesión.
+
+Reglas:
+
+- Las citas sin hora se avisan igual y se consideran vigentes todo su día.
+- Si el servidor estuvo apagado a las 18:00, envía el aviso al volver, siempre que la cita no haya
+  empezado. Una cita creada después de esa hora para el día siguiente también recibe su aviso.
+- Cada envío queda registrado por cita, cuidador, canal y momento previsto (`appointment_reminders`), así
+  que repetir el proceso o reiniciar el servidor no duplica avisos. Si se cambia la fecha de la cita, se
+  avisa de nuevo para la fecha nueva; si se borra, no se avisa.
+- Un correo fallido se reintenta hasta 3 veces. El aviso en la app no se repite.
+- No hay preferencias todavía: todos los cuidadores activos reciben el aviso. Desactivar el proceso en un
+  entorno: `REMINDERS_ENABLED=false`.
+- Los recordatorios locales del celular (frontend #53) son independientes y opcionales; si ambos están
+  activos, la persona puede recibir los dos.
