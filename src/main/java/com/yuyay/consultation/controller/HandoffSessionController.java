@@ -4,9 +4,12 @@ import com.yuyay.consultation.dto.CreateHandoffSessionDTO;
 import com.yuyay.consultation.dto.HandoffSessionCreatedDTO;
 import com.yuyay.consultation.dto.HandoffSessionResponseDTO;
 import com.yuyay.consultation.service.HandoffSessionService;
+import com.yuyay.security.handoff.HandoffAccessCodeDTO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,6 +20,12 @@ import java.util.List;
 public class HandoffSessionController {
 
     private final HandoffSessionService handoffSessionService;
+
+    @GetMapping("/handoff-sessions/{sessionId}/access-code")
+    public ResponseEntity<HandoffAccessCodeDTO> accessCode(@PathVariable Long sessionId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("Referrer-Policy", "no-referrer")
+                .body(handoffSessionService.accessCode(sessionId));
+    }
 
     @PostMapping("/handoffs/{handoffId}/sessions")
     @ResponseStatus(HttpStatus.CREATED)

@@ -9,5 +9,8 @@ public record HandoffPublicViewDTO(
         String reason,
         String questions,
         Instant createdAt,
-        List<HandoffItemResponseDTO> items
+        List<HandoffItemResponseDTO> items,
+        String accessGrant,
+        Instant accessExpiresAt,
+        Instant serverTime
 ) {}

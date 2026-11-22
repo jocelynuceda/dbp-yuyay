@@ -32,6 +32,9 @@ public class HandoffSession {
     @Column(nullable = false)
     private Integer sessionWindowMinutes;
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean accessCodeRequired;
+
     private Instant firstOpenedAt;
 
     private Instant revokedAt;
@@ -45,8 +48,16 @@ public class HandoffSession {
     }
 
     public boolean isExpired() {
-        Instant now = Instant.now();
-        if (revokedAt != null || expiresAt.isBefore(now)) return true;
-        return firstOpenedAt != null && firstOpenedAt.plusSeconds(sessionWindowMinutes * 60L).isBefore(now);
+        return isExpired(Instant.now());
+    }
+
+    public boolean isExpired(Instant now) {
+        return revokedAt != null || !accessExpiresAt().isAfter(now);
+    }
+
+    public Instant accessExpiresAt() {
+        if (firstOpenedAt == null) return expiresAt;
+        Instant windowEnd = firstOpenedAt.plusSeconds(sessionWindowMinutes * 60L);
+        return windowEnd.isBefore(expiresAt) ? windowEnd : expiresAt;
     }
 }

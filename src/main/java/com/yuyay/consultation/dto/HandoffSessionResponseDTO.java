@@ -9,5 +9,6 @@ public record HandoffSessionResponseDTO(
         Integer sessionWindowMinutes,
         Instant firstOpenedAt,
         Instant revokedAt,
-        Instant createdAt
+        Instant createdAt,
+        boolean accessCodeRequired
 ) {}

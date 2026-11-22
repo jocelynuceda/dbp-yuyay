@@ -11,6 +11,9 @@ public record OpenHandoffSessionDTO(
 
         @NotBlank
         @Size(max = 80)
-        String visitorRole
+        String visitorRole,
+
+        @Size(max = 64)
+        String accessCode
 
 ) {}
