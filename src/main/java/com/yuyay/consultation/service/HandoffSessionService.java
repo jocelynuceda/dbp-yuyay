@@ -1,5 +1,8 @@
 package com.yuyay.consultation.service;
 
+import com.yuyay.attachment.dto.AttachmentContent;
+import com.yuyay.attachment.entity.Attachment;
+import com.yuyay.attachment.storage.FileStorage;
 import com.yuyay.audit.entity.AccessAction;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.consultation.dto.CreateHandoffSessionDTO;
@@ -14,11 +17,13 @@ import com.yuyay.consultation.repository.HandoffSessionRepository;
 import com.yuyay.event.AccessRecordedEvent;
 import com.yuyay.exception.HandoffSessionExpiredException;
 import com.yuyay.exception.ResourceNotFoundException;
+import com.yuyay.health.entity.HealthEntryVersion;
 import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.security.TokenHasher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +42,7 @@ public class HandoffSessionService {
     private final AuthorizationService authorizationService;
     private final HandoffMapper handoffMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final FileStorage fileStorage;
 
     public HandoffSessionCreatedDTO create(
             Long handoffId,
@@ -122,20 +128,7 @@ public class HandoffSessionService {
             String visitorRole
     ) {
 
-        String tokenHash = TokenHasher.sha256(rawToken);
-
-        HandoffSession session = handoffSessionRepository
-                .findByTokenHash(tokenHash)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Enlace de Handoff no encontrado"
-                        ));
-
-        if (session.isExpired()) {
-            throw new HandoffSessionExpiredException(
-                    "El enlace de Handoff expiró o fue revocado"
-            );
-        }
+        HandoffSession session = requireActiveSession(rawToken);
 
         if (session.getFirstOpenedAt() == null) {
             session.setFirstOpenedAt(Instant.now());
@@ -168,6 +161,41 @@ public class HandoffSessionService {
                         .map(handoffMapper::toItemResponse)
                         .toList()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public AttachmentContent sourceContent(String rawToken, Long versionId) {
+        HandoffSession session = requireActiveSession(rawToken);
+        if (session.getFirstOpenedAt() == null) {
+            throw new AccessDeniedException("Abre primero el resumen e identifica al visitante");
+        }
+
+        Handoff handoff = handoffRepository.findDetailById(session.getHandoff().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Handoff no encontrado"));
+        // Resolver siempre desde el snapshot compartido, nunca desde la última versión del registro.
+        HealthEntryVersion version = handoff.getItems().stream()
+                .map(item -> item.getHealthEntryVersion())
+                .filter(candidate -> candidate.getId().equals(versionId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Documento no incluido en este resumen"));
+        Attachment attachment = version.getSourceAttachment();
+        Long subjectId = handoff.getCareSubject().getId();
+        if (attachment == null
+                || !subjectId.equals(version.getHealthEntry().getCareSubject().getId())
+                || !subjectId.equals(attachment.getCareSubject().getId())) {
+            throw new ResourceNotFoundException("Documento no incluido en este resumen");
+        }
+        return new AttachmentContent(fileStorage.load(attachment.getStorageKey()),
+                attachment.getContentType(), attachment.getOriginalFilename());
+    }
+
+    private HandoffSession requireActiveSession(String rawToken) {
+        HandoffSession session = handoffSessionRepository.findByTokenHash(TokenHasher.sha256(rawToken))
+                .orElseThrow(() -> new ResourceNotFoundException("Enlace de Handoff no encontrado"));
+        if (session.isExpired()) {
+            throw new HandoffSessionExpiredException("El enlace de Handoff expiró o fue revocado");
+        }
+        return session;
     }
 
     private void authorizeCreatorOrPrincipal(

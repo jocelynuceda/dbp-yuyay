@@ -19,5 +19,6 @@ public record HandoffItemResponseDTO(
         LocalDate occurredOn,
         ConfidenceLevel confidenceLevel,
         String notes,
-        Instant declaredAt
+        Instant declaredAt,
+        boolean hasSourceAttachment
 ) {}
