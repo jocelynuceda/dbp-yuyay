@@ -37,8 +37,9 @@ public class PublicHandoffController {
 
     @GetMapping("/{token}/summary.pdf")
     public ResponseEntity<byte[]> summaryPdf(@PathVariable String token,
-            @RequestHeader(name = HandoffAccessSecurityService.GRANT_HEADER, required = false) String accessGrant) {
-        byte[] pdf = handoffSessionService.summaryPdf(token, accessGrant);
+            @RequestHeader(name = HandoffAccessSecurityService.GRANT_HEADER, required = false) String accessGrant,
+            @CookieValue(name = HandoffReadingController.READING_COOKIE, required = false) String cookieGrant) {
+        byte[] pdf = handoffSessionService.summaryPdf(token, accessGrant != null ? accessGrant : cookieGrant);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
@@ -51,8 +52,10 @@ public class PublicHandoffController {
     /** Acceso por token de handoff vigente, abierto previamente; no requiere una cuenta médica. */
     @GetMapping("/{token}/versions/{versionId}/source/content")
     public ResponseEntity<Resource> sourceContent(@PathVariable String token, @PathVariable Long versionId,
-            @RequestHeader(name = HandoffAccessSecurityService.GRANT_HEADER, required = false) String accessGrant) {
-        AttachmentContent content = handoffSessionService.sourceContent(token, versionId, accessGrant);
+            @RequestHeader(name = HandoffAccessSecurityService.GRANT_HEADER, required = false) String accessGrant,
+            @CookieValue(name = HandoffReadingController.READING_COOKIE, required = false) String cookieGrant) {
+        AttachmentContent content = handoffSessionService.sourceContent(token, versionId,
+                accessGrant != null ? accessGrant : cookieGrant);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(content.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
