@@ -7,13 +7,19 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.hasItem;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,6 +33,7 @@ class DelegationIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @MockitoBean Clock clock;
 
     private String ownerToken;
     private long subjectId;
@@ -35,6 +42,7 @@ class DelegationIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        when(clock.instant()).thenAnswer(invocation -> Instant.now());
         ownerToken = register("owner." + UUID.randomUUID() + "@yuyay.app");
         subjectId = postJson("/api/v1/care-subjects", ownerToken,
                 "{\"requestId\":\"" + UUID.randomUUID() + "\",\"declaration\":{\"type\":\"FICTITIOUS\",\"textVersion\":\"1\",\"confirmed\":true},\"name\":\"Pedro\",\"birthDate\":\"1950-01-01\"}", 201).get("id").asLong();
@@ -47,7 +55,7 @@ class DelegationIntegrationTest {
     @Test
     void principalCreatesDelegationAndTokenIsReturnedOnce() throws Exception {
         JsonNode created = createDelegation("MEDICATION");
-        org.junit.jupiter.api.Assertions.assertEquals("https://web.yuyay.example/acceso/" + created.get("token").asText(),
+        assertEquals("https://web.yuyay.example/acceso/" + created.get("token").asText(),
                 created.get("shareLink").asText());
 
         mvc.perform(get("/api/v1/care-subjects/" + subjectId + "/delegations").header("Authorization", "Bearer " + ownerToken))
@@ -149,6 +157,27 @@ class DelegationIntegrationTest {
     }
 
     @Test
+    void validatesExactExpirationAt365DaysEvenAcrossLeapDay() throws Exception {
+        Instant now = Instant.parse("2028-03-01T04:30:00Z");
+        when(clock.instant()).thenReturn(now);
+        String path = "/api/v1/care-subjects/" + subjectId + "/delegations";
+
+        Instant limit = now.plusSeconds(365L * 24 * 60 * 60);
+        for (Instant validUntil : List.of(now.plusSeconds(60), limit)) {
+            JsonNode created = postJson(path, ownerToken, delegationBody("MEDICATION", validUntil), 201);
+            assertEquals(validUntil, Instant.parse(created.get("delegation").get("validUntil").asText()));
+        }
+
+        for (Instant invalidUntil : List.of(now, limit.plusMillis(1))) {
+            mvc.perform(post(path).header("Authorization", "Bearer " + ownerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(delegationBody("MEDICATION", invalidUntil)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors[*].field", hasItem("validUntil")));
+        }
+    }
+
+    @Test
     void consultationsAreVisibleOnlyWhenIncludedAndWithoutNotes() throws Exception {
         postJson("/api/v1/care-subjects/" + subjectId + "/consultations", ownerToken,
                 "{\"date\":\"2099-05-10\",\"reason\":\"Control de presión\",\"notes\":\"Nota privada\"}", 201);
@@ -185,8 +214,12 @@ class DelegationIntegrationTest {
     }
 
     private String delegationBody(String category) {
+        return delegationBody(category, Instant.now().plusSeconds(7 * 24 * 3600));
+    }
+
+    private String delegationBody(String category, Instant validUntil) {
         return "{\"granteeName\":\"Enfermera Rosa\",\"granteeEmail\":\"rosa@clinica.pe\",\"categoryCodes\":[\"" + category + "\"],\"validUntil\":\""
-                + Instant.now().plusSeconds(7 * 24 * 3600) + "\"}";
+                + validUntil + "\"}";
     }
 
     private String register(String email) throws Exception {

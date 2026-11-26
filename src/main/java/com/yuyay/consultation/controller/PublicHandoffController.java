@@ -25,6 +25,16 @@ public class PublicHandoffController {
 
     private final HandoffSessionService handoffSessionService;
 
+    @GetMapping("/{token}/access-requirements")
+    public ResponseEntity<AccessRequirements> accessRequirements(@PathVariable String token) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .header("Referrer-Policy", "no-referrer")
+                .body(new AccessRequirements(handoffSessionService.accessCodeRequired(token)));
+    }
+
+    public record AccessRequirements(boolean accessCodeRequired) {}
+
     /** Acceso por token de handoff vigente, abierto previamente; no requiere una cuenta médica. */
     @GetMapping("/{token}/versions/{versionId}/source/content")
     public ResponseEntity<Resource> sourceContent(@PathVariable String token, @PathVariable Long versionId,
