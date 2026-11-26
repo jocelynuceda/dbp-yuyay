@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -40,12 +41,15 @@ public class HandoffAccessSecurityService {
 
     @Transactional(readOnly = true)
     public HandoffAccessCodeDTO currentCode(HandoffSession session) {
+        boolean codeRequired = session.isAccessCodeRequired();
+        Optional<HandoffCodeState> loadedState = codeRequired ? codeStates.findById(session.getId()) : Optional.empty();
+        // La lectura del estado puede cruzar el límite del periodo.
         Instant now = clock.instant();
         requireActive(session, now);
-        if (!session.isAccessCodeRequired()) {
+        if (!codeRequired) {
             throw new InvalidOperationException("Este enlace no requiere un código de acceso");
         }
-        HandoffCodeState state = codeStates.findById(session.getId())
+        HandoffCodeState state = loadedState
                 .orElseThrow(() -> new InvalidOperationException("El código de acceso no está disponible"));
         Instant expiresAt = generator.periodExpiresAt(now);
         if (session.accessExpiresAt().isBefore(expiresAt)) expiresAt = session.accessExpiresAt();
@@ -65,12 +69,16 @@ public class HandoffAccessSecurityService {
                 .orElseThrow(() -> new ResourceNotFoundException("Enlace de Handoff no encontrado"));
         // La consulta inicial del token pudo cargar la sesión antes de esperar este bloqueo.
         entityManager.refresh(session, LockModeType.PESSIMISTIC_WRITE);
+        boolean codeRequired = session.isAccessCodeRequired();
+        Optional<HandoffCodeState> loadedState = codeRequired
+                ? codeStates.findForUpdateBySessionId(sessionId) : Optional.empty();
+        // La decisión usa el mismo instante para vigencia, intentos y paso tras ambos bloqueos.
         Instant now = clock.instant();
         requireActive(session, now);
-        if (!session.isAccessCodeRequired()) {
+        if (!codeRequired) {
             throw new InvalidOperationException("Este enlace no requiere un código de acceso");
         }
-        HandoffCodeState state = codeStates.findForUpdateBySessionId(sessionId)
+        HandoffCodeState state = loadedState
                 .orElseThrow(() -> new InvalidOperationException("El código de acceso no está disponible"));
         if (state.getFailureWindowStartedAt() != null
                 && !state.getFailureWindowStartedAt().plusSeconds(FAILURE_WINDOW_SECONDS).isAfter(now)) {
