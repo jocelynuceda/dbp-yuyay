@@ -35,6 +35,12 @@ public class HandoffSession {
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean accessCodeRequired;
 
+    @Column(updatable = false)
+    private Instant downloadAuthorizedAt;
+
+    @Column(length = 120, updatable = false)
+    private String subjectNameSnapshot;
+
     private Instant firstOpenedAt;
 
     private Instant revokedAt;
@@ -45,6 +51,14 @@ public class HandoffSession {
     @PrePersist
     void onCreate() {
         this.createdAt = Instant.now();
+    }
+
+    public boolean isDownloadAllowed() {
+        return downloadAuthorizedAt != null;
+    }
+
+    public String displaySubjectName() {
+        return subjectNameSnapshot == null ? handoff.getCareSubject().getName() : subjectNameSnapshot;
     }
 
     public boolean isExpired() {

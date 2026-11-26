@@ -8,5 +8,6 @@ public record HandoffSessionCreatedDTO(
         Instant expiresAt,
         Integer sessionWindowMinutes,
         Instant createdAt,
-        boolean accessCodeRequired
+        boolean accessCodeRequired,
+        boolean allowDownload
 ) {}

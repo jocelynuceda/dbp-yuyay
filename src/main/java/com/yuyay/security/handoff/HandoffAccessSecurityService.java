@@ -64,7 +64,7 @@ public class HandoffAccessSecurityService {
      * Orden fijo de bloqueos: sesión, estado de código. Serializa también la primera apertura.
      */
     @Transactional(noRollbackFor = HandoffCodeException.class)
-    public IssuedGrant verifyAndIssue(Long sessionId, String submittedCode) {
+    public IssuedGrant verifyAndIssue(Long sessionId, String submittedCode, String visitorName, String visitorRole) {
         HandoffSession session = sessions.findForUpdateById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Enlace de Handoff no encontrado"));
         // La consulta inicial del token pudo cargar la sesión antes de esperar este bloqueo.
@@ -75,11 +75,25 @@ public class HandoffAccessSecurityService {
         // La decisión usa el mismo instante para vigencia, intentos y paso tras ambos bloqueos.
         Instant now = clock.instant();
         requireActive(session, now);
-        if (!codeRequired) {
-            throw new InvalidOperationException("Este enlace no requiere un código de acceso");
+        if (codeRequired) {
+            HandoffCodeState state = loadedState
+                    .orElseThrow(() -> new InvalidOperationException("El código de acceso no está disponible"));
+            verifyCode(state, submittedCode, now);
         }
-        HandoffCodeState state = loadedState
-                .orElseThrow(() -> new InvalidOperationException("El código de acceso no está disponible"));
+
+        if (session.getFirstOpenedAt() == null) session.setFirstOpenedAt(now);
+        String rawGrant = TokenHasher.randomToken();
+        HandoffAccessGrant grant = new HandoffAccessGrant();
+        grant.setSession(session);
+        grant.setTokenHash(TokenHasher.sha256(rawGrant));
+        grant.setExpiresAt(session.accessExpiresAt());
+        grant.setVisitorName(visitorName);
+        grant.setVisitorRole(visitorRole);
+        grants.save(grant);
+        return new IssuedGrant(rawGrant, grant.getExpiresAt());
+    }
+
+    private void verifyCode(HandoffCodeState state, String submittedCode, Instant now) {
         if (state.getFailureWindowStartedAt() != null
                 && !state.getFailureWindowStartedAt().plusSeconds(FAILURE_WINDOW_SECONDS).isAfter(now)) {
             state.setFailedAttempts(0);
@@ -106,14 +120,6 @@ public class HandoffAccessSecurityService {
         }
         state.setLastAcceptedStep(currentStep);
         // Un acierto no reinicia el límite: no se permite eludirlo alternando aciertos y errores.
-        if (session.getFirstOpenedAt() == null) session.setFirstOpenedAt(now);
-        String rawGrant = TokenHasher.randomToken();
-        HandoffAccessGrant grant = new HandoffAccessGrant();
-        grant.setSession(session);
-        grant.setTokenHash(TokenHasher.sha256(rawGrant));
-        grant.setExpiresAt(session.accessExpiresAt());
-        grants.save(grant);
-        return new IssuedGrant(rawGrant, grant.getExpiresAt());
     }
 
     @Transactional(readOnly = true)
@@ -121,15 +127,31 @@ public class HandoffAccessSecurityService {
         Instant now = clock.instant();
         requireActive(session, now);
         if (!session.isAccessCodeRequired()) return;
+        requireVisitorGrant(session, rawGrant, now);
+    }
+
+    @Transactional(readOnly = true)
+    public HandoffAccessGrant requireDownloadGrant(HandoffSession session, String rawGrant) {
+        Instant now = clock.instant();
+        requireActive(session, now);
+        return requireVisitorGrant(session, rawGrant, now);
+    }
+
+    private HandoffAccessGrant requireVisitorGrant(HandoffSession session, String rawGrant, Instant now) {
         if (rawGrant == null || rawGrant.isBlank()) {
             throw new HandoffCodeException(HttpStatus.FORBIDDEN, "HANDOFF_ACCESS_GRANT_REQUIRED",
-                    "Abre el resumen con el código de acceso antes de consultar el documento");
+                    "Abre el resumen antes de consultar el documento");
         }
-        if (rawGrant.length() > 128 || !grants.existsBySessionIdAndTokenHashAndExpiresAtAfter(
-                session.getId(), TokenHasher.sha256(rawGrant), now)) {
-            throw new HandoffCodeException(HttpStatus.FORBIDDEN, "HANDOFF_ACCESS_GRANT_INVALID",
-                    "El permiso para consultar el documento no es válido. Abre de nuevo el resumen");
+        if (rawGrant.length() > 128) {
+            throw invalidGrant();
         }
+        return grants.findBySessionIdAndTokenHashAndExpiresAtAfter(session.getId(), TokenHasher.sha256(rawGrant), now)
+                .orElseThrow(this::invalidGrant);
+    }
+
+    private HandoffCodeException invalidGrant() {
+        return new HandoffCodeException(HttpStatus.FORBIDDEN, "HANDOFF_ACCESS_GRANT_INVALID",
+                "El permiso para consultar el documento no es válido. Abre de nuevo el resumen");
     }
 
     private void requireActive(HandoffSession session, Instant now) {

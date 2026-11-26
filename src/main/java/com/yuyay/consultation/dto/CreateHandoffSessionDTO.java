@@ -29,11 +29,13 @@ public record CreateHandoffSessionDTO(
         @Max(4320)
         Integer sessionWindowMinutes,
 
-        Boolean requireAccessCode
+        Boolean requireAccessCode,
+
+        Boolean allowDownload
 
 ) {
     public CreateHandoffSessionDTO(Integer expiresInHours, Integer sessionWindowMinutes, Boolean requireAccessCode) {
-        this(expiresInHours, null, sessionWindowMinutes, requireAccessCode);
+        this(expiresInHours, null, sessionWindowMinutes, requireAccessCode, null);
     }
 
     public long linkDurationMinutes() {

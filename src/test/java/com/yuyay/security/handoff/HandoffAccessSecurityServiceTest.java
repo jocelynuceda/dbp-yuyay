@@ -72,7 +72,7 @@ class HandoffAccessSecurityServiceTest {
         state.setFailedAttempts(5);
         state.setFailureWindowStartedAt(BOUNDARY.minusSeconds(300));
 
-        var issued = service.verifyAndIssue(SESSION_ID, generator.code(SECRET, BOUNDARY));
+        var issued = service.verifyAndIssue(SESSION_ID, generator.code(SECRET, BOUNDARY), "Visitante", "Médica");
 
         assertEquals(generator.step(BOUNDARY), state.getLastAcceptedStep());
         assertEquals(0, state.getFailedAttempts());
@@ -92,7 +92,8 @@ class HandoffAccessSecurityServiceTest {
         waitForStateLockAcrossBoundary();
         String code = generator.code(SECRET, BOUNDARY.plusSeconds(offsetSeconds));
 
-        var error = assertThrows(HandoffCodeException.class, () -> service.verifyAndIssue(SESSION_ID, code));
+        var error = assertThrows(HandoffCodeException.class,
+                () -> service.verifyAndIssue(SESSION_ID, code, "Visitante", "Médica"));
 
         assertEquals("HANDOFF_CODE_INVALID", error.getCode());
         assertEquals(1, state.getFailedAttempts());
@@ -108,7 +109,7 @@ class HandoffAccessSecurityServiceTest {
         session.setExpiresAt(BOUNDARY);
 
         assertThrows(HandoffSessionExpiredException.class,
-                () -> service.verifyAndIssue(SESSION_ID, generator.code(SECRET, START)));
+                () -> service.verifyAndIssue(SESSION_ID, generator.code(SECRET, START), "Visitante", "Médica"));
 
         assertEquals(0, state.getFailedAttempts());
         assertNull(state.getLastAcceptedStep());

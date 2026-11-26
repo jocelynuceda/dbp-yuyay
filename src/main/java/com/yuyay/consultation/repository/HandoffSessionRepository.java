@@ -15,6 +15,10 @@ public interface HandoffSessionRepository extends JpaRepository<HandoffSession, 
     @Query("select s from HandoffSession s where s.id = :id")
     Optional<HandoffSession> findForUpdateById(Long id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from HandoffSession s where s.tokenHash = :tokenHash")
+    Optional<HandoffSession> findForUpdateByTokenHash(String tokenHash);
+
     @EntityGraph(attributePaths = {"handoff", "handoff.careSubject"})
     Optional<HandoffSession> findByTokenHash(String tokenHash);
 

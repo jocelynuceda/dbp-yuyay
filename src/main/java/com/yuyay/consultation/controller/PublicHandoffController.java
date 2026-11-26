@@ -35,6 +35,19 @@ public class PublicHandoffController {
 
     public record AccessRequirements(boolean accessCodeRequired) {}
 
+    @GetMapping("/{token}/summary.pdf")
+    public ResponseEntity<byte[]> summaryPdf(@PathVariable String token,
+            @RequestHeader(name = HandoffAccessSecurityService.GRANT_HEADER, required = false) String accessGrant) {
+        byte[] pdf = handoffSessionService.summaryPdf(token, accessGrant);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("resumen-clinico-yuyay.pdf").build().toString())
+                .header("Referrer-Policy", "no-referrer")
+                .cacheControl(CacheControl.noStore())
+                .body(pdf);
+    }
+
     /** Acceso por token de handoff vigente, abierto previamente; no requiere una cuenta médica. */
     @GetMapping("/{token}/versions/{versionId}/source/content")
     public ResponseEntity<Resource> sourceContent(@PathVariable String token, @PathVariable Long versionId,
