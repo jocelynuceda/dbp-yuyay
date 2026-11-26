@@ -47,5 +47,7 @@ public interface HandoffMapper {
             source = "healthEntryVersion.notes")
     @Mapping(target = "declaredAt",
             source = "healthEntryVersion.declaredAt")
+    @Mapping(target = "hasSourceAttachment",
+            expression = "java(item.getHealthEntryVersion().getSourceAttachment() != null)")
     HandoffItemResponseDTO toItemResponse(HandoffItem item);
 }

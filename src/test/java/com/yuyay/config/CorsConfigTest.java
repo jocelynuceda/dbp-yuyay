@@ -10,6 +10,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CorsConfigTest {
 
+    @Test
+    void permitsHandoffGrantHeaderForDocumentFetch() {
+        CorsConfiguration config = configurationFor(List.of("http://localhost:5173"), List.of());
+        assertThat(config.checkHeaders(List.of("X-Handoff-Access", "Content-Type")))
+                .containsExactly("X-Handoff-Access", "Content-Type");
+    }
+
     private CorsConfiguration configurationFor(List<String> origins, List<String> patterns) {
         AppProperties properties = new AppProperties(
                 null, null, null, new AppProperties.Cors(origins, patterns), null, null);

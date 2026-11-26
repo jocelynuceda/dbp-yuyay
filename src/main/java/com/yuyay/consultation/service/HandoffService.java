@@ -10,6 +10,7 @@ import com.yuyay.consultation.entity.HandoffItem;
 import com.yuyay.consultation.mapper.HandoffMapper;
 import com.yuyay.consultation.repository.HandoffRepository;
 import com.yuyay.exception.InvalidHandoffException;
+import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
 import com.yuyay.health.entity.HealthEntry;
 import com.yuyay.health.entity.HealthEntryVersion;
@@ -59,6 +60,12 @@ public class HandoffService {
             );
         }
 
+        if (request.expectedVersionIds() != null
+                && (!request.expectedVersionIds().keySet().equals(uniqueIds)
+                || request.expectedVersionIds().values().stream().anyMatch(java.util.Objects::isNull))) {
+            throw new InvalidHandoffException("Debes indicar la versión revisada de cada registro seleccionado");
+        }
+
         List<HealthEntry> entries =
                 healthEntryRepository.findByIdInAndCareSubjectId(
                         uniqueIds,
@@ -99,6 +106,12 @@ public class HandoffService {
                                                     + entry.getId()
                                                     + " no tiene versiones"
                                     ));
+
+            if (request.expectedVersionIds() != null
+                    && !latestVersion.getId().equals(request.expectedVersionIds().get(entry.getId()))) {
+                throw new InvalidOperationException(
+                        "Un registro cambió desde que lo revisaste. Revisa el resumen antes de compartirlo");
+            }
 
             HandoffItem item = HandoffItem.builder()
                     .handoff(handoff)

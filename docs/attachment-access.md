@@ -11,6 +11,39 @@ los registros de salud. Una delegación no autoriza estos endpoints.
 
 Base: `/api/v1/care-subjects/{subjectId}/attachments`.
 
+## Original incluido en un resumen compartido
+
+Cada `HandoffItemResponseDTO`, tanto privado como público, incluye
+`hasSourceAttachment: boolean`. El texto revisado se guarda completo en
+`HealthEntryVersion.details` (TEXT, sin límite de 2000 caracteres) y el resumen
+conserva esa versión aunque el cuidador edite el registro después.
+
+Para abrir el original usar
+`GET /api/v1/public/handoff-sessions/{token}/versions/{healthEntryVersionId}/source/content`.
+No requiere JWT: el permiso es el token del resumen. Primero debe haberse completado
+`POST /api/v1/public/handoff-sessions/{token}/open` con nombre y rol del visitante.
+La apertura y su ventana son globales al token, como en el flujo existente; el nombre
+declarado no autentica una identidad ni vincula el permiso a un navegador.
+
+Cada GET comprueba expiración absoluta, revocación, ventana desde la primera apertura,
+pertenencia de la versión al resumen y de su adjunto a la misma persona. Devuelve el
+original de esa versión mediante `FileStorage`, nunca el adjunto de la última versión
+ni una URL S3. No permite consultar por un `attachmentId` arbitrario. La respuesta
+incluye tipo original, `Content-Disposition: inline`, `Cache-Control: no-store` y
+`Referrer-Policy: no-referrer`; soporta `Range` mediante `Resource`.
+
+Estados: 403 si falta la primera apertura, 404 si el token no existe o el documento
+no está incluido, 410 si el enlace o la ventana caducaron o se revocaron. Una revocación
+impide peticiones posteriores; no retira bytes ya descargados. El cliente debe abrir
+con `noopener,noreferrer` y no guardar ni registrar el token o URL en analítica.
+
+Al crear un resumen manual, `POST /api/v1/care-subjects/{id}/handoffs` acepta además
+`expectedVersionIds`, un mapa de IDs de registro a IDs de versión revisada, por ejemplo
+`{"12": 34}`. Si se envía debe cubrir exactamente `healthEntryIds` (400 si falta o
+sobra una clave); una versión que ya no es la última produce 409 y requiere revisar
+de nuevo. Omitirlo conserva compatibilidad con clientes anteriores. No cambia el
+contrato de confirmación de citas, que ya selecciona versiones concretas.
+
 ## Abrir una imagen o documento
 
 `GET /{attachmentId}/access`, con `Authorization: Bearer <accessToken>`:

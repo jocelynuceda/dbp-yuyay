@@ -13,6 +13,8 @@ public record CreateHandoffSessionDTO(
 
         @NotNull
         @Min(1)
-        Integer sessionWindowMinutes
+        Integer sessionWindowMinutes,
+
+        Boolean requireAccessCode
 
 ) {}

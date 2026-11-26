@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
+import java.util.Map;
 
 public record CreateHandoffDTO(
 
@@ -13,6 +14,8 @@ public record CreateHandoffDTO(
         String questions,
 
         @NotEmpty
-        List<Long> healthEntryIds
+        List<Long> healthEntryIds,
+
+        Map<Long, Long> expectedVersionIds
 
 ) {}

@@ -7,5 +7,6 @@ public record HandoffSessionCreatedDTO(
         String token,
         Instant expiresAt,
         Integer sessionWindowMinutes,
-        Instant createdAt
+        Instant createdAt,
+        boolean accessCodeRequired
 ) {}

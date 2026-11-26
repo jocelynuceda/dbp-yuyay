@@ -1,6 +1,7 @@
 package com.yuyay.config;
 
 import com.yuyay.common.ClientHeader;
+import com.yuyay.security.handoff.HandoffAccessSecurityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +21,8 @@ public class CorsConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(properties.cors().originPatterns());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", ClientHeader.NAME));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", ClientHeader.NAME,
+                HandoffAccessSecurityService.GRANT_HEADER));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
