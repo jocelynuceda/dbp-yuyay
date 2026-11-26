@@ -67,12 +67,7 @@ public class HandoffSessionService {
         HandoffSession session = HandoffSession.builder()
                 .handoff(handoff)
                 .tokenHash(TokenHasher.sha256(rawToken))
-                .expiresAt(
-                        clock.instant().plus(
-                                request.expiresInHours(),
-                                ChronoUnit.HOURS
-                        )
-                )
+                .expiresAt(clock.instant().plus(request.linkDurationMinutes(), ChronoUnit.MINUTES))
                 .sessionWindowMinutes(request.sessionWindowMinutes())
                 .accessCodeRequired(Boolean.TRUE.equals(request.requireAccessCode()))
                 .build();
@@ -212,6 +207,11 @@ public class HandoffSessionService {
         }
         return new AttachmentContent(fileStorage.load(attachment.getStorageKey()),
                 attachment.getContentType(), attachment.getOriginalFilename());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean accessCodeRequired(String rawToken) {
+        return requireActiveSession(rawToken).isAccessCodeRequired();
     }
 
     private HandoffSession requireActiveSession(String rawToken) {

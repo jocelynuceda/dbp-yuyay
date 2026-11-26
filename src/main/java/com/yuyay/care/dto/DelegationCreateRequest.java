@@ -1,7 +1,7 @@
 package com.yuyay.care.dto;
 
+import com.yuyay.care.validation.ValidDelegationExpiration;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -14,5 +14,5 @@ public record DelegationCreateRequest(
         @NotBlank @Email @Size(max = 150) String granteeEmail,
         @NotNull Set<@NotBlank String> categoryCodes,
         Boolean includeConsultations,
-        @NotNull @Future Instant validUntil
+        @NotNull @ValidDelegationExpiration Instant validUntil
 ) {}

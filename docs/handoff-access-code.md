@@ -9,7 +9,8 @@ no es MFA y no se presenta como equivalente a la seguridad de una aplicación ba
 ## Contrato HTTP
 
 - `POST /api/v1/handoffs/{handoffId}/sessions` acepta `requireAccessCode?: boolean` junto
-  con `expiresInHours` y `sessionWindowMinutes`. La respuesta y el listado de sesiones
+  con la [vigencia del enlace y la ventana de lectura](access-durations.md#enlaces-de-resumen).
+  La respuesta y el listado de sesiones
   añaden `accessCodeRequired: boolean`; nunca incluyen semilla o código.
 - `GET /api/v1/handoff-sessions/{sessionId}/access-code` requiere JWT del creador con
   relación de cuidado activa o del PRINCIPAL activo. Devuelve

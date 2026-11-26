@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
@@ -68,9 +69,13 @@ public class Delegation {
     @Builder.Default
     private Set<HealthCategory> categories = new HashSet<>();
 
+    public static Instant latestExpiration(Instant grantedAt) {
+        return grantedAt.plus(Duration.ofDays(365));
+    }
+
     @PrePersist
     void onCreate() {
-        this.createdAt = Instant.now();
+        if (createdAt == null) createdAt = Instant.now();
     }
 
     public boolean isValidNow() {

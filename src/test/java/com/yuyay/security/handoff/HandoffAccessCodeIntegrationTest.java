@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -128,6 +130,24 @@ class HandoffAccessCodeIntegrationTest {
         JsonNode rotated = currentCode();
         assertEquals(START.plusSeconds(60).toString(), rotated.get("expiresAt").asText());
         assertFalse(rotated.toString().contains("secret"));
+    }
+
+    @Test
+    void reportsCodeRequirementWithoutOpeningOrReturningHealthData() throws Exception {
+        String endpoint = "/api/v1/public/handoff-sessions/";
+        mvc.perform(get(endpoint + token + "/access-requirements"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().string("{\"accessCodeRequired\":true}"));
+        assertNull(sessions.findById(sessionId).orElseThrow().getFirstOpenedAt());
+
+        String legacyToken = createSession(false).get("token").asText();
+        mvc.perform(get(endpoint + legacyToken + "/access-requirements"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessCodeRequired").value(false));
+        mvc.perform(get(endpoint + "unknown/access-requirements")).andExpect(status().isNotFound());
+        now.set(START.plusSeconds(3600 * 3));
+        mvc.perform(get(endpoint + token + "/access-requirements")).andExpect(status().isGone());
     }
 
     @Test
@@ -281,6 +301,7 @@ class HandoffAccessCodeIntegrationTest {
     void legacySessionsWithoutOptInKeepExistingOpenAndSourceContract() throws Exception {
         JsonNode legacy = send(post("/api/v1/handoffs/" + handoffId + "/sessions"), ownerToken,
                 Map.of("expiresInHours", 1, "sessionWindowMinutes", 15), 201);
+        assertEquals(START.plus(1, ChronoUnit.HOURS).toString(), legacy.get("expiresAt").asText());
         assertFalse(legacy.get("accessCodeRequired").asBoolean());
         long legacyId = legacy.get("id").asLong();
         assertFalse(codeStates.existsById(legacyId));
@@ -289,6 +310,71 @@ class HandoffAccessCodeIntegrationTest {
         assertTrue(shared.get("accessGrant").isNull());
         when(fileStorage.load(storageKey)).thenReturn(PDF);
         mvc.perform(get(sourceUrl(legacy.get("token").asText()))).andExpect(status().isOk());
+    }
+
+    @Test
+    void minuteDurationsKeepTheAbsoluteDeadlineOnLateAndRepeatedOpens() throws Exception {
+        JsonNode created = send(post("/api/v1/handoffs/" + handoffId + "/sessions"), ownerToken,
+                Map.of("expiresInMinutes", 30, "sessionWindowMinutes", 25, "requireAccessCode", true), 201);
+        Instant deadline = START.plus(30, ChronoUnit.MINUTES);
+        assertEquals(deadline.toString(), created.get("expiresAt").asText());
+        assertEquals(25, created.get("sessionWindowMinutes").asInt());
+        long id = created.get("id").asLong();
+        String rawToken = created.get("token").asText();
+
+        Instant firstOpen = START.plus(10, ChronoUnit.MINUTES);
+        now.set(firstOpen);
+        for (int opening = 0; opening < 2; opening++) {
+            String code = send(get(codeUrl(id)), ownerToken, null, 200).get("code").asText();
+            JsonNode shared = send(post(openUrl(rawToken)), null, visitorBody(code), 200);
+            assertEquals(deadline.toString(), shared.get("accessExpiresAt").asText());
+            assertEquals(firstOpen, sessions.findById(id).orElseThrow().getFirstOpenedAt());
+            now.updateAndGet(time -> time.plusSeconds(30));
+        }
+
+        now.set(deadline);
+        send(get(codeUrl(id)), ownerToken, null, 410);
+        send(post(openUrl(rawToken)), null, visitorBody(null), 410);
+    }
+
+    @Test
+    void acceptsInclusiveMinuteLimitsAndRejectsInvalidDurations() throws Exception {
+        String path = "/api/v1/handoffs/" + handoffId + "/sessions";
+        for (int minutes : List.of(1, 4320)) {
+            JsonNode created = send(post(path), ownerToken,
+                    Map.of("expiresInMinutes", minutes, "sessionWindowMinutes", minutes), 201);
+            assertEquals(START.plus(minutes, ChronoUnit.MINUTES).toString(), created.get("expiresAt").asText());
+        }
+
+        for (String invalid : List.of(
+                "{\"sessionWindowMinutes\":25}",
+                "{\"expiresInHours\":null,\"expiresInMinutes\":null,\"sessionWindowMinutes\":25}",
+                "{\"expiresInHours\":73,\"sessionWindowMinutes\":25}",
+                "{\"expiresInMinutes\":0,\"sessionWindowMinutes\":25}",
+                "{\"expiresInMinutes\":-1,\"sessionWindowMinutes\":25}",
+                "{\"expiresInMinutes\":4321,\"sessionWindowMinutes\":25}",
+                "{\"expiresInMinutes\":2147483648,\"sessionWindowMinutes\":25}",
+                "{\"expiresInMinutes\":30.5,\"sessionWindowMinutes\":25}",
+                "{\"expiresInMinutes\":\"30\",\"sessionWindowMinutes\":25}",
+                "{\"expiresInMinutes\":30}",
+                "{\"expiresInMinutes\":30,\"sessionWindowMinutes\":0}",
+                "{\"expiresInMinutes\":30,\"sessionWindowMinutes\":25.5}",
+                "{\"expiresInMinutes\":4320,\"sessionWindowMinutes\":4321}")) {
+            mvc.perform(post(path).header("Authorization", "Bearer " + ownerToken)
+                            .contentType(MediaType.APPLICATION_JSON).content(invalid))
+                    .andExpect(status().isBadRequest());
+        }
+
+        mvc.perform(post(path).header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expiresInHours\":1,\"sessionWindowMinutes\":61}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[*].field", hasItem("sessionWindowMinutes")));
+        mvc.perform(post(path).header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expiresInHours\":1,\"expiresInMinutes\":30,\"sessionWindowMinutes\":25}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[*].field", hasItem("expiresInMinutes")));
     }
 
     private List<String> concurrentOpens(String rawToken, String code) throws Exception {
