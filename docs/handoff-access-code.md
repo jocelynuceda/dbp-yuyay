@@ -66,7 +66,17 @@ sincronizado; el frontend calcula el contador con `serverTime`, no presupone rel
 
 La transacción bloquea primero la fila de sesión y después su estado de código. Refresca
 la sesión bajo bloqueo para no utilizar una primera apertura/revocación precargada antes
-de esperar. `lastAcceptedStep` impide aceptar dos veces el mismo paso, incluso en solicitudes
+de esperar. Una vez obtenidos ambos bloqueos, el servidor toma la hora para comprobar la
+vigencia de la sesión, la ventana de intentos y el paso actual, y para registrar la primera
+apertura. Al mostrar el código, toma la hora después de leer su estado y la usa también
+para calcular `serverTime` y `expiresAt`.
+
+Si el código caduca en tránsito o mientras la apertura espera un bloqueo, se rechaza al
+validarlo. El visitante debe pedir el código vigente. Si la apertura se confirma pero se
+pierde la respuesta HTTP, el código queda consumido. El visitante puede abrir con el
+código del periodo siguiente mientras el enlace siga vigente.
+
+`lastAcceptedStep` impide aceptar dos veces el mismo paso, incluso en solicitudes
 simultáneas, y rechaza pasos anteriores al último aceptado si el reloj retrocede.
 Al acertar se guardan consumo, primera apertura, hash del permiso y su vencimiento
 en la misma transacción de apertura. Otros errores revierten todos esos cambios.
@@ -132,8 +142,10 @@ llamadas a AWS para generar, verificar ni mostrar códigos.
 ## Verificación local
 
 `HandoffCodeGeneratorTest` verifica vectores RFC 6238 SHA256, ceros iniciales, límites y
-ventanas estrictas. `HandoffAccessCodeIntegrationTest` utiliza HTTP/JPA/bloqueos reales,
-reloj controlado y almacenamiento de documentos simulado; comprueba código y grant,
-replay, ocho aperturas simultáneas, ocho fallos simultáneos, persistencia del límite,
-permisos de creador/principal activo, revocación, caducidad, legado y acceso al original.
+ventanas estrictas. `HandoffAccessSecurityServiceTest` simula la rotación del código y
+la caducidad del enlace mientras se lee o bloquea su estado.
+`HandoffAccessCodeIntegrationTest` utiliza HTTP/JPA/bloqueos reales, reloj controlado
+y almacenamiento de documentos simulado. Comprueba código y grant, replay, ocho aperturas
+simultáneas, ocho fallos simultáneos, persistencia del límite, permisos de creador/principal
+activo, revocación, caducidad, legado y acceso al original.
 Los tests anteriores de snapshot y sesión conservan cobertura del contenido OCR.
