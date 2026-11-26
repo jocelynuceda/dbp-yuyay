@@ -359,7 +359,7 @@ class HandoffAccessCodeIntegrationTest {
                 "{\"expiresInMinutes\":30}",
                 "{\"expiresInMinutes\":30,\"sessionWindowMinutes\":0}",
                 "{\"expiresInMinutes\":30,\"sessionWindowMinutes\":25.5}",
-                "{\"expiresInMinutes\":4320,\"sessionWindowMinutes\":10081}")) {
+                "{\"expiresInMinutes\":4320,\"sessionWindowMinutes\":4321}")) {
             mvc.perform(post(path).header("Authorization", "Bearer " + ownerToken)
                             .contentType(MediaType.APPLICATION_JSON).content(invalid))
                     .andExpect(status().isBadRequest());

@@ -33,6 +33,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -52,6 +53,7 @@ public class DelegationService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
     private final JwtService jwtService;
+    private final Clock clock;
     private final AppProperties properties;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -69,6 +71,8 @@ public class DelegationService {
         }
         Set<HealthCategory> categories = resolveCategories(req.categoryCodes());
 
+        Instant createdAt = clock.instant();
+        Instant limit = Delegation.latestExpiration(createdAt);
         String rawToken = TokenHasher.randomToken();
         Delegation delegation = delegationRepo.save(Delegation.builder()
                 .careSubject(subject)
@@ -76,7 +80,8 @@ public class DelegationService {
                 .granteeName(req.granteeName())
                 .granteeEmail(req.granteeEmail().toLowerCase())
                 .tokenHash(TokenHasher.sha256(rawToken))
-                .validUntil(req.validUntil())
+                .createdAt(createdAt)
+                .validUntil(req.validUntil().isAfter(limit) ? limit : req.validUntil())
                 .categories(categories)
                 .includeConsultations(includeConsultations)
                 .build());

@@ -168,7 +168,16 @@ class DelegationIntegrationTest {
             assertEquals(validUntil, Instant.parse(created.get("delegation").get("validUntil").asText()));
         }
 
-        for (Instant invalidUntil : List.of(now, limit.plusMillis(1))) {
+        for (Instant requested : List.of(limit.plusSeconds(1), limit.plusSeconds(3600))) {
+            JsonNode created = postJson(path, ownerToken, delegationBody("MEDICATION", requested), 201);
+            assertEquals(limit, Instant.parse(created.get("delegation").get("validUntil").asText()));
+            mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[?(@.id == " + created.get("delegation").get("id").asLong()
+                            + ")].validUntil", hasItem(limit.toString())));
+        }
+
+        for (Instant invalidUntil : List.of(now, limit.plusSeconds(3600).plusMillis(1))) {
             mvc.perform(post(path).header("Authorization", "Bearer " + ownerToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(delegationBody("MEDICATION", invalidUntil)))

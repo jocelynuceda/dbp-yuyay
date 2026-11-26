@@ -1,5 +1,6 @@
 package com.yuyay.care.validation;
 
+import com.yuyay.care.entity.Delegation;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
@@ -24,7 +25,7 @@ public @interface ValidDelegationExpiration {
 
     @RequiredArgsConstructor
     class Validator implements ConstraintValidator<ValidDelegationExpiration, Instant> {
-        private static final Duration MAX_DURATION = Duration.ofDays(365);
+        private static final Duration CLOCK_SKEW = Duration.ofHours(1);
         private final Clock clock;
 
         @Override
@@ -40,7 +41,7 @@ public @interface ValidDelegationExpiration {
                 return false;
             }
 
-            return !validUntil.isAfter(now.plus(MAX_DURATION));
+            return !validUntil.isAfter(Delegation.latestExpiration(now).plus(CLOCK_SKEW));
         }
     }
 }

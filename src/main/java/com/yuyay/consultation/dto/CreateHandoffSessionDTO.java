@@ -26,7 +26,7 @@ public record CreateHandoffSessionDTO(
         @JsonDeserialize(using = IntegerDurationDeserializer.class)
         @NotNull
         @Min(1)
-        @Max(10080)
+        @Max(4320)
         Integer sessionWindowMinutes,
 
         Boolean requireAccessCode
