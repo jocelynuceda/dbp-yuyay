@@ -377,6 +377,64 @@ class HandoffAccessCodeIntegrationTest {
                 .andExpect(jsonPath("$.fieldErrors[*].field", hasItem("expiresInMinutes")));
     }
 
+    @Test
+    void remembersOnlyAfterConsentAndCannotExtendOrTransferAReading() throws Exception {
+        String path = "/api/v1/public/handoff-sessions/" + token + "/";
+        mvc.perform(get(path + "resume")).andExpect(status().isNoContent())
+                .andExpect(header().doesNotExist("Set-Cookie"));
+        JsonNode opened = open(currentCode().get("code").asText(), 200);
+        String grant = opened.get("accessGrant").asText();
+        var reader = grants.findBySessionIdAndTokenHashAndExpiresAtAfter(sessionId, TokenHasher.sha256(grant), START)
+                .orElseThrow();
+        assertEquals("Visitante", reader.getVisitorName());
+        assertEquals("Médica", reader.getVisitorRole());
+        var cookie = new jakarta.servlet.http.Cookie("__Secure-Handoff-Reading", grant);
+        mvc.perform(post(path + "reading-cookie").cookie(cookie)).andExpect(status().isForbidden());
+        now.set(START.plusSeconds(60));
+        String setCookie = mvc.perform(post(path + "reading-cookie").header("X-Handoff-Access", grant))
+                .andExpect(status().isNoContent()).andReturn().getResponse().getHeader("Set-Cookie");
+        assertNotNull(setCookie);
+        for (String part : List.of("HttpOnly", "Secure", "SameSite=Strict", "Max-Age=840", "Path=" + path))
+            assertTrue(setCookie.contains(part), part);
+        mvc.perform(get(path + "resume").cookie(cookie)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessGrant").doesNotExist())
+                .andExpect(jsonPath("$.accessExpiresAt").value(opened.get("accessExpiresAt").asText()))
+                .andExpect(jsonPath("$.items[0]").exists())
+                .andExpect(header().string("Cache-Control", "no-store"));
+        when(fileStorage.load(storageKey)).thenReturn(PDF);
+        mvc.perform(get(sourceUrl(token)).cookie(cookie)).andExpect(status().isOk());
+        mvc.perform(get(sourceUrl(token)).cookie(cookie).header("X-Handoff-Access", "invalid"))
+                .andExpect(status().isForbidden());
+        var other = createSession(true);
+        mvc.perform(get("/api/v1/public/handoff-sessions/" + other.get("token").asText() + "/resume").cookie(cookie))
+                .andExpect(status().isNoContent());
+        now.set(START.plusSeconds(900));
+        mvc.perform(get(path + "resume").cookie(cookie)).andExpect(status().isGone());
+        now.set(START.plusSeconds(65));
+        send(delete("/api/v1/handoff-sessions/" + sessionId), ownerToken, null, 204);
+        mvc.perform(get(path + "resume").cookie(cookie)).andExpect(status().isGone());
+    }
+
+    @Test
+    void resumedPdfUsesOnlyAnAuthorizedGrantForThisLink() throws Exception {
+        var created = send(post("/api/v1/handoffs/" + handoffId + "/sessions"), ownerToken,
+                Map.of("expiresInHours", 1, "sessionWindowMinutes", 15, "requireAccessCode", true,
+                        "allowDownload", true), 201);
+        String raw = created.get("token").asText();
+        String code = send(get(codeUrl(created.get("id").asLong())), ownerToken, null, 200).get("code").asText();
+        var opened = send(post(openUrl(raw)), null, visitorBody(code), 200);
+        var cookie = new jakarta.servlet.http.Cookie("__Secure-Handoff-Reading", opened.get("accessGrant").asText());
+        String path = "/api/v1/public/handoff-sessions/" + raw + "/";
+        mvc.perform(get(path + "resume").cookie(cookie))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.downloadAllowed").value(true));
+        mvc.perform(get(path + "summary.pdf").cookie(cookie))
+                .andExpect(status().isOk()).andExpect(content().contentType(MediaType.APPLICATION_PDF));
+        mvc.perform(get(path + "summary.pdf").cookie(cookie).header("X-Handoff-Access", "invalid"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/public/handoff-sessions/" + token + "/summary.pdf").cookie(cookie))
+                .andExpect(status().isForbidden());
+    }
+
     private List<String> concurrentOpens(String rawToken, String code) throws Exception {
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(8)) {
