@@ -4,11 +4,15 @@ import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.entity.OcrStatus;
 import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.storage.FileStorage;
+import com.yuyay.audit.entity.AccessAction;
+import com.yuyay.audit.repository.AccessLogRepository;
 import com.yuyay.care.repository.CareSubjectRepository;
 import com.yuyay.consultation.entity.HandoffSession;
 import com.yuyay.consultation.repository.HandoffSessionRepository;
 import com.yuyay.health.repository.HealthEntryVersionRepository;
 import com.yuyay.user.repository.UserRepository;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +28,8 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,6 +61,7 @@ class HandoffSourceIntegrationTest {
     @Autowired UserRepository users;
     @Autowired HandoffSessionRepository sessions;
     @Autowired HealthEntryVersionRepository versions;
+    @Autowired AccessLogRepository accessLogs;
     @MockitoBean FileStorage fileStorage;
 
     private static final byte[] ORIGINAL = "%PDF-1.7\nDocumento original".getBytes(StandardCharsets.UTF_8);
@@ -67,7 +74,8 @@ class HandoffSourceIntegrationTest {
     private long handoffId;
     private long sessionId;
     private String token;
-    private final String reviewedText = "Texto revisado: presión, dosis y antecedentes.\n".repeat(170) + "FIN REVISADO";
+    private final String reviewedText = "Texto revisado: presión, dosis y antecedentes.\n".repeat(170)
+            + "Medición β ≥ 3,5 µg/L\nFIN REVISADO";
 
     @BeforeEach
     void setUp() throws Exception {
@@ -150,6 +158,110 @@ class HandoffSourceIntegrationTest {
     }
 
     @Test
+    void pdfUsesReviewedSnapshotOnEveryPageAndAuditsCaregiverConsentAndReadingGrant() throws Exception {
+        assertFalse(open().get("downloadAllowed").asBoolean());
+        send(get(summaryUrl(token)), null, null, 403);
+        send(get(summaryUrl("desconocido")), null, null, 404);
+
+        JsonNode created = createDownloadSession(true);
+        long downloadSessionId = created.get("id").asLong();
+        String downloadToken = created.get("token").asText();
+        assertTrue(created.get("allowDownload").asBoolean());
+        send(patch("/api/v1/care-subjects/" + subjectId), ownerToken, Map.of("name", "Nombre actualizado"), 200);
+        assertTrue(send(get("/api/v1/handoffs/" + handoffId + "/sessions"), ownerToken, null, 200)
+                .get(0).get("allowDownload").asBoolean());
+        send(get(summaryUrl(downloadToken)), null, null, 403);
+        send(post(openUrl(downloadToken)), null, Map.of("visitorName", "Visitante", "visitorRole", "Médica"), 403);
+        String code = send(get("/api/v1/handoff-sessions/" + downloadSessionId + "/access-code"), ownerToken, null, 200)
+                .get("code").asText();
+        JsonNode view = send(post(openUrl(downloadToken)), null,
+                Map.of("visitorName", "Dra. Clínica", "visitorRole", "Médica", "accessCode", code), 200);
+        assertTrue(view.get("downloadAllowed").asBoolean());
+        assertEquals("Paciente ficticio", view.get("careSubjectName").asText());
+        String grant = view.get("accessGrant").asText();
+        send(get(summaryUrl(downloadToken)).header("X-Handoff-Access", downloadToken), null, null, 403);
+        send(get(summaryUrl(token)).header("X-Handoff-Access", grant), null, null, 403);
+        String differentDownloadToken = createDownloadSession(false).get("token").asText();
+        send(get(summaryUrl(differentDownloadToken)).header("X-Handoff-Access", grant), null, null, 403);
+
+        send(patch(entries(subjectId) + "/" + entryId), ownerToken,
+                Map.of("title", "Versión posterior", "details", "Contenido posterior", "confidenceLevel", "CONFIRMED"), 200);
+        byte[] pdf = mvc.perform(get(summaryUrl(downloadToken)).header("X-Handoff-Access", grant))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"resumen-clinico-yuyay.pdf\""))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        Instant authorizedAt = sessions.findById(downloadSessionId).orElseThrow().getDownloadAuthorizedAt();
+        String stamp = "Descarga autorizada el " + DateTimeFormatter.ofPattern("dd/MM/uuuu, HH:mm:ss")
+                .withZone(ZoneId.of("America/Lima")).format(authorizedAt) + " (hora de Lima)";
+        try (var document = Loader.loadPDF(pdf)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            String text = stripper.getText(document);
+            assertTrue(document.getNumberOfPages() > 2);
+            assertEquals("Resumen clínico", document.getDocumentInformation().getTitle());
+            assertEquals("Yuyay", document.getDocumentInformation().getAuthor());
+            assertEquals("es-PE", document.getDocumentCatalog().getLanguage());
+            assertTrue(text.contains("Resumen de Paciente ficticio"));
+            assertTrue(text.contains("Informe revisado"));
+            assertTrue(text.contains("Condición · Confirmado"));
+            assertEquals(170, text.split("Texto revisado: presión, dosis y antecedentes\\.", -1).length - 1);
+            assertTrue(text.contains("Medición β ≥ 3,5 µg/L"));
+            assertTrue(text.contains("FIN REVISADO"));
+            assertFalse(text.contains("OCR sin revisar"));
+            assertFalse(text.contains("Contenido posterior"));
+            assertFalse(text.contains("Nombre actualizado"));
+            assertFalse(text.contains(downloadToken));
+            assertFalse(text.contains(grant));
+            for (int page = 1; page <= document.getNumberOfPages(); page++) {
+                stripper.setStartPage(page);
+                stripper.setEndPage(page);
+                String pageText = stripper.getText(document);
+                assertTrue(pageText.contains("Yuyay"));
+                assertTrue(pageText.contains(stamp));
+                assertTrue(pageText.contains(page + " / " + document.getNumberOfPages()));
+            }
+        }
+
+        var events = accessLogs.findByCareSubjectIdOrderByOccurredAtDesc(subjectId).stream()
+                .filter(event -> Long.valueOf(downloadSessionId).equals(event.getTargetId())).toList();
+        var permission = events.stream().filter(log -> log.getTargetType().equals("HANDOFF_DOWNLOAD_PERMISSION"))
+                .findFirst().orElseThrow();
+        assertEquals(AccessAction.CREATE, permission.getAction());
+        assertEquals(ownerId, permission.getUser().getId());
+        assertEquals(authorizedAt, permission.getOccurredAt());
+        var downloads = events.stream().filter(log -> log.getTargetType().equals("HANDOFF_SUMMARY_PDF")).toList();
+        assertEquals(1, downloads.size());
+        assertEquals(AccessAction.VIEW, downloads.getFirst().getAction());
+        assertEquals("Dra. Clínica", downloads.getFirst().getVisitorName());
+        assertEquals("Médica", downloads.getFirst().getVisitorRole());
+        send(delete("/api/v1/handoff-sessions/" + downloadSessionId), ownerToken, null, 204);
+        send(get(summaryUrl(downloadToken)).header("X-Handoff-Access", grant), null, null, 410);
+        verifyNoInteractions(fileStorage);
+    }
+
+    @Test
+    void downloadWithoutCodeStillRequiresOpeningAndWithinTheReadingWindow() throws Exception {
+        JsonNode created = createDownloadSession(false);
+        long downloadSessionId = created.get("id").asLong();
+        String downloadToken = created.get("token").asText();
+        var visitor = Map.of("visitorName", "Visitante", "visitorRole", "Médica");
+        send(get(summaryUrl(downloadToken)), null, null, 403);
+        JsonNode view = send(post(openUrl(downloadToken)), null, visitor, 200);
+        assertTrue(view.get("downloadAllowed").asBoolean());
+        send(get(summaryUrl(downloadToken)), null, null, 403);
+        String grant = view.get("accessGrant").asText();
+        mvc.perform(get(summaryUrl(downloadToken)).header("X-Handoff-Access", grant)).andExpect(status().isOk());
+        HandoffSession session = sessions.findById(downloadSessionId).orElseThrow();
+        session.setFirstOpenedAt(Instant.now().minusSeconds(16 * 60));
+        sessions.saveAndFlush(session);
+        send(get(summaryUrl(downloadToken)).header("X-Handoff-Access", grant), null, null, 410);
+    }
+
+    @Test
     void requiresOpeningAndRejectsUnknownToken() throws Exception {
         send(get(contentUrl(versionId)), null, null, 403);
         send(get("/api/v1/public/handoff-sessions/unknown/versions/" + versionId + "/source/content"), null, null, 404);
@@ -216,8 +328,22 @@ class HandoffSourceIntegrationTest {
     }
 
     private JsonNode open() throws Exception {
-        return send(post("/api/v1/public/handoff-sessions/" + token + "/open"), null,
+        return send(post(openUrl(token)), null,
                 Map.of("visitorName", "Dra. Visitante", "visitorRole", "Médica"), 200);
+    }
+
+    private JsonNode createDownloadSession(boolean requireAccessCode) throws Exception {
+        return send(post("/api/v1/handoffs/" + handoffId + "/sessions"), ownerToken,
+                Map.of("expiresInHours", 1, "sessionWindowMinutes", 15, "requireAccessCode", requireAccessCode,
+                        "allowDownload", true), 201);
+    }
+
+    private String openUrl(String publicToken) {
+        return "/api/v1/public/handoff-sessions/" + publicToken + "/open";
+    }
+
+    private String summaryUrl(String publicToken) {
+        return "/api/v1/public/handoff-sessions/" + publicToken + "/summary.pdf";
     }
 
     private long createSubject() throws Exception {

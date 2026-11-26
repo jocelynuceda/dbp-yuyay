@@ -30,4 +30,10 @@ public class HandoffAccessGrant {
 
     @Column(nullable = false)
     private Instant expiresAt;
+
+    @Column(length = 120)
+    private String visitorName;
+
+    @Column(length = 80)
+    private String visitorRole;
 }

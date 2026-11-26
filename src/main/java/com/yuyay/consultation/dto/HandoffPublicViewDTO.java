@@ -12,5 +12,6 @@ public record HandoffPublicViewDTO(
         List<HandoffItemResponseDTO> items,
         String accessGrant,
         Instant accessExpiresAt,
-        Instant serverTime
+        Instant serverTime,
+        boolean downloadAllowed
 ) {}

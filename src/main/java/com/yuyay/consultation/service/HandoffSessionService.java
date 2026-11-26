@@ -4,6 +4,8 @@ import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.entity.Attachment;
 import com.yuyay.attachment.storage.FileStorage;
 import com.yuyay.audit.entity.AccessAction;
+import com.yuyay.audit.entity.AccessLog;
+import com.yuyay.audit.repository.AccessLogRepository;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.consultation.dto.CreateHandoffSessionDTO;
 import com.yuyay.consultation.dto.HandoffPublicViewDTO;
@@ -22,8 +24,10 @@ import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.security.TokenHasher;
 import com.yuyay.security.handoff.HandoffAccessCodeDTO;
+import com.yuyay.security.handoff.HandoffAccessGrant;
 import com.yuyay.security.handoff.HandoffAccessSecurityService;
 import com.yuyay.security.handoff.HandoffCodeException;
+import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
@@ -31,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -48,6 +53,9 @@ public class HandoffSessionService {
     private final FileStorage fileStorage;
     private final HandoffAccessSecurityService accessSecurity;
     private final Clock clock;
+    private final HandoffSummaryPdf summaryPdf;
+    private final AccessLogRepository accessLogs;
+    private final UserRepository users;
 
     public HandoffSessionCreatedDTO create(
             Long handoffId,
@@ -63,17 +71,30 @@ public class HandoffSessionService {
         authorizeCreatorOrPrincipal(handoff, currentUserId);
 
         String rawToken = TokenHasher.randomToken();
+        Instant now = clock.instant();
 
         HandoffSession session = HandoffSession.builder()
                 .handoff(handoff)
                 .tokenHash(TokenHasher.sha256(rawToken))
-                .expiresAt(clock.instant().plus(request.linkDurationMinutes(), ChronoUnit.MINUTES))
+                .expiresAt(now.plus(request.linkDurationMinutes(), ChronoUnit.MINUTES))
                 .sessionWindowMinutes(request.sessionWindowMinutes())
                 .accessCodeRequired(Boolean.TRUE.equals(request.requireAccessCode()))
+                .downloadAuthorizedAt(Boolean.TRUE.equals(request.allowDownload()) ? now : null)
+                .subjectNameSnapshot(handoff.getCareSubject().getName())
                 .build();
 
         HandoffSession saved = handoffSessionRepository.save(session);
         accessSecurity.initialize(saved);
+        if (saved.isDownloadAllowed()) {
+            accessLogs.save(AccessLog.builder()
+                    .careSubject(handoff.getCareSubject())
+                    .user(users.getReferenceById(currentUserId))
+                    .action(AccessAction.CREATE)
+                    .targetType("HANDOFF_DOWNLOAD_PERMISSION")
+                    .targetId(saved.getId())
+                    .occurredAt(saved.getDownloadAuthorizedAt())
+                    .build());
+        }
 
         return new HandoffSessionCreatedDTO(
                 saved.getId(),
@@ -81,7 +102,8 @@ public class HandoffSessionService {
                 saved.getExpiresAt(),
                 saved.getSessionWindowMinutes(),
                 saved.getCreatedAt(),
-                saved.isAccessCodeRequired()
+                saved.isAccessCodeRequired(),
+                saved.isDownloadAllowed()
         );
     }
 
@@ -139,8 +161,8 @@ public class HandoffSessionService {
 
         HandoffSession session = requireActiveSession(rawToken);
         HandoffAccessSecurityService.IssuedGrant grant = null;
-        if (session.isAccessCodeRequired()) {
-            grant = accessSecurity.verifyAndIssue(session.getId(), accessCode);
+        if (session.isAccessCodeRequired() || session.isDownloadAllowed()) {
+            grant = accessSecurity.verifyAndIssue(session.getId(), accessCode, visitorName, visitorRole);
         } else if (session.getFirstOpenedAt() == null) {
             session.setFirstOpenedAt(clock.instant());
         }
@@ -163,7 +185,7 @@ public class HandoffSessionService {
 
         return new HandoffPublicViewDTO(
                 handoff.getId(),
-                handoff.getCareSubject().getName(),
+                session.displaySubjectName(),
                 handoff.getReason(),
                 handoff.getQuestions(),
                 handoff.getCreatedAt(),
@@ -173,8 +195,42 @@ public class HandoffSessionService {
                         .toList(),
                 grant == null ? null : grant.token(),
                 grant == null ? null : grant.expiresAt(),
-                clock.instant()
+                clock.instant(),
+                session.isDownloadAllowed()
         );
+    }
+
+    public byte[] summaryPdf(String rawToken, String accessGrant) {
+        // Comparte el bloqueo de revocación hasta terminar la descarga y su auditoría.
+        HandoffSession session = handoffSessionRepository.findForUpdateByTokenHash(TokenHasher.sha256(rawToken))
+                .orElseThrow(() -> new ResourceNotFoundException("Enlace de Handoff no encontrado"));
+        requireActiveSession(session, clock.instant());
+        if (!session.isDownloadAllowed()) {
+            throw new AccessDeniedException("El cuidador no autorizó la descarga de este resumen");
+        }
+        HandoffAccessGrant grant = accessSecurity.requireDownloadGrant(session, accessGrant);
+        Handoff handoff = handoffRepository.findDetailById(session.getHandoff().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Handoff no encontrado"));
+        byte[] pdf = summaryPdf.render(handoff, session.displaySubjectName(), session.getDownloadAuthorizedAt());
+        Instant now = clock.instant();
+        requireActiveSession(session, now);
+        if (!grant.getExpiresAt().isAfter(now)) {
+            throw new HandoffSessionExpiredException("El permiso de descarga expiró");
+        }
+        String role = grant.getVisitorRole();
+        if (role != null && role.codePointCount(0, role.length()) > 60) {
+            role = role.substring(0, role.offsetByCodePoints(0, 60));
+        }
+        accessLogs.save(AccessLog.builder()
+                .careSubject(handoff.getCareSubject())
+                .action(AccessAction.VIEW)
+                .targetType("HANDOFF_SUMMARY_PDF")
+                .targetId(session.getId())
+                .visitorName(grant.getVisitorName())
+                .visitorRole(role)
+                .occurredAt(now)
+                .build());
+        return pdf;
     }
 
     @Transactional(readOnly = true)
@@ -217,10 +273,14 @@ public class HandoffSessionService {
     private HandoffSession requireActiveSession(String rawToken) {
         HandoffSession session = handoffSessionRepository.findByTokenHash(TokenHasher.sha256(rawToken))
                 .orElseThrow(() -> new ResourceNotFoundException("Enlace de Handoff no encontrado"));
-        if (session.isExpired(clock.instant())) {
+        requireActiveSession(session, clock.instant());
+        return session;
+    }
+
+    private void requireActiveSession(HandoffSession session, Instant now) {
+        if (session.isExpired(now)) {
             throw new HandoffSessionExpiredException("El enlace de Handoff expiró o fue revocado");
         }
-        return session;
     }
 
     private void authorizeCreatorOrPrincipal(
@@ -252,7 +312,8 @@ public class HandoffSessionService {
                 session.getFirstOpenedAt(),
                 session.getRevokedAt(),
                 session.getCreatedAt(),
-                session.isAccessCodeRequired()
+                session.isAccessCodeRequired(),
+                session.isDownloadAllowed()
         );
     }
 

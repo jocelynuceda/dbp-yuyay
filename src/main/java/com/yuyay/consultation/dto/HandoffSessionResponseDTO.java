@@ -10,5 +10,6 @@ public record HandoffSessionResponseDTO(
         Instant firstOpenedAt,
         Instant revokedAt,
         Instant createdAt,
-        boolean accessCodeRequired
+        boolean accessCodeRequired,
+        boolean allowDownload
 ) {}
