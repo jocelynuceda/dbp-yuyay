@@ -1,5 +1,6 @@
 package com.yuyay.care.service;
 
+import com.yuyay.attachment.service.AttachmentService;
 import com.yuyay.care.dto.CareAuthorizationDeclarationRequest;
 import com.yuyay.care.dto.CareAuthorizationPolicyResponse.Option;
 import com.yuyay.care.dto.CareSubjectCreateRequest;
@@ -46,6 +47,7 @@ public class CareSubjectService {
     private final UserRepository userRepo;
     private final HealthEntryRepository healthEntryRepo;
     private final ClaimInvitationRepository claimInvitations;
+    private final AttachmentService attachments;
     private final CareSubjectMapper mapper;
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
@@ -140,6 +142,8 @@ public class CareSubjectService {
         if (healthEntryRepo.existsByCareSubjectId(subjectId)) {
             throw new InvalidOperationException("No se puede eliminar una persona con historial de salud");
         }
+        // Los documentos y las notas de voz apuntan al perfil sin cascada: se van con él
+        attachments.deleteAllOfSubject(subjectId);
         // Las invitaciones de entrega apuntan al perfil: sin quitarlas antes, borrar un perfil vacío
         // que alguna vez tuvo una invitación (aunque esté revocada) choca con la clave foránea.
         claimInvitations.deleteByCareSubjectId(subjectId);

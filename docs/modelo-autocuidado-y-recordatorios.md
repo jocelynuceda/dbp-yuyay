@@ -349,9 +349,122 @@ De ahí se siguen tres cosas:
 3. **El texto que ve un adolescente de 16 debe estar redactado para que lo entienda.** Es requisito
    del reglamento, no una mejora de experiencia.
 
-Advertencia: el reglamento de 2013 pudo haber sido modificado o reemplazado, y hay indicios de
-normas más recientes sobre servicios digitales. Confirmar el texto vigente con la Autoridad Nacional
-de Protección de Datos Personales antes del piloto. Esto es insumo para esa revisión, no la revisión.
+Advertencia sobre la norma citada: el piso de 14 años viene del reglamento de 2013
+(DS 003-2013-JUS), que **fue derogado** por el DS 016-2024-JUS. No está releído qué dice el
+reglamento vigente sobre menores y sobre datos de salud, así que el piso puede haber cambiado y
+todo el párrafo anterior debe tratarse como indicio, no como la norma. Confirmar el texto vigente
+con la Autoridad Nacional de Protección de Datos Personales antes del piloto. Esto es insumo para
+esa revisión, no la revisión.
+
+
+### 3.6 Una cuenta por DNI
+
+**Regla pedida el 26-nov-2026:** una persona no puede tener dos cuentas con el mismo DNI, salvo que
+elimine la que tiene.
+
+Cumplirla obliga a recordar qué DNI ya tienen cuenta, y eso **invierte una decisión de §3.5**: hoy
+el DNI no se guarda en ningún lado —ni en la base ni en el log— y la consulta solo contrasta el
+nombre. La regla exige persistir algo por DNI.
+
+**Cómo persistirlo sin guardar el DNI legible.** Un `sha256` del DNI no protege nada: son ocho
+dígitos, cien millones de combinaciones, y la tabla completa se calcula en segundos. Hace falta un
+HMAC con una clave que viva fuera de la base:
+
+```
+User
+  dniHmac : String?        -- HMAC-SHA256(DNI, DNI_PEPPER), UNIQUE, 64 hex
+  dniCheckedAt : Instant?  -- cuándo se contrastó, no qué decía
+```
+
+Se borra junto con la cuenta, que es exactamente la excepción pedida: al eliminarla desaparece la
+fila y el DNI queda libre. Eso además juega a favor del derecho de supresión de la Ley 29733, no
+en contra.
+
+**Dos cosas la bloquean hoy:**
+
+1. **No existe eliminar la cuenta.** No hay endpoint ni servicio de borrado en todo el proyecto, así
+   que la excepción de la regla no se puede ejercer. Aplicar la unicidad ahora es bloqueo
+   permanente, sin salida para nadie.
+2. **El DNI no está verificado, solo contrastado.** Cualquiera puede escribir un DNI ajeno con el
+   nombre que le corresponde —dato que muchas veces es público— y quedárselo. La unicidad sobre un
+   identificador no verificado deja de proteger y se vuelve un arma: el primero que llega deja al
+   dueño real sin poder registrarse nunca, y hoy no habría forma de devolvérselo.
+
+**Recomendación:** dejar la regla registrada y no aplicarla todavía. Primero el borrado de cuenta y
+una vía de desbloqueo (administrador con prueba de identidad); mientras no existan, es más seguro
+**detectar el duplicado y avisar** que impedirlo.
+
+### 3.7 Qué significa «eliminar la cuenta»
+
+Precisión del 26-nov-2026: al eliminar la cuenta el DNI queda libre y se puede abrir otra con él, y
+la eliminación **no se puede deshacer**.
+
+Eso descarta el borrado blando: si la cuenta se pudiera restaurar, el DNI estaría en dos cuentas a
+la vez y la regla de §3.6 se rompe.
+
+Pero tampoco puede ser un `DELETE` de la fila. Catorce entidades apuntan a `users` con clave ajena,
+y dos de ellas son la cadena de auditoría que sostiene el producto:
+`CareAuthorizationDeclaration.declaredBy` (quién declaró el consentimiento sobre una persona) y
+`HealthEntryVersion.declaredBy` (quién declaró cada versión clínica). Borrar la fila falla por las
+claves ajenas o, si se pone en cascada, **destruye el historial de salud de otras personas y la
+prueba de su consentimiento**. Quien cuidó a su madre no puede llevarse el historial de la madre al
+cerrar su cuenta.
+
+Forma correcta: **borrar el dato identificante y conservar la fila como lápida.**
+
+```
+User
+  email, name, passwordHash, googleSubject, gender, dniHmac  ->  borrados
+  deletedAt : Instant                                        ->  marcado
+```
+
+El historial queda legible como «declarado por una cuenta eliminada», que es la verdad. Es
+irreversible, porque el dato se fue de verdad y no quedó una bandera que alguien pueda desmarcar. Y
+como `dniHmac` se borra, el DNI vuelve a estar libre: la regla de §3.6 se cumple sin romper nada.
+
+**Perfiles donde esa cuenta era el único `PRINCIPAL`.** Decidido el 26-nov-2026: no se elige por
+ella. Se le muestra qué pierde y ella confirma.
+
+Esto no es un cuadro de diálogo del frontend. Un cliente puede no mostrarlo, así que la
+confirmación tiene que ser un dato que el servidor exija y verifique:
+
+```
+GET    /api/v1/users/me/deletion-preview   -- qué se pierde, sin borrar nada
+DELETE /api/v1/users/me                    -- exige confirmar ese detalle
+```
+
+La vista previa separa los perfiles según la consecuencia, porque son distintas:
+
+| Grupo | Qué pasa |
+|---|---|
+| Su propio perfil (es `accountUser`) | Se elimina con sus registros. Es el derecho de supresión. |
+| Perfiles donde es el único `PRINCIPAL` | **Nadie podría abrirlos.** Puede entregarlos antes (§3.4) o aceptar que se eliminen, con el nombre y cuántos registros tiene cada uno. |
+| Perfiles con otro `PRINCIPAL` activo | No se pierde nada: siguen accesibles y ella solo deja de figurar. |
+
+El `DELETE` exige la palabra `ELIMINAR` y repetir los identificadores que aceptó perder. Si la
+lista cambió desde la vista previa —agregó un perfil mientras decidía— el servidor rechaza y obliga
+a verla otra vez, igual que `declare` ya rechaza una declaración cuando el historial cambió debajo
+(`previousDeclarationId`).
+
+Lo que la pantalla debe decir con claridad, porque es lo que más sorprende: su nombre desaparece de
+la cadena de auditoría, pero **las declaraciones que hizo sobre otras personas no se borran**.
+Quedan como «declarado por una cuenta eliminada». No puede retirar la prueba del consentimiento con
+que registró a otro, y eso es a propósito.
+
+**Entregado el 26-nov-2026:** las dos rutas, la confirmación verificada en el servidor, la lápida,
+el acceso cerrado —el filtro resuelve el usuario en cada petición, así que descartar la cuenta
+eliminada ahí corta también los tokens ya emitidos— y el correo liberado para volver a registrarse.
+Nueve pruebas de integración.
+
+**Límite aceptado el 26-nov-2026:** un perfil con historial de salud no se puede eliminar. La
+regla ya existía en `CareSubjectService.delete` y **se decidió no cambiarla**, así que el borrado se
+rechaza y la vista previa lo avisa antes, nombrando el perfil.
+
+Hay que decir lo que eso implica, porque no es solo un detalle técnico: **quien ya registró datos de
+salud no puede eliminar su cuenta todavía.** El derecho de supresión queda a medias y el DNI de
+§3.6 no se liberaría en ese caso. Es una limitación conocida y asumida (R9 en §6), no un descuido:
+el borrado en cascada del historial propio arrastra archivos en almacenamiento, no solo filas, y
+conservar el historial se consideró preferible a construir ese camino ahora.
 
 ---
 
@@ -488,6 +601,7 @@ el texto aclarando que lo no confirmado no equivale a no tomado.
 | R3 | La inmutabilidad del historial choca con el derecho de supresión que el nuevo titular adquiere. | Es el mismo problema ya abierto en #73; el canje lo vuelve exigible antes. Definir conservación y supresión antes del piloto. |
 | R4 | El bucle diario eleva la expectativa de fiabilidad (§1.3). | Métricas de envío, reintentos, y copy que no prometa más de lo que el canal garantiza. |
 | R5 | Cambio de esquema con *backfill* (perfiles propios de cuentas existentes) bajo `ddl-auto=update`. | `update` agrega la columna, pero no hace backfill ni garantiza índices parciales. Es el caso que justifica Flyway antes de empezar. |
+| R9 | **El borrado de cuenta no alcanza a quien tiene historial de salud** (§3.7). La regla de no eliminar un perfil con registros se mantuvo a propósito, así que esas cuentas no se pueden eliminar y su derecho de supresión queda pendiente. | Decirlo en la pantalla con el perfil que bloquea, y ofrecer la entrega del perfil (§3.4) como salida cuando el titular es otro. Resolver el borrado en cascada del historial propio —incluidos los archivos en almacenamiento— antes del piloto con datos reales. |
 | R6 | Edad mínima y consentimiento de menores sobre dato sensible; el reglamento pudo cambiar desde 2013. **La edad es declarada, no verificada** (§3.5): un año falso o mal tecleado abre o cierra el canje. | Política configurable + revisión legal con el texto vigente antes del piloto. Aviso a los cuidadores activos al emitir y al canjear, para que un error sea visible. Texto del canje redactado para que un adolescente lo entienda. No afirmar en producto que una declaración «verifica» algo. |
 
 ---
@@ -525,3 +639,7 @@ elegir una sola, F1 es la que cambia el producto; F3 es la que cambia el uso dia
    fecha de nacimiento sigue siendo un dato que escribe un tercero sobre un menor.
 7. ¿`MISMATCH` bloquea la emisión o solo advierte al cuidador? (recomendación: bloquea, porque un
    tipeo se corrige y un nombre que no es el del DNI es justo la señal que se buscaba)
+8. ¿Se aplica «una cuenta por DNI» (§3.6)? Requiere guardar un HMAC del DNI, que hoy no se guarda, y
+   depende de dos piezas que no existen: el borrado de cuenta y una vía de desbloqueo. Sin ellas la
+   regla bloquea para siempre a quien le hayan tomado el DNI. (recomendación: registrarla, detectar
+   el duplicado y avisar, y aplicarla recién cuando esas dos piezas estén)

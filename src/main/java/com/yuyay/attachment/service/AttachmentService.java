@@ -226,6 +226,22 @@ public class AttachmentService {
         deleteFromStorageAfterCommit(key);
     }
 
+    /**
+     * Borra los documentos y las notas de voz de un perfil que se va a eliminar. Quien llama ya
+     * comprobó el permiso y que el perfil no tiene historial de salud, así que ningún registro los
+     * cita. Los archivos se borran del almacenamiento solo si la transacción se confirma.
+     */
+    public void deleteAllOfSubject(Long subjectId) {
+        List<Attachment> attachments = attachmentRepo.findByCareSubjectIdOrderByUploadedAtDesc(subjectId);
+        if (attachments.stream().anyMatch(attachment -> attachment.getOcrStatus() == OcrStatus.PENDING)) {
+            throw new InvalidOperationException("Espera a que termine la lectura de los documentos antes de eliminar este perfil");
+        }
+        attachmentRepo.deleteAll(attachments);
+        // Antes de borrar el perfil: la clave foránea del adjunto no tiene cascada
+        attachmentRepo.flush();
+        attachments.forEach(attachment -> deleteFromStorageAfterCommit(attachment.getStorageKey()));
+    }
+
     public AttachmentResponse retryOcr(Long subjectId, Long attachmentId) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireAccess(meId, subjectId);
