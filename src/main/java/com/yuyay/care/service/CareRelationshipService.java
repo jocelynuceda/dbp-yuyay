@@ -105,6 +105,12 @@ public class CareRelationshipService {
 
     public CareRelationshipResponse accept(Long relationshipId) {
         Long meId = currentUserService.getCurrentUserId();
+        // El bloqueo del perfil va primero: si hay una entrega en curso, la relación y el titular se
+        // leen cuando ya terminó y no quedan dos PRINCIPAL.
+        Long subjectId = relationshipRepo.findCareSubjectIdById(relationshipId)
+                .orElseThrow(() -> new CareRelationshipNotFoundException(relationshipId));
+        CareSubject subject = subjectRepo.findForUpdateById(subjectId)
+                .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
         CareRelationship rel = loadRelationship(relationshipId);
 
         if (!rel.getUser().getId().equals(meId)) {
@@ -114,7 +120,6 @@ public class CareRelationshipService {
             throw new InvalidCareRelationshipException("La invitación no está pendiente");
         }
 
-        CareSubject subject = rel.getCareSubject();
         if (rel.getRole() == CareRole.PRINCIPAL
                 && subject.getAccountUser() != null
                 && !subject.getAccountUser().getId().equals(meId)) {
@@ -128,7 +133,7 @@ public class CareRelationshipService {
         Instant now = Instant.now();
         rel.setAcceptedAt(now);
 
-        markInvitationNoticesRead(meId, rel.getCareSubject().getId(), now);
+        markInvitationNoticesRead(meId, subjectId, now);
 
         eventPublisher.publishEvent(new CaregiverJoinedEvent(rel.getId()));
         return mapper.toResponse(rel);
