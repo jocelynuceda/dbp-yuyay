@@ -205,6 +205,40 @@ class ConsultationPreparationIntegrationTest {
         return "{\"date\":\"" + date + "\",\"reason\":\"" + reason + "\"}";
     }
 
+    @Test
+    void repeatedManualPostReturnsTheOriginalSnapshotOnce() throws Exception {
+        var a = entry("Primero");
+        var b = entry("Segundo");
+        String url = "/api/v1/care-subjects/" + subjectId + "/handoffs";
+        String body = json.writeValueAsString(java.util.Map.of(
+                "requestId", UUID.randomUUID(), "reason", "Manual", "healthEntryIds", java.util.List.of(b.get("id"), a.get("id")),
+                "expectedVersionIds", java.util.Map.of(a.get("id").asText(), a.get("latestVersion").get("id"),
+                        b.get("id").asText(), b.get("latestVersion").get("id"))));
+        try (var threads = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var start = new java.util.concurrent.CountDownLatch(1);
+            var calls = java.util.stream.IntStream.range(0, 4).mapToObj(i -> threads.submit(() -> {
+                start.await();
+                return send(post(url), brunoToken, body, 201);
+            })).toList();
+            start.countDown();
+            var saved = calls.getFirst().get(30, java.util.concurrent.TimeUnit.SECONDS);
+            for (var call : calls) assertEquals(saved, call.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(b.get("id"), saved.get("items").get(0).get("healthEntryId"));
+            send(patch("/api/v1/care-subjects/" + subjectId + "/health-entries/" + b.get("id").asLong()), anaToken,
+                    "{\"title\":\"Resultado actualizado\",\"confidenceLevel\":\"CONFIRMED\"}", 200);
+            assertEquals(saved, send(post(url), brunoToken, body, 201));
+        }
+        send(post(url), brunoToken, body.replace("Manual", "Otro"), 409);
+        assertEquals(1, send(get(url), anaToken, null, 200).size());
+        for (var rel : send(get("/api/v1/care-subjects/" + subjectId + "/relationships"), anaToken, null, 200)) {
+            if ("CAREGIVER".equals(rel.get("role").asText())) {
+                send(delete("/api/v1/care-subjects/" + subjectId + "/relationships/" + rel.get("id").asLong()),
+                        anaToken, null, 204);
+            }
+        }
+        send(post(url), brunoToken, body, 403);
+    }
+
     private String register(String email, String name) throws Exception {
         return send(post("/api/v1/auth/register"), null,
                 "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201).get("accessToken").asText();
