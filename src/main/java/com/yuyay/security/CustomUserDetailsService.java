@@ -15,12 +15,18 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) {
         return userRepository.findByEmailIgnoreCase(email)
+                .filter(user -> !user.isDeleted())
                 .map(UserPrincipal::new)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
     }
 
+    /**
+     * El filtro resuelve aquí el usuario de cada petición, así que descartar la cuenta eliminada en
+     * este punto corta también los tokens de acceso que ya estaban emitidos.
+     */
     public UserDetails loadUserById(Long id) {
         return userRepository.findById(id)
+                .filter(user -> !user.isDeleted())
                 .map(UserPrincipal::new)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
     }
