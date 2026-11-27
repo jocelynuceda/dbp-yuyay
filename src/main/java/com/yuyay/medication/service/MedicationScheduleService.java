@@ -124,6 +124,7 @@ public class MedicationScheduleService {
         MedicationSchedule schedule = schedules.findByHealthEntryId(entryId).orElseGet(() -> MedicationSchedule.builder()
                 .healthEntry(entry)
                 .careSubject(entry.getCareSubject())
+                .createdAt(clock.instant())
                 .build());
         schedule.getTimes().clear();
         schedule.getTimes().addAll(times);
@@ -178,6 +179,8 @@ public class MedicationScheduleService {
                 HealthEntryVersion version = latest.get(schedule.getHealthEntry().getId());
                 for (LocalTime time : schedule.getTimes()) {
                     DoseLog log = marked.get(key(schedule.getId(), day, time));
+                    // Una toma anterior a la creación del horario no cuenta como no tomada: no existía
+                    if (log == null && !schedule.existedAt(day.atTime(time).atZone(zone).toInstant())) continue;
                     doses.add(new AgendaDoseResponse(
                             schedule.getId(),
                             schedule.getHealthEntry().getId(),
@@ -272,9 +275,10 @@ public class MedicationScheduleService {
         return schedule;
     }
 
-    private static void requireScheduledDose(MedicationSchedule schedule, LocalDate date, LocalTime time) {
+    private void requireScheduledDose(MedicationSchedule schedule, LocalDate date, LocalTime time) {
         LocalTime minute = time.truncatedTo(ChronoUnit.MINUTES);
-        if (!schedule.appliesOn(date) || !schedule.getTimes().contains(minute)) {
+        if (!schedule.appliesOn(date) || !schedule.getTimes().contains(minute)
+                || !schedule.existedAt(date.atTime(minute).atZone(zone).toInstant())) {
             throw new InvalidOperationException("Esa toma no está en el horario");
         }
     }

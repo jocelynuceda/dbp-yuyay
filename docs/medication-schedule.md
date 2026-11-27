@@ -33,6 +33,8 @@ las tomas de todas las personas que cuido, en orden de día y hora:
 ```
 
 `status` es `null` si nadie marcó la toma. Un medicamento eliminado sale de la agenda.
+Las tomas anteriores a la creación del horario no aparecen ni se pueden marcar: no había horario que
+seguir. Editar el horario no cambia esa fecha, así que las tomas que ya existían se conservan.
 
 ## Marcar una toma
 

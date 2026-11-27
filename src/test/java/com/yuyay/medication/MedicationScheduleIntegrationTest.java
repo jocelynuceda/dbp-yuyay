@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -41,6 +42,7 @@ class MedicationScheduleIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired JdbcTemplate jdbc;
 
     private String ana;
     private long subject;
@@ -167,6 +169,25 @@ class MedicationScheduleIntegrationTest {
     }
 
     @Test
+    @DisplayName("las tomas anteriores a la creación del horario no salen ni se marcan, también al editarlo")
+    void dosesBeforeTheScheduleExistedAreLeftOut() throws Exception {
+        String url = "/api/v1/care-subjects/" + subject + "/health-entries/" + losartan + "/schedule";
+        Map<String, Object> body = Map.of("times", List.of("00:00"), "startDate", YESTERDAY.toString());
+        long scheduleId = send(put(url), ana, body, 200).get("id").asLong();
+
+        // Ayer y hoy a las 00:00 ya pasaron cuando se creó: no cuentan como no tomadas
+        assertEquals(1, agenda(YESTERDAY, TODAY.plusDays(1)).size());
+        assertEquals(TODAY.plusDays(1).toString(), agenda(YESTERDAY, TODAY.plusDays(1)).get(0).get("date").asText());
+        send(put("/api/v1/medication-schedules/" + scheduleId + "/doses"), ana,
+                Map.of("date", YESTERDAY.toString(), "time", "00:00", "status", "LATE"), 409);
+
+        // Editarlo no mueve la fecha de creación: las tomas que ya existían siguen
+        String createdAt = jdbc.queryForObject("select created_at from medication_schedules where id = ?", String.class, scheduleId);
+        send(put(url), ana, Map.of("times", List.of("00:00", "12:00"), "startDate", YESTERDAY.toString()), 200);
+        assertEquals(createdAt, jdbc.queryForObject("select created_at from medication_schedules where id = ?", String.class, scheduleId));
+    }
+
+    @Test
     @DisplayName("la agenda acepta como máximo 42 días")
     void theAgendaRangeIsLimited() throws Exception {
         send(get("/api/v1/me/medication-agenda?from=" + TODAY + "&to=" + TODAY.plusDays(41)), ana, null, 200);
@@ -184,7 +205,11 @@ class MedicationScheduleIntegrationTest {
         Map<String, Object> body = new HashMap<>(Map.of("times", times, "startDate", start.toString()));
         if (days != null) body.put("daysOfWeek", days);
         if (end != null) body.put("endDate", end.toString());
-        return send(put("/api/v1/care-subjects/" + subject + "/health-entries/" + entryId + "/schedule"), ana, body, expected);
+        JsonNode schedule = send(put("/api/v1/care-subjects/" + subject + "/health-entries/" + entryId + "/schedule"), ana, body, expected);
+        // Como si el horario existiera desde antes: así las tomas de hoy no dependen de la hora de la prueba
+        if (expected == 200) jdbc.update("update medication_schedules set created_at = ? where id = ?",
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(90))), schedule.get("id").asLong());
+        return schedule;
     }
 
     private JsonNode agenda(LocalDate from, LocalDate to) throws Exception {

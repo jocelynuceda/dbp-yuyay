@@ -10,6 +10,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -66,6 +67,19 @@ public class MedicationSchedule {
 
     @Column(nullable = false)
     private Instant updatedAt;
+
+    /**
+     * Desde cuándo existe el horario. Las tomas anteriores no se muestran ni se marcan: no había
+     * horario que seguir. No cambia al editarlo, para que las tomas que ya existían no desaparezcan.
+     */
+    @Column(updatable = false)
+    private Instant createdAt;
+
+    /** ¿Ya existía el horario a esa hora? Al minuto, para no perder la toma de la hora en que se creó. */
+    public boolean existedAt(Instant doseAt) {
+        Instant since = createdAt != null ? createdAt : updatedAt;
+        return !doseAt.isBefore(since.truncatedTo(ChronoUnit.MINUTES));
+    }
 
     /** ¿Toca alguna toma ese día? */
     public boolean appliesOn(LocalDate date) {

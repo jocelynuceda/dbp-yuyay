@@ -359,6 +359,8 @@ public class DemoDataSeeder {
                 .startDate(LocalDate.now().minusMonths(2))
                 .updatedBy(ana)
                 .updatedAt(Instant.now())
+                // Creado cuando empezó el tratamiento: la agenda de ejemplo muestra el día completo
+                .createdAt(Instant.now().minus(60, ChronoUnit.DAYS))
                 .build());
     }
 
@@ -380,6 +382,7 @@ public class DemoDataSeeder {
                     .startDate(today.minusMonths(1))
                     .updatedBy(users.ana())
                     .updatedAt(now)
+                    .createdAt(now.minus(30, ChronoUnit.DAYS))
                     .build());
             if (times.size() == 2) {
                 doseLogRepo.save(DoseLog.builder().schedule(schedule).date(today).time(times.get(0))
