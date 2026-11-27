@@ -104,7 +104,7 @@ public class DelegationService {
 
     public void revoke(Long delegationId) {
         Long meId = currentUserService.getCurrentUserId();
-        Delegation delegation = delegationRepo.findWithCategoriesById(delegationId)
+        Delegation delegation = delegationRepo.findForUpdateById(delegationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delegación no encontrada"));
         authorizationService.requireRole(meId, delegation.getCareSubject().getId(), CareRole.PRINCIPAL);
 
@@ -115,7 +115,7 @@ public class DelegationService {
     }
 
     public DelegateSessionResponse exchange(String rawToken) {
-        Delegation delegation = delegationRepo.findByTokenHash(TokenHasher.sha256(rawToken))
+        Delegation delegation = delegationRepo.findForUpdateByTokenHash(TokenHasher.sha256(rawToken))
                 .orElseThrow(() -> new ResourceNotFoundException("Enlace de delegación no encontrado"));
 
         if (!delegation.isValidNow()) {
