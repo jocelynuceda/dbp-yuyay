@@ -17,4 +17,9 @@ public interface IdentityDirectory {
      * @throws IllegalArgumentException si el DNI no tiene el formato esperado
      */
     IdentityLookup findByDni(String dni);
+
+    /** Falso cuando no hay proveedor configurado: ninguna consulta puede responderse. */
+    default boolean isConfigured() {
+        return true;
+    }
 }

@@ -45,6 +45,10 @@ public class User {
     @Column(nullable = false, length = 120)
     private String name;
 
+    /** Nombre completo del documento; {@code name} es el nombre de usuario. Nulo en cuentas anteriores. */
+    @Column(length = 200, updatable = false)
+    private String fullName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

@@ -15,10 +15,13 @@ public record RegisterRequestDTO(
         @NotBlank @Size(min = 8, max = 72)
         @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = "debe contener al menos una letra y un número")
         String password,
+        /** Nombre de usuario: el que se muestra en la app. */
         @NotBlank @Size(max = 120) String name,
         Gender gender,
-        /** Solo se contrasta con el nombre; no se guarda ni se escribe en logs. */
+        /** Obligatorio. Solo sirve para consultar el nombre completo; no se guarda ni se escribe en logs. */
         @Pattern(regexp = "\\d{8}", message = "El DNI debe tener ocho dígitos") String dni,
+        /** Solo se usa si la consulta de DNI no está configurada; si lo está, manda el directorio. */
+        @Size(max = 200) String fullName,
         @Schema(type = "boolean", requiredMode = Schema.RequiredMode.REQUIRED) JsonNode termsAccepted,
         @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED) JsonNode termsVersion
 ) {

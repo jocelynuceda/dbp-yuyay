@@ -7,7 +7,7 @@ las solicitudes a Yuyay por HTTPS.
 
 `GET /terms` es público y devuelve `200 OK` con `version` y `text` en JSON.
 `text` contiene los términos de uso y el aviso de privacidad íntegros en español.
-La versión vigente es `1.1`. El cliente presenta el texto y solicita una confirmación
+La versión vigente es `1.2`. El cliente presenta el texto y solicita una confirmación
 explícita antes de enviar un alta. Conviene volver a consultar el endpoint si la
 versión resulta obsoleta.
 
@@ -15,20 +15,24 @@ versión resulta obsoleta.
 
 `POST /register` devuelve `201 Created`. Conserva los campos anteriores y exige
 la confirmación booleana `termsAccepted: true` y la cadena `termsVersion` vigente.
-El cliente puede omitir `dni` y `gender`. Si envía un DNI, debe ser una cadena de ocho dígitos.
-El registro compara el nombre después de validar los términos y descartar un correo duplicado.
-El contraste usa distancia de Levenshtein normalizada por palabra, después de normalizar tildes
-y mayúsculas. Basta con un nombre y un apellido en posiciones distintas. Las palabras adicionales
-que el usuario escriba también deben coincidir. Solo una puntuación interna de 1 pasa el contraste.
-Por ejemplo, «Luiz Ramos» frente a «Luis Ramos» obtiene 0,75 y pide corrección. La puntuación
-y el nombre del directorio no se envían al cliente ni se guardan.
-Una discrepancia o un documento inexistente devuelve el mismo 400. Un fallo del proveedor,
-una respuesta ilegible o la falta de credencial devuelve 503. En ambos casos no se crea la cuenta.
+`dni` es obligatorio (ocho dígitos) y `gender` se puede omitir. `name` es el **nombre de usuario**
+que se muestra en la aplicación; puede repetirse y no se contrasta con el documento.
+
+`POST /dni-lookup` con `{"dni":"…"}` devuelve `{"fullName":"…"}` para mostrarlo antes de crear la
+cuenta. El alta vuelve a consultar y guarda ese nombre en `fullName`, aparte de `name`; no usa el
+que envíe el cliente. El DNI no se guarda. Un documento inexistente devuelve 400 en el campo `dni`;
+un fallo del proveedor o una respuesta ilegible, 503 `DNI_LOOKUP_UNAVAILABLE`.
+
+Sin `RENIEC_API_TOKEN` la consulta responde 503 `DNI_LOOKUP_NOT_CONFIGURED`: el cliente deja
+escribir el nombre completo y el alta lo guarda tal cual. El DNI sigue siendo obligatorio.
+
+Como la consulta es anónima y devuelve nombres, quien conozca un DNI puede saber a quién pertenece.
+El presupuesto de consultas limita ese riesgo, pero no lo elimina.
 
 El presupuesto del registro por día UTC se comparte entre las instancias mediante la base de datos.
-Por defecto se permiten 5 consultas por origen y 50 en total, configurables con
+Por defecto se permiten 10 consultas por origen y 100 en total (cada alta usa dos), configurables con
 `REGISTRATION_DNI_PER_ORIGIN` y `REGISTRATION_DNI_DAILY_LIMIT`. Al agotarse un cupo se responde 429
-antes de llamar al proveedor. Solo cuentan los intentos con DNI. Los contadores por origen usan
+antes de llamar al proveedor. Sin proveedor configurado no se descuenta cupo. Los contadores por origen usan
 una clave derivada que cambia diariamente y se purgan cada hora después de vencer.
 Tomcat obtiene el origen del proxy inmediato de confianza. Con el proxy de Vercel varios usuarios
 pueden compartir una dirección de salida. Si cambia la red de Docker, configurar las direcciones
@@ -39,8 +43,9 @@ de Caddy en `YUYAY_TRUSTED_PROXY_CIDRS`. El puerto del backend debe seguir ligad
   "email": "cuenta@example.invalid",
   "password": "Ejemplo1234",
   "name": "Persona de prueba",
+  "dni": "00000000",
   "termsAccepted": true,
-  "termsVersion": "1.1"
+  "termsVersion": "1.2"
 }
 ```
 
@@ -55,7 +60,7 @@ envía `acceptedTermsVersion` con la versión que mostró.
 ```json
 {
   "idToken": "<ID token>",
-  "acceptedTermsVersion": "1.1"
+  "acceptedTermsVersion": "1.2"
 }
 ```
 
@@ -136,7 +141,7 @@ y el mensaje indica actualizar Yuyay si la opción no aparece.
   `uq_users_google_subject`. El usuario de base debe poder modificar el esquema,
   igual que con `ddl-auto=update`. Se conservan los hashes y las cuentas anteriores.
 - El alta guarda versión y fecha del servidor con la cuenta en la misma
-  transacción. La versión 1.1 se sirve desde `terms/yuyay-1.1.txt`. Una nueva
+  transacción. La versión 1.2 se sirve desde `terms/yuyay-1.2.txt`. Una nueva
   versión del documento debe tener su propio recurso y actualizar la versión
   vigente. Una eventual nueva aceptación de cuentas existentes tendrá un flujo
   explícito.

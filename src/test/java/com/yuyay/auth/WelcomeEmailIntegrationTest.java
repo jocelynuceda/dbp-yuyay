@@ -80,6 +80,6 @@ class WelcomeEmailIntegrationTest {
     }
 
     private String body(String email, String name) {
-        return "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.1\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}";
+        return "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}";
     }
 }

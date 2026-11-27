@@ -160,7 +160,7 @@ class CareSubjectIdentityCheckIntegrationTest {
         JsonNode auth = send(post("/api/v1/auth/register"), null, Map.of(
                 "email", "identity." + UUID.randomUUID() + "@yuyay.app",
                 "password", "Secreta123", "name", "Prueba",
-                "termsAccepted", true, "termsVersion", "1.1"), 201);
+                "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678"), 201);
         return new Session(auth.get("accessToken").asText(), auth.get("user").get("id").asLong());
     }
 

@@ -25,11 +25,11 @@ const terms = await call('/auth/terms', undefined, 200);
 assert.match(terms.text, /APIsPERU/);
 // Este cliente usa el contrato sin DNI de las APK anteriores.
 const acceptance = { termsAccepted: true, termsVersion: terms.version };
-await call('/auth/register', { email, password, name: 'Synthetic Diagnostic', ...acceptance }, 201);
+await call('/auth/register', { email, password, name: 'Synthetic Diagnostic', dni: process.env.SMOKE_DNI ?? '00000000', ...acceptance }, 201);
 const session = await call('/auth/login', { email: email.toUpperCase(), password }, 200);
 await call('/users/me', undefined, 200, session.accessToken);
 await call('/auth/login', { email, password: password.trim() }, 401);
-await call('/auth/register', { email, password, name: 'Duplicate', ...acceptance }, 409);
+await call('/auth/register', { email, password, name: 'Duplicate', dni: process.env.SMOKE_DNI ?? '00000000', ...acceptance }, 409);
 const rotated = await call('/auth/refresh', { refreshToken: session.refreshToken }, 200);
 await call('/auth/refresh', { refreshToken: session.refreshToken }, 401);
 await call('/auth/logout', { refreshToken: rotated.refreshToken }, 204);

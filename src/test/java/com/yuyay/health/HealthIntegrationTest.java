@@ -120,7 +120,7 @@ class HealthIntegrationTest {
 
     private String register(String email, String name) throws Exception {
         return send(post("/api/v1/auth/register"), null,
-                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.1\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201).get("accessToken").asText();
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201).get("accessToken").asText();
     }
 
     private JsonNode send(MockHttpServletRequestBuilder req, String token, String body, int expected) throws Exception {

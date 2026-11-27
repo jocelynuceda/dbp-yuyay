@@ -27,7 +27,7 @@ EMAIL="smoke.$(date +%s).$RANDOM@yuyay.app"
 TERMS_VERSION=$(curl -fsS "$API/auth/terms" | jq -er .version)
 # La cuenta sintética del OCR se registra sin consultar un DNI.
 REGISTRATION=$(jq -n --arg email "$EMAIL" --arg version "$TERMS_VERSION" \
-  '{email:$email,password:"Secreta123",name:"Smoke OCR",termsAccepted:true,termsVersion:$version}')
+  '{email:$email,password:"Secreta123",name:"Smoke OCR",dni:"00000000",termsAccepted:true,termsVersion:$version}')
 TOKEN=$(curl -fsS -X POST "$API/auth/register" -H 'Content-Type: application/json' \
   -d "$REGISTRATION" | jq -er '.accessToken | strings | select(length > 0)') || fail "registro sin DNI fallido"
 ok "token obtenido ($EMAIL)"

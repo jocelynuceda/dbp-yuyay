@@ -67,12 +67,19 @@ class RegisterDniIntegrationTest {
 
     @MockitoBean IdentityDirectory identityDirectory;
 
+    @BeforeEach
+    void configuredDirectory() {
+        when(identityDirectory.isConfigured()).thenReturn(true);
+        when(identityDirectory.findByDni(DNI)).thenReturn(new IdentityLookup.Found(ANA));
+    }
+
     @Test
-    @DisplayName("el registro con los términos vigentes y sin DNI no consume cuota")
-    void missingDniKeepsTheLegacyContract() throws Exception {
+    @DisplayName("sin DNI no se crea la cuenta ni se consume cuota")
+    void missingDniIsRejected() throws Exception {
         String email = email();
-        register(email, "Ana Quispe", null).andExpect(status().isCreated());
-        assertTrue(users.existsByEmailIgnoreCase(email));
+        register(email, "Anita", null).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("dni"));
+        assertFalse(users.existsByEmailIgnoreCase(email));
         verify(identityDirectory, never()).findByDni(any());
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM registration_dni_quotas", Integer.class));
     }
@@ -80,35 +87,33 @@ class RegisterDniIntegrationTest {
     @Test
     @DisplayName("un DNI que no tiene ocho dígitos se rechaza sin consultar")
     void malformedDniIsAFieldError() throws Exception {
-        register(email(), "Ana Quispe", "1234567")
+        register(email(), "Anita", "1234567")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors[?(@.field == 'dni')].message").value("El DNI debe tener ocho dígitos"));
         verify(identityDirectory, never()).findByDni(any());
     }
 
     @Test
-    @DisplayName("el nombre coincide con el del DNI: se crea la cuenta y el DNI no se devuelve")
-    void matchingNameCreatesTheAccount() throws Exception {
+    @DisplayName("la consulta devuelve el nombre completo")
+    void lookupReturnsTheFullName() throws Exception {
+        lookup(DNI).andExpect(status().isOk())
+                .andExpect(jsonPath("$.fullName").value("ANA LUCIA QUISPE MAMANI"));
+    }
+
+    @Test
+    @DisplayName("se guarda el nombre de usuario y, aparte, el nombre completo del directorio")
+    void accountKeepsUsernameAndDirectoryFullName() throws Exception {
         when(identityDirectory.findByDni(DNI)).thenAnswer(call -> {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             return new IdentityLookup.Found(ANA);
         });
         String email = email();
-        register(email, "Ana Quispe", DNI)
+        register(email, "Anita", DNI)
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.name").value("Anita"))
+                .andExpect(jsonPath("$.user.fullName").value("ANA LUCIA QUISPE MAMANI"))
                 .andExpect(jsonPath("$.user.dni").doesNotExist());
-        assertTrue(users.existsByEmailIgnoreCase(email));
-    }
-
-    @Test
-    @DisplayName("el nombre no coincide: 400 en el campo dni y no se crea la cuenta")
-    void mismatchingNameIsRejected() throws Exception {
-        when(identityDirectory.findByDni(DNI)).thenReturn(new IdentityLookup.Found(ANA));
-        String email = email();
-        register(email, "Rosa Flores", DNI)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("Revisa el DNI y escribe al menos un nombre y un apellido tal como figuran en tu documento."));
-        assertFalse(users.existsByEmailIgnoreCase(email));
+        assertEquals("ANA LUCIA QUISPE MAMANI", users.findByEmailIgnoreCase(email).orElseThrow().getFullName());
     }
 
     @Test
@@ -116,42 +121,39 @@ class RegisterDniIntegrationTest {
     void unknownDniIsRejected() throws Exception {
         when(identityDirectory.findByDni(DNI)).thenReturn(new IdentityLookup.NotFound());
         String email = email();
-        register(email, "Ana Quispe", DNI)
+        register(email, "Anita", DNI)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[?(@.field == 'dni')].message").value("Revisa el DNI y escribe al menos un nombre y un apellido tal como figuran en tu documento."));
+                .andExpect(jsonPath("$.fieldErrors[?(@.field == 'dni')].message").value("DNI no existe, ingresa uno válido"));
         assertFalse(users.existsByEmailIgnoreCase(email));
-    }
-
-    @Test
-    void aNearMatchCanBeCorrectedBeforeAnAccountIsCreated() throws Exception {
-        when(identityDirectory.findByDni(DNI)).thenReturn(
-                new IdentityLookup.Found(new IdentityRecord("LUIS FELIPE", "RAMOS", "SOTO")));
-        String email = email();
-        register(email, "Luiz Ramos", DNI)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("dni"))
-                .andExpect(jsonPath("$.fieldErrors[0].message")
-                        .value("Revisa el DNI y escribe al menos un nombre y un apellido tal como figuran en tu documento."));
-        assertFalse(users.existsByEmailIgnoreCase(email));
-        register(email, "Luis Ramos", DNI).andExpect(status().isCreated());
-        assertTrue(users.existsByEmailIgnoreCase(email));
     }
 
     @Test
     void unavailableDirectoryIsRetryableAndDoesNotCreateAnAccount() throws Exception {
         when(identityDirectory.findByDni(DNI)).thenReturn(new IdentityLookup.Unavailable("sin respuesta"));
         String email = email();
-        register(email, "Ana Quispe", DNI).andExpect(status().isServiceUnavailable())
+        register(email, "Anita", DNI).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("DNI_LOOKUP_UNAVAILABLE"));
         assertFalse(users.existsByEmailIgnoreCase(email));
     }
 
     @Test
+    @DisplayName("sin proveedor configurado se guarda el nombre escrito y no se consulta")
+    void unconfiguredDirectoryKeepsTheTypedName() throws Exception {
+        when(identityDirectory.isConfigured()).thenReturn(false);
+        lookup(DNI).andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("DNI_LOOKUP_NOT_CONFIGURED"));
+        String email = email();
+        register(email, "Anita", DNI, "192.0.2.1", "Ana Quispe").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.fullName").value("Ana Quispe"));
+        verify(identityDirectory, never()).findByDni(any());
+    }
+
+    @Test
     void duplicateEmailDoesNotSpendALookup() throws Exception {
         String email = email();
-        register(email, "Ana Quispe", null).andExpect(status().isCreated());
-        register(email, "Ana Quispe", DNI).andExpect(status().isConflict());
-        verify(identityDirectory, never()).findByDni(any());
+        register(email, "Anita", DNI).andExpect(status().isCreated());
+        register(email, "Anita", DNI).andExpect(status().isConflict());
+        verify(identityDirectory, times(1)).findByDni(any());
     }
 
     @Test
@@ -164,7 +166,7 @@ class RegisterDniIntegrationTest {
         register(email(), "Ana Quispe", DNI, "192.0.2.2").andExpect(status().isBadRequest());
         register(email(), "Ana Quispe", DNI, "192.0.2.3").andExpect(status().isTooManyRequests());
         verify(identityDirectory, times(3)).findByDni(DNI);
-        register(email(), "Ana Quispe", null).andExpect(status().isCreated());
+        register(email(), "Ana Quispe", null).andExpect(status().isBadRequest());
     }
 
     @Test
@@ -208,11 +210,22 @@ class RegisterDniIntegrationTest {
         return register(email, name, dni, "192.0.2.1");
     }
 
+    private ResultActions lookup(String dni) throws Exception {
+        return mvc.perform(post("/api/v1/auth/dni-lookup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("dni", dni))));
+    }
+
     private ResultActions register(String email, String name, String dni, String origin) throws Exception {
+        return register(email, name, dni, origin, null);
+    }
+
+    private ResultActions register(String email, String name, String dni, String origin, String fullName) throws Exception {
         Map<String, Object> body = new HashMap<>(Map.of(
                 "email", email, "password", "Secreta123", "name", name,
-                "termsAccepted", true, "termsVersion", "1.1"));
+                "termsAccepted", true, "termsVersion", "1.2"));
         if (dni != null) body.put("dni", dni);
+        if (fullName != null) body.put("fullName", fullName);
         return mvc.perform(post("/api/v1/auth/register")
                 .with(req -> {
                     req.setRemoteAddr(origin);

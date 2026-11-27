@@ -60,15 +60,18 @@ public class AuthService {
         if (userRepository.existsByEmailIgnoreCase(dto.email())) {
             throw new DuplicateEmailException("El email ya está registrado");
         }
-        // Después del email duplicado: la consulta de DNI se paga o consume cuota.
-        if (dto.dni() != null) {
-            dniQuota.reserve(origin);
-            requireDniMatchesName(dto.dni(), dto.name());
+        if (dto.dni() == null) {
+            throw new FieldRejectedException("dni", "Ingresa tu DNI. Si no ves el campo, actualiza Yuyay.");
         }
+        // Después del email duplicado: la consulta de DNI se paga o consume cuota.
+        String fullName = identityDirectory.isConfigured()
+                ? lookUpFullName(dto.dni(), origin)
+                : typedFullName(dto.fullName());
         User user = User.builder()
                 .email(dto.email().toLowerCase(Locale.ROOT))
                 .passwordHash(passwordEncoder.encode(dto.password()))
                 .name(dto.name())
+                .fullName(fullName)
                 .gender(dto.gender())
                 .build();
         try {
@@ -81,17 +84,25 @@ public class AuthService {
         }
     }
 
-    private void requireDniMatchesName(String dni, String name) {
-        boolean matches = switch (identityDirectory.findByDni(dni)) {
-            case IdentityLookup.Found found -> found.person().matchesName(name);
-            case IdentityLookup.NotFound ignored -> false;
+    /** Nombre completo que figura para un DNI. Cada consulta consume cuota. */
+    public String lookUpFullName(String dni, String origin) {
+        if (!identityDirectory.isConfigured()) {
+            throw new AuthFlowException(HttpStatus.SERVICE_UNAVAILABLE, "DNI_LOOKUP_NOT_CONFIGURED",
+                    "La consulta de DNI no está disponible. Escribe tu nombre completo.");
+        }
+        dniQuota.reserve(origin);
+        return switch (identityDirectory.findByDni(dni)) {
+            case IdentityLookup.Found found -> found.person().fullName();
+            case IdentityLookup.NotFound ignored ->
+                    throw new FieldRejectedException("dni", "DNI no existe, ingresa uno válido");
             case IdentityLookup.Unavailable ignored -> throw new AuthFlowException(
                     HttpStatus.SERVICE_UNAVAILABLE, "DNI_LOOKUP_UNAVAILABLE",
                     "No se pudo consultar el DNI en este momento. Inténtalo más tarde.");
         };
-        if (!matches) {
-            throw new FieldRejectedException("dni", "Revisa el DNI y escribe al menos un nombre y un apellido tal como figuran en tu documento.");
-        }
+    }
+
+    private String typedFullName(String fullName) {
+        return fullName == null || fullName.isBlank() ? null : fullName.strip();
     }
 
     @Transactional
