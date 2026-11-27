@@ -67,8 +67,10 @@ public class ApisPeruIdentityDirectory implements IdentityDirectory {
                     .uri("/api/v1/dni/{dni}", dni)
                     .exchange((request, response) -> read(response.getStatusCode(), body(response)));
         } catch (RestClientException | IllegalStateException e) {
-            // Sin el DNI en el mensaje: es dato personal y los logs se conservan.
-            log.warn("No se pudo consultar el DNI en APIsPERU: {}", e.getMessage());
+            // Solo el tipo de fallo. El mensaje de la excepción incluye la URI de la petición, y la
+            // URI lleva el DNI dentro: registrarlo guardaría el dato personal que esta clase promete
+            // no registrar, y los logs se conservan.
+            log.warn("No se pudo consultar el DNI en APIsPERU: {}", e.getClass().getSimpleName());
             return new IdentityLookup.Unavailable("El servicio de consulta no respondió");
         }
     }
@@ -77,7 +79,8 @@ public class ApisPeruIdentityDirectory implements IdentityDirectory {
         try {
             return response.bodyTo(DniResponse.class);
         } catch (RestClientException e) {
-            log.warn("Respuesta de APIsPERU que no se pudo leer: {}", e.getMessage());
+            // Tampoco el mensaje: al fallar la lectura puede arrastrar el cuerpo, con nombres dentro.
+            log.warn("Respuesta de APIsPERU que no se pudo leer: {}", e.getClass().getSimpleName());
             return null;
         }
     }

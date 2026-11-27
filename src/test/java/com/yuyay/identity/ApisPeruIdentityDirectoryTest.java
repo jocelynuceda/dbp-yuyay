@@ -12,6 +12,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -101,19 +102,47 @@ class ApisPeruIdentityDirectoryTest {
     }
 
     @Test
-    void theDniNeverReachesTheLog() {
+    void theDniNeverReachesTheLogWhenTheCredentialIsRejected() {
+        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        assertThat(logsOf(() -> directory.findByDni(DNI)))
+                .isNotEmpty()
+                .noneMatch(message -> message.contains(DNI));
+    }
+
+    /**
+     * El caso que de verdad lo arriesga: el mensaje de la excepción de red lleva dentro la URI de la
+     * petición, y la URI lleva el DNI. Registrarlo guardaría el dato personal en un log que se
+     * conserva.
+     */
+    @Test
+    void theDniNeverReachesTheLogWhenTheConnectionFails() {
+        server.expect(requestTo(URL)).andRespond(request -> {
+            throw new IOException("conexión rechazada");
+        });
+
+        assertThat(logsOf(() -> directory.findByDni(DNI)))
+                .isNotEmpty()
+                .noneMatch(message -> message.contains(DNI));
+    }
+
+    @Test
+    void theDniNeverReachesTheLogWhenTheBodyCannotBeRead() {
+        server.expect(requestTo(URL))
+                .andRespond(withSuccess("{\"nombres\": no es json}", MediaType.APPLICATION_JSON));
+
+        assertThat(logsOf(() -> directory.findByDni(DNI)))
+                .noneMatch(message -> message.contains(DNI));
+    }
+
+    private List<String> logsOf(Runnable call) {
         Logger logger = (Logger) LoggerFactory.getLogger(ApisPeruIdentityDirectory.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
         try {
-            server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
-
-            directory.findByDni(DNI);
-
-            assertThat(appender.list).isNotEmpty();
-            assertThat(appender.list)
-                    .noneMatch(event -> event.getFormattedMessage().contains(DNI));
+            call.run();
+            return appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
         } finally {
             logger.detachAppender(appender);
         }
