@@ -31,14 +31,13 @@ public class UserService {
     @Transactional
     public UserResponseDTO updateMe(UpdateUserDTO dto) {
         User user = findById(currentUser.getCurrentUserId());
-        user.setName(dto.name());
-        if (dto.gender() != null) user.setGender(dto.gender());
-        if (dto.birthDate() != null) {
-            if (dto.birthDate().isBefore(MIN_BIRTH_DATE)) {
-                throw new InvalidOperationException("Revisa la fecha de nacimiento: no puede ser anterior a 1900");
-            }
-            user.setBirthDate(dto.birthDate());
+        user.setName(dto.getName());
+        if (dto.getGender() != null) user.setGender(dto.getGender());
+        LocalDate birthDate = dto.getBirthDate();
+        if (birthDate != null && birthDate.isBefore(MIN_BIRTH_DATE)) {
+            throw new InvalidOperationException("Revisa la fecha de nacimiento: no puede ser anterior a 1900");
         }
+        if (dto.isBirthDateProvided()) user.setBirthDate(birthDate);
         return userMapper.toResponse(user);
     }
 

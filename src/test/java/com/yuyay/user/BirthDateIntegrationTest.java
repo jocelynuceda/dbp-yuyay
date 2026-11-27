@@ -32,7 +32,7 @@ class BirthDateIntegrationTest {
     @Autowired ObjectMapper json;
 
     @Test
-    @DisplayName("empieza vacía, se guarda desde el perfil y se conserva si no se envía")
+    @DisplayName("guarda la fecha, la conserva si se omite y la borra con null explícito")
     void savedFromTheProfileAndKept() throws Exception {
         String token = register();
         assertTrue(send(get("/api/v1/users/me"), token, null, 200).get("birthDate").isNull());
@@ -41,8 +41,11 @@ class BirthDateIntegrationTest {
         assertEquals("1981-05-10", updated.get("birthDate").asText());
 
         send(patch("/api/v1/users/me"), token, "{\"name\":\"Ana Torres\"}", 200);
-        send(patch("/api/v1/users/me"), token, "{\"name\":\"Ana\",\"birthDate\":null}", 200);
         assertEquals("1981-05-10", send(get("/api/v1/users/me"), token, null, 200).get("birthDate").asText());
+
+        JsonNode cleared = send(patch("/api/v1/users/me"), token, "{\"name\":\"Ana Torres\",\"birthDate\":null}", 200);
+        assertTrue(cleared.get("birthDate").isNull());
+        assertTrue(send(get("/api/v1/users/me"), token, null, 200).get("birthDate").isNull());
     }
 
     @Test
