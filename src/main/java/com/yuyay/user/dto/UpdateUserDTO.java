@@ -1,5 +1,6 @@
 package com.yuyay.user.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.yuyay.common.Gender;
 import jakarta.validation.constraints.NotBlank;
@@ -22,6 +23,7 @@ public class UpdateUserDTO {
 
     @Past(message = "La fecha de nacimiento debe ser anterior a hoy")
     private LocalDate birthDate;
+    @JsonIgnore
     private boolean birthDateProvided;
 
     /** Jackson solo llama al setter si el campo está presente, incluido un null explícito. */

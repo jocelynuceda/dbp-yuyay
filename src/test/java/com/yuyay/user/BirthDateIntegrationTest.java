@@ -57,6 +57,20 @@ class BirthDateIntegrationTest {
         assertTrue(send(get("/api/v1/users/me"), token, null, 200).get("birthDate").isNull());
     }
 
+    @Test
+    @DisplayName("ignora la bandera interna y toma en cuenta solo la presencia de birthDate")
+    void ignoresClientSuppliedBirthDateFlag() throws Exception {
+        String token = register();
+        send(patch("/api/v1/users/me"), token, "{\"name\":\"Ana\",\"birthDate\":\"1981-05-10\"}", 200);
+
+        send(patch("/api/v1/users/me"), token, "{\"name\":\"Ana Torres\",\"birthDateProvided\":true}", 200);
+        assertEquals("1981-05-10", send(get("/api/v1/users/me"), token, null, 200).get("birthDate").asText());
+
+        send(patch("/api/v1/users/me"), token,
+                "{\"name\":\"Ana Torres\",\"birthDate\":null,\"birthDateProvided\":false}", 200);
+        assertTrue(send(get("/api/v1/users/me"), token, null, 200).get("birthDate").isNull());
+    }
+
     private String register() throws Exception {
         return send(post("/api/v1/auth/register"), null, "{\"email\":\"edad." + UUID.randomUUID() + "@yuyay.app\","
                 + "\"password\":\"Secreta123\",\"name\":\"Ana\",\"termsAccepted\":true,\"termsVersion\":\"1.2\","
