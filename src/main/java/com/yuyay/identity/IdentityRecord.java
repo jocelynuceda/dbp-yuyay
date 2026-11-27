@@ -1,8 +1,8 @@
 package com.yuyay.identity;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -17,6 +17,8 @@ public record IdentityRecord(
         String apellidoPaterno,
         String apellidoMaterno
 ) {
+    private static final Set<String> PARTICLES = Set.of("DE", "DEL", "LA", "LAS", "LOS");
+
     /** Nombre completo en el orden en que lo escribe RENIEC. */
     public String fullName() {
         return String.join(" ", nombres, apellidoPaterno, apellidoMaterno).strip().replaceAll("\\s+", " ");
@@ -35,45 +37,27 @@ public record IdentityRecord(
      * nombre y el DNI se conocen. Reduce el error de tipeo y el perfil inventado, nada más.
      */
     public boolean matchesName(String declaredName) {
-        return nameSimilarity(declaredName) == 1.0;
-    }
-
-    private static final Set<String> PARTICLES = Set.of("DE", "DEL", "LA", "LAS", "LOS");
-
-    private record WordScore(double given, double family) {}
-
-    /** 0..1. Permite omitir nombres del documento. Cada palabra escrita debe corresponder
-     * al documento y dos posiciones distintas deben aportar un nombre y un apellido. */
-    double nameSimilarity(String declaredName) {
         List<String> words = Names.tokens(declaredName);
-        List<String> given = Names.tokens(nombres);
-        List<String> family = Stream.concat(Names.tokens(apellidoPaterno).stream(),
-                Names.tokens(apellidoMaterno).stream()).toList();
-        List<WordScore> candidates = new ArrayList<>();
-        double coverage = 1.0;
+        Set<String> given = Set.copyOf(Names.tokens(nombres));
+        Set<String> family = Stream.concat(Names.tokens(apellidoPaterno).stream(), Names.tokens(apellidoMaterno).stream())
+                .collect(Collectors.toSet());
+
+        boolean seenGiven = false;
+        boolean seenFamily = false;
+        boolean hasPair = false;
         for (String word : words) {
-            if (PARTICLES.contains(word)) {
-                if (!given.contains(word) && !family.contains(word)) return 0.0;
-                continue;
+            boolean isGiven = given.contains(word);
+            boolean isFamily = family.contains(word);
+            if (!isGiven && !isFamily) {
+                return false;
             }
-            WordScore score = new WordScore(bestSimilarity(word, given), bestSimilarity(word, family));
-            candidates.add(score);
-            coverage = Math.min(coverage, Math.max(score.given(), score.family()));
-        }
-
-        double bestPair = 0.0;
-        for (int i = 0; i < candidates.size(); i++) {
-            for (int k = 0; k < candidates.size(); k++) {
-                if (i != k) {
-                    bestPair = Math.max(bestPair, Math.min(candidates.get(i).given(), candidates.get(k).family()));
-                }
+            if (!PARTICLES.contains(word)) {
+                // El nombre y el apellido deben provenir de dos posiciones distintas.
+                hasPair |= (isFamily && seenGiven) || (isGiven && seenFamily);
+                seenGiven |= isGiven;
+                seenFamily |= isFamily;
             }
         }
-        return Math.min(coverage, bestPair);
-    }
-
-    private static double bestSimilarity(String word, List<String> reference) {
-        return reference.stream().filter(candidate -> !PARTICLES.contains(candidate))
-                .mapToDouble(candidate -> Names.similarity(word, candidate)).max().orElse(0.0);
+        return hasPair;
     }
 }

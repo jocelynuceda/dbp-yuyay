@@ -1,7 +1,5 @@
 package com.yuyay.identity;
 
-import org.apache.commons.text.similarity.LevenshteinDistance;
-
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.List;
@@ -29,11 +27,5 @@ final class Names {
         return Arrays.stream(folded.split("[^A-Z]+"))
                 .filter(token -> token.length() >= MIN_LENGTH)
                 .toList();
-    }
-
-    static double similarity(String left, String right) {
-        if (left.equals(right)) return 1.0;
-        int distance = LevenshteinDistance.getDefaultInstance().apply(left, right);
-        return 1.0 - (double) distance / Math.max(left.length(), right.length());
     }
 }

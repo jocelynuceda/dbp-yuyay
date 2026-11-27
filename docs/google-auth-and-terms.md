@@ -18,19 +18,19 @@ la confirmación booleana `termsAccepted: true` y la cadena `termsVersion` vigen
 `dni` es obligatorio (ocho dígitos) y `gender` se puede omitir. `name` es el **nombre de usuario**
 que se muestra en la aplicación; puede repetirse y no se contrasta con el documento.
 
-`POST /dni-lookup` con `{"dni":"…"}` devuelve `{"fullName":"…"}` para mostrarlo antes de crear la
-cuenta. El alta vuelve a consultar y guarda ese nombre en `fullName`, aparte de `name`; no usa el
-que envíe el cliente. El DNI no se guarda. Un documento inexistente devuelve 400 en el campo `dni`;
-un fallo del proveedor o una respuesta ilegible, 503 `DNI_LOOKUP_UNAVAILABLE`.
+La persona escribe sus nombres y apellidos en `fullName`. Al registrar la cuenta, el servidor
+consulta APIsPERU una sola vez y compara el nombre declarado con los datos de ese DNI. Acepta
+al menos un nombre y un apellido en palabras distintas del documento, tolerando tildes,
+mayúsculas y orden. Las palabras adicionales deben pertenecer al documento. En la cuenta se
+guarda el texto escrito por la persona, aparte de su alias; el número de DNI se descarta.
 
-Sin `RENIEC_API_TOKEN` la consulta responde 503 `DNI_LOOKUP_NOT_CONFIGURED`: el cliente deja
-escribir el nombre completo y el alta lo guarda tal cual. El DNI sigue siendo obligatorio.
-
-Como la consulta es anónima y devuelve nombres, quien conozca un DNI puede saber a quién pertenece.
-El presupuesto de consultas limita ese riesgo, pero no lo elimina.
+Una discrepancia y un documento inexistente devuelven el mismo error 400 en el campo `dni`.
+El nombre del directorio no sale en la respuesta. Un fallo del proveedor, una respuesta
+ilegible o la falta de configuración devuelven 503 `DNI_LOOKUP_UNAVAILABLE` y el alta se
+puede reintentar. La coincidencia no demuestra que la persona sea titular del documento.
 
 El presupuesto del registro por día UTC se comparte entre las instancias mediante la base de datos.
-Por defecto se permiten 10 consultas por origen y 100 en total (cada alta usa dos), configurables con
+Por defecto se permiten 5 consultas por origen y 50 en total, configurables con
 `REGISTRATION_DNI_PER_ORIGIN` y `REGISTRATION_DNI_DAILY_LIMIT`. Al agotarse un cupo se responde 429
 antes de llamar al proveedor. Sin proveedor configurado no se descuenta cupo. Los contadores por origen usan
 una clave derivada que cambia diariamente y se purgan cada hora después de vencer.
@@ -44,6 +44,7 @@ de Caddy en `YUYAY_TRUSTED_PROXY_CIDRS`. El puerto del backend debe seguir ligad
   "password": "Ejemplo1234",
   "name": "Persona de prueba",
   "dni": "00000000",
+  "fullName": "Persona Sintética",
   "termsAccepted": true,
   "termsVersion": "1.2"
 }
@@ -54,13 +55,19 @@ de Caddy en `YUYAY_TRUSTED_PROXY_CIDRS`. El puerto del backend debe seguir ligad
 `POST /google` recibe el **ID token** que obtiene el cliente web o móvil de Google.
 El primer intento puede enviar `{"idToken":"<ID token>"}`. Para una cuenta nueva,
 el backend devuelve `428` con `currentVersion`. El cliente consulta `GET /terms`,
-muestra el texto y espera la confirmación explícita del usuario. Al confirmar,
-envía `acceptedTermsVersion` con la versión que mostró.
+muestra el texto y espera la confirmación explícita del usuario. Para completar
+el alta, envía la versión aceptada junto con el DNI, los nombres y apellidos
+escritos por la persona y el alias que eligió. El registro por correo y el de Google
+comparten el mismo contraste y cupo. Las cuentas Google anteriores pueden volver a
+entrar únicamente con su ID token, incluso si el directorio no está disponible.
 
 ```json
 {
   "idToken": "<ID token>",
-  "acceptedTermsVersion": "1.2"
+  "acceptedTermsVersion": "1.2",
+  "dni": "00000000",
+  "fullName": "Persona Sintética",
+  "name": "Mi alias"
 }
 ```
 
@@ -111,10 +118,13 @@ Los siguientes errores agregan `code` al objeto habitual de error
 | --- | --- | --- |
 | 400 en `/register`, 428 en `/google` | `TERMS_ACCEPTANCE_REQUIRED` | Presentar el texto vigente y solicitar confirmación para crear la cuenta. |
 | 400 en `/register`, 428 en `/google` | `TERMS_VERSION_OUTDATED` | Volver a obtener el texto y solicitar confirmación de la versión nueva. |
+| 428 en `/google` | `REGISTRATION_DETAILS_REQUIRED` | La aceptación está vigente. Pedir DNI, nombres y apellidos y alias antes de reenviar la solicitud. |
 | 400 en `/google` | `TERMS_VERSION_INVALID` | Enviar la versión como una cadena de hasta 32 caracteres, con contenido y sin espacios en los extremos. |
 | 401 | `GOOGLE_TOKEN_INVALID` | Reiniciar el flujo de Google y obtener un ID token nuevo. |
 | 409 | `GOOGLE_EMAIL_CONFLICT` | Mostrar el mensaje del servidor, que indica el método de ingreso de la cuenta existente. |
 | 503 | `GOOGLE_AUTH_UNAVAILABLE` | Mostrar que Google no está disponible en este momento. |
+| 503 | `DNI_LOOKUP_UNAVAILABLE` | El directorio del DNI no está disponible. El alta se puede reintentar. |
+| 429 | `DNI_LOOKUP_LIMIT` | Se llegó al presupuesto de consultas del origen o del día. |
 
 El `428` es la señal acordada por Yuyay para el alta con Google. Incluye
 `currentVersion` con la versión vigente y `Cache-Control: no-store`.

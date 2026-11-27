@@ -45,7 +45,7 @@ public class User {
     @Column(nullable = false, length = 120)
     private String name;
 
-    /** Nombre completo del documento; {@code name} es el nombre de usuario. Nulo en cuentas anteriores. */
+    /** Nombre declarado y contrastado al crear la cuenta. El alias se guarda en {@code name}. */
     @Column(length = 200, updatable = false)
     private String fullName;
 

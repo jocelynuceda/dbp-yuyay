@@ -28,6 +28,8 @@
     }
   ],
   "variable": [
+    {"key": "fixtureDni", "value": "00000000", "type": "string"},
+    {"key": "fixtureFullName", "value": "Persona Sintética", "type": "string"},
     {
       "key": "termsVersion",
       "value": "1.2",
@@ -212,7 +214,7 @@
             "description": "Crea la cuenta. Devuelve access token (60 min) y refresh token (7 días). El password debe tener 8–72 caracteres con al menos una letra y un número.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"dni\": \"00000000\",\n  \"gender\": \"FEMALE\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+              "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"gender\": \"FEMALE\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -264,7 +266,7 @@
                 "description": "Crea la cuenta. Devuelve access token (60 min) y refresh token (7 días). El password debe tener 8–72 caracteres con al menos una letra y un número.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"dni\": \"00000000\",\n  \"gender\": \"FEMALE\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+                  "raw": "{\n  \"email\": \"ana.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"gender\": \"FEMALE\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -313,7 +315,7 @@
             "description": "Segunda cuenta: será invitado como cuidador de Pedro.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"bruno.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Bruno Torres\",\n  \"dni\": \"00000000\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+              "raw": "{\n  \"email\": \"bruno.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Bruno Torres\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -363,7 +365,7 @@
                 "description": "Segunda cuenta: será invitado como cuidador de Pedro.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"bruno.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Bruno Torres\",\n  \"dni\": \"00000000\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+                  "raw": "{\n  \"email\": \"bruno.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Bruno Torres\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -412,7 +414,7 @@
             "description": "Tercera cuenta: se usa en la carpeta de seguridad para demostrar que no puede ver datos ajenos.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Carla Ruiz\",\n  \"dni\": \"00000000\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+              "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Carla Ruiz\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -461,7 +463,7 @@
                 "description": "Tercera cuenta: se usa en la carpeta de seguridad para demostrar que no puede ver datos ajenos.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Carla Ruiz\",\n  \"dni\": \"00000000\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+                  "raw": "{\n  \"email\": \"carla.{{runId}}@yuyay.app\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Carla Ruiz\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -806,7 +808,7 @@
             "description": "Email único.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"dni\": \"00000000\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+              "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -854,7 +856,7 @@
                 "description": "Email único.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"dni\": \"00000000\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+                  "raw": "{\n  \"email\": \"{{anaEmail}}\",\n  \"password\": \"Secreta123\",\n  \"name\": \"Ana Torres\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -903,7 +905,7 @@
             "description": "Validación de @Size y @Pattern: devuelve fieldErrors.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"x.{{runId}}@yuyay.app\",\n  \"password\": \"corta\",\n  \"name\": \"X\",\n  \"dni\": \"00000000\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+              "raw": "{\n  \"email\": \"x.{{runId}}@yuyay.app\",\n  \"password\": \"corta\",\n  \"name\": \"X\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -952,7 +954,7 @@
                 "description": "Validación de @Size y @Pattern: devuelve fieldErrors.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"x.{{runId}}@yuyay.app\",\n  \"password\": \"corta\",\n  \"name\": \"X\",\n  \"dni\": \"00000000\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
+                  "raw": "{\n  \"email\": \"x.{{runId}}@yuyay.app\",\n  \"password\": \"corta\",\n  \"name\": \"X\",\n  \"dni\": \"{{fixtureDni}}\",\n  \"fullName\": \"{{fixtureFullName}}\",\n  \"termsAccepted\": true,\n  \"termsVersion\": \"{{termsVersion}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"

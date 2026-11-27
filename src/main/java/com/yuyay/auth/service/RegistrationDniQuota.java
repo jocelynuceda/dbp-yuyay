@@ -41,7 +41,7 @@ public class RegistrationDniQuota {
 
     @Transactional
     public void reserve(String origin) {
-        LocalDate day = LocalDate.now(clock.withZone(ZoneOffset.UTC));
+        LocalDate day = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC);
         // El mismo orden en todas las instancias; si falla el segundo cupo se revierte el primero.
         increment(day, "global", dailyLimit);
         increment(day, originKey(day, origin), perOrigin);
@@ -76,6 +76,6 @@ public class RegistrationDniQuota {
     @Scheduled(cron = "0 5 * * * *", zone = "UTC")
     public void deleteExpired() {
         jdbc.update("DELETE FROM registration_dni_quotas WHERE quota_day < ?",
-                LocalDate.now(clock.withZone(ZoneOffset.UTC)));
+                LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC));
     }
 }

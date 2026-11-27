@@ -5,6 +5,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -61,10 +63,11 @@ class ApisPeruIdentityDirectoryTest {
         assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);
     }
 
-    @Test
-    void anExplicitNoResultsResponseIsNotFound() {
+    @ParameterizedTest
+    @ValueSource(strings = {"No se encontraron resultados", " No  se encontraron RESULTADOS. "})
+    void anExplicitNoResultsResponseIsNotFound(String message) {
         server.expect(requestTo(URL))
-                .andRespond(withSuccess("{\"message\":\"No se encontraron resultados\"}",
+                .andRespond(withSuccess("{\"message\":\"" + message + "\"}",
                         MediaType.APPLICATION_JSON));
 
         assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);

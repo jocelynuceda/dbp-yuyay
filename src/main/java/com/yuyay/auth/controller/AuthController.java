@@ -2,8 +2,6 @@ package com.yuyay.auth.controller;
 
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.yuyay.auth.dto.AuthResponseDTO;
-import com.yuyay.auth.dto.DniLookupRequestDTO;
-import com.yuyay.auth.dto.DniLookupResponseDTO;
 import com.yuyay.auth.dto.GoogleAuthRequestDTO;
 import com.yuyay.auth.dto.LoginRequestDTO;
 import com.yuyay.auth.dto.RefreshTokenRequestDTO;
@@ -13,7 +11,7 @@ import com.yuyay.auth.service.AuthService;
 import com.yuyay.auth.service.GoogleAuthService;
 import com.yuyay.auth.service.TermsService;
 import com.yuyay.exception.ErrorResponseDTO;
-import com.yuyay.exception.GoogleTermsRequiredException;
+import com.yuyay.exception.GoogleRegistrationRequiredException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,14 +35,6 @@ public class AuthController {
         return ResponseEntity.ok().cacheControl(CacheControl.noCache()).body(termsService.current());
     }
 
-    /** Nombre completo para mostrar en el registro, antes de que exista la cuenta. */
-    @PostMapping("/dni-lookup")
-    public ResponseEntity<DniLookupResponseDTO> dniLookup(
-            @Valid @RequestBody DniLookupRequestDTO dto, HttpServletRequest request) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new DniLookupResponseDTO(authService.lookUpFullName(dto.dni(), request.getRemoteAddr())));
-    }
-
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public AuthResponseDTO register(@Valid @RequestBody RegisterRequestDTO dto, HttpServletRequest request) {
@@ -57,18 +47,18 @@ public class AuthController {
     }
 
     @PostMapping("/google")
-    public AuthResponseDTO google(@Valid @RequestBody GoogleAuthRequestDTO dto) {
-        return googleAuthService.signIn(dto);
+    public AuthResponseDTO google(@Valid @RequestBody GoogleAuthRequestDTO dto, HttpServletRequest request) {
+        return googleAuthService.signIn(dto, request.getRemoteAddr());
     }
 
-    @ExceptionHandler(GoogleTermsRequiredException.class)
-    public ResponseEntity<GoogleTermsError> googleTermsRequired(
-            GoogleTermsRequiredException ex, HttpServletRequest request) {
+    @ExceptionHandler(GoogleRegistrationRequiredException.class)
+    public ResponseEntity<GoogleRegistrationError> googleRegistrationRequired(
+            GoogleRegistrationRequiredException ex, HttpServletRequest request) {
         HttpStatus status = ex.getStatus();
         ErrorResponseDTO error = new ErrorResponseDTO(Instant.now(), status.value(), status.getReasonPhrase(),
                 ex.getMessage(), request.getRequestURI(), null, ex.getCode());
         return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
-                .body(new GoogleTermsError(error, ex.getCurrentVersion()));
+                .body(new GoogleRegistrationError(error, ex.getCurrentVersion()));
     }
 
     @PostMapping("/refresh")
@@ -82,5 +72,5 @@ public class AuthController {
         authService.logout(dto.refreshToken());
     }
 
-    public record GoogleTermsError(@JsonUnwrapped ErrorResponseDTO error, String currentVersion) {}
+    public record GoogleRegistrationError(@JsonUnwrapped ErrorResponseDTO error, String currentVersion) {}
 }

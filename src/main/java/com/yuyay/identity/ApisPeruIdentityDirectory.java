@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.regex.Pattern;
 
 /**
  * Directorio de identidad sobre la consulta de DNI de APIsPERU ({@code dniruc.apisperu.com}).
@@ -28,6 +29,8 @@ import java.time.Duration;
 @Component
 @ConditionalOnExpression("!'${app.reniec.api-token:}'.isEmpty()")
 public class ApisPeruIdentityDirectory implements IdentityDirectory {
+
+    private static final Pattern NO_RESULTS = Pattern.compile("No\\s+se\\s+encontraron\\s+resultados\\s*\\.?", Pattern.CASE_INSENSITIVE);
 
     private final RestClient client;
 
@@ -97,7 +100,7 @@ public class ApisPeruIdentityDirectory implements IdentityDirectory {
             log.warn("APIsPERU respondió HTTP {}", status.value());
             return new IdentityLookup.Unavailable("El servicio de consulta respondió con un error");
         }
-        if (body != null && "No se encontraron resultados".equalsIgnoreCase(body.message())) {
+        if (body != null && body.message() != null && NO_RESULTS.matcher(body.message().strip()).matches()) {
             return new IdentityLookup.NotFound();
         }
         if (body == null || !dni.equals(body.dni()) || Boolean.FALSE.equals(body.success()) || isBlank(body.nombres())

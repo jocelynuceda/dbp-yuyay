@@ -82,7 +82,7 @@ class HandoffSourceIntegrationTest {
         String email = "handoff-source-" + UUID.randomUUID() + "@yuyay.app";
         ownerToken = send(post("/api/v1/auth/register"), null, Map.of(
                 "email", email, "name", "Cuidadora", "password", "Secreta123",
-                "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678"), 201).get("accessToken").asText();
+                "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678", "fullName", "Persona Sintetica"), 201).get("accessToken").asText();
         ownerId = users.findByEmailIgnoreCase(email).orElseThrow().getId();
         subjectId = createSubject();
         source = createAttachment(subjectId);

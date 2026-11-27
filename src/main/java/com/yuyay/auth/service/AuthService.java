@@ -12,6 +12,7 @@ import com.yuyay.identity.IdentityLookup;
 import com.yuyay.exception.AuthFlowException;
 import com.yuyay.exception.DuplicateEmailException;
 import com.yuyay.exception.FieldRejectedException;
+import com.yuyay.exception.GoogleRegistrationRequiredException;
 import com.yuyay.exception.InvalidCredentialsException;
 import com.yuyay.exception.InvalidTokenException;
 import com.yuyay.security.JwtService;
@@ -63,15 +64,16 @@ public class AuthService {
         if (dto.dni() == null) {
             throw new FieldRejectedException("dni", "Ingresa tu DNI. Si no ves el campo, actualiza Yuyay.");
         }
+        if (dto.fullName() == null || dto.fullName().isBlank()) {
+            throw new FieldRejectedException("fullName", "Escribe tus nombres y apellidos. Si no ves el campo, actualiza Yuyay.");
+        }
         // Después del email duplicado: la consulta de DNI se paga o consume cuota.
-        String fullName = identityDirectory.isConfigured()
-                ? lookUpFullName(dto.dni(), origin)
-                : typedFullName(dto.fullName());
+        requireDniMatch(dto.dni(), dto.fullName(), origin);
         User user = User.builder()
                 .email(dto.email().toLowerCase(Locale.ROOT))
                 .passwordHash(passwordEncoder.encode(dto.password()))
                 .name(dto.name())
-                .fullName(fullName)
+                .fullName(dto.fullName().strip())
                 .gender(dto.gender())
                 .build();
         try {
@@ -84,39 +86,57 @@ public class AuthService {
         }
     }
 
-    /** Nombre completo que figura para un DNI. Cada consulta consume cuota. */
-    public String lookUpFullName(String dni, String origin) {
+    private void requireDniMatch(String dni, String declaredName, String origin) {
         if (!identityDirectory.isConfigured()) {
-            throw new AuthFlowException(HttpStatus.SERVICE_UNAVAILABLE, "DNI_LOOKUP_NOT_CONFIGURED",
-                    "La consulta de DNI no está disponible. Escribe tu nombre completo.");
+            throw directoryUnavailable();
         }
         dniQuota.reserve(origin);
-        return switch (identityDirectory.findByDni(dni)) {
-            case IdentityLookup.Found found -> found.person().fullName();
-            case IdentityLookup.NotFound ignored ->
-                    throw new FieldRejectedException("dni", "DNI no existe, ingresa uno válido");
-            case IdentityLookup.Unavailable ignored -> throw new AuthFlowException(
-                    HttpStatus.SERVICE_UNAVAILABLE, "DNI_LOOKUP_UNAVAILABLE",
-                    "No se pudo consultar el DNI en este momento. Inténtalo más tarde.");
+        boolean matches = switch (identityDirectory.findByDni(dni)) {
+            case IdentityLookup.Found found -> found.person().matchesName(declaredName);
+            case IdentityLookup.NotFound ignored -> false;
+            case IdentityLookup.Unavailable ignored -> throw directoryUnavailable();
         };
+        if (!matches) {
+            throw new FieldRejectedException("dni", "Revisa el DNI y escribe tus nombres y apellidos tal como figuran en tu documento.");
+        }
     }
 
-    private String typedFullName(String fullName) {
-        return fullName == null || fullName.isBlank() ? null : fullName.strip();
+    private AuthFlowException directoryUnavailable() {
+        return new AuthFlowException(HttpStatus.SERVICE_UNAVAILABLE, "DNI_LOOKUP_UNAVAILABLE",
+                "No se pudo consultar el DNI en este momento. Inténtalo más tarde.");
     }
 
-    @Transactional
-    public AuthResponseDTO loginOrRegisterGoogle(GoogleIdentity identity, GoogleAuthRequestDTO dto) {
+    public AuthResponseDTO loginOrRegisterGoogle(GoogleIdentity identity, GoogleAuthRequestDTO dto, String origin) {
         String acceptedVersion = termsService.parseGoogleAcceptedVersion(dto.acceptedTermsVersion());
-        return existingGoogleSession(identity).orElseGet(() -> {
-            String version = termsService.requireCurrentGoogleAcceptance(acceptedVersion);
-            User user = User.builder()
-                    .email(identity.email())
-                    .googleSubject(identity.subject())
-                    .name(identity.name())
-                    .build();
-            return registerUser(user, version);
-        });
+        Optional<AuthResponseDTO> session = transactions.execute(status -> existingGoogleSession(identity));
+        if (session.isPresent()) {
+            return session.get();
+        }
+        String version = termsService.requireCurrentGoogleAcceptance(acceptedVersion);
+        if (dto.dni() == null || dto.dni().isBlank() || dto.fullName() == null || dto.fullName().isBlank()
+                || dto.name() == null || dto.name().isBlank()) {
+            throw new GoogleRegistrationRequiredException("REGISTRATION_DETAILS_REQUIRED",
+                    "Para crear tu cuenta, escribe tu DNI, tus nombres y apellidos y tu nombre de usuario. "
+                            + "Si no ves estos campos, actualiza Yuyay.", version);
+        }
+        if (!dto.dni().matches("[0-9]{8}")) {
+            throw new FieldRejectedException("dni", "El DNI debe tener ocho dígitos");
+        }
+        if (dto.name().length() > 120) {
+            throw new FieldRejectedException("name", "El nombre de usuario admite hasta 120 caracteres");
+        }
+        if (dto.fullName().length() > 200) {
+            throw new FieldRejectedException("fullName", "Los nombres y apellidos admiten hasta 200 caracteres");
+        }
+        requireDniMatch(dto.dni(), dto.fullName(), origin);
+        User user = User.builder()
+                .email(identity.email())
+                .googleSubject(identity.subject())
+                .name(dto.name().strip())
+                .fullName(dto.fullName().strip())
+                .build();
+        // Otra solicitud puede haber creado la cuenta durante la consulta al directorio.
+        return transactions.execute(status -> existingGoogleSession(identity).orElseGet(() -> registerUser(user, version)));
     }
 
     @Transactional

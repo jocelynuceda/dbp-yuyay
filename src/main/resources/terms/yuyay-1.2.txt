@@ -18,15 +18,15 @@ Este banco comprende los datos de cuenta, perfiles de cuidado, registros, relaci
 
 Tratamos tu nombre, correo, credenciales y datos técnicos de conexión para crear y administrar tu cuenta, iniciar sesión, recuperar el acceso y proteger el servicio. Los campos obligatorios se identifican en el formulario; sin ellos no podemos completar el método de registro elegido. Puedes crear una cuenta sin incorporar información de salud.
 
-El DNI es obligatorio para crear una cuenta por correo. Escribe únicamente tu propio DNI. Yuyay envía sus ocho dígitos a APIsPERU, que devuelve los nombres y apellidos del documento, y te los muestra. Eliges además un nombre de usuario, que es el que ven las demás personas en la aplicación. Si el DNI no existe o la consulta falla, puedes corregirlo o volver a intentarlo más tarde; sin él no se puede crear la cuenta por correo.
+Para crear una cuenta por correo o con Google, escribe tu propio DNI y tu nombre y apellidos tal como figuran en el documento. Elige también un alias, que será tu nombre visible en Yuyay. Al enviar el formulario, Yuyay envía los ocho dígitos del DNI al proveedor identificado en el apartado 6 y compara su respuesta con el nombre que escribiste. Si el contraste falla, puedes revisar ambos campos. Si necesitas ayuda, escribe al correo del apartado 2 sin adjuntar tu DNI ni una foto del documento.
 
-Yuyay descarta el número después de la consulta y guarda tu nombre completo junto a los datos de tu cuenta. Obtener el nombre no acredita quién está usando el dispositivo ni da acceso a un perfil de salud. Si sospechas que alguien usó tus datos para hacerse pasar por ti, escribe al correo de privacidad del apartado 2.
+Yuyay descarta el número de DNI y la respuesta del proveedor después del contraste. Si creas la cuenta, guarda el nombre y los apellidos que escribiste junto a tu alias para distinguir el nombre contrastado de tu nombre visible. La coincidencia por sí sola no acredita quién usa el dispositivo ni da acceso a un perfil de salud. Si sospechas que alguien usó tus datos para hacerse pasar por ti, puedes comunicarlo al responsable del apartado 2.
 
-Para limitar los intentos de consulta durante el registro, Yuyay lleva un contador general y otro asociado a una clave temporal derivada de la dirección IP de origen. La clave cambia cada día. Estos contadores se eliminan en la limpieza horaria posterior al cierre del día UTC.
+Para prevenir consultas abusivas del DNI, utilizamos un identificador temporal derivado de la dirección IP de origen. Se utiliza durante el día de la consulta (UTC) y se elimina en la siguiente limpieza automática del servicio.
 
-Si eliges acceder con Google, recibimos el identificador de tu cuenta de Google, tu nombre y tu correo. Este acceso no autoriza a Yuyay a leer tu correo de Gmail ni tu calendario. Google gestiona la autenticación conforme a su política de privacidad.
+Si eliges Google, utilizamos el identificador de tu cuenta de Google y tu correo para iniciar sesión. El nombre que contrastamos en un alta nueva es el que tú escribes en Yuyay. Si ya tenías una cuenta de Yuyay vinculada a Google, puedes seguir iniciando sesión sin introducir tu DNI. Google gestiona la autenticación conforme a su política de privacidad. Este acceso no autoriza a Yuyay a leer tu correo de Gmail ni tu calendario.
 
-Protege tus credenciales, mantén operativo tu correo y cierra sesión en dispositivos compartidos. Utiliza únicamente información y documentos que puedas incorporar legítimamente. Puedes explorar Yuyay con datos completamente ficticios, identificándolos como tales. Usar un alias no vuelve anónimos los documentos, grabaciones o datos que permitan identificar a alguien.
+Protege tus credenciales, mantén operativo tu correo y cierra sesión en dispositivos compartidos. Utiliza únicamente información y documentos que puedas incorporar legítimamente. Para explorar las funciones de cuidado, puedes crear un perfil ficticio e identificarlo como tal. Usar un alias no vuelve anónimos los documentos, grabaciones o datos que permitan identificar a alguien.
 
 4. Datos de salud y autorización para cuidar
 
@@ -36,7 +36,7 @@ Tu autorización debe ser libre, previa, informada, expresa e inequívoca. Para 
 
 Si registras datos propios, la autorización corresponde a ti. Si registras datos de otra persona, ésta debe haber recibido este aviso y autorizado por escrito, incluida una modalidad electrónica válida, el tratamiento en Yuyay y tu intervención como cuidador dentro del alcance acordado. También puedes actuar con facultades legales suficientes para otorgar esa autorización en su representación. Ser familiar o tener el rol de cuidador principal en Yuyay no concede por sí solo esas facultades.
 
-Si eres cuidador principal y solicitas contrastar el nombre de una persona cuidada con su DNI, comprueba antes que su autorización o tus facultades cubren esa consulta. Yuyay envía el número a APIsPERU y te comunica el resultado del contraste. La entrega del perfil requiere un proceso separado.
+Si eres cuidador principal y solicitas contrastar el nombre de una persona cuidada con su DNI, comprueba antes que su autorización o tus facultades cubren esa consulta. Yuyay envía el número al mismo proveedor identificado en el apartado 6 y te comunica el resultado del contraste. La entrega del perfil requiere un proceso separado.
 
 Una persona mayor puede decidir sobre sus datos y recibir ayuda para expresar su voluntad. Para menores o personas por quienes actúa un representante, la autorización debe corresponder a las facultades y reglas legales aplicables a su situación.
 

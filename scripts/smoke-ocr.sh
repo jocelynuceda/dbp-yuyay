@@ -25,11 +25,11 @@ echo "1. Health check"
 echo "2. Registro de cuidadora de prueba"
 EMAIL="smoke.$(date +%s).$RANDOM@yuyay.app"
 TERMS_VERSION=$(curl -fsS "$API/auth/terms" | jq -er .version)
-# La cuenta sintética del OCR se registra sin consultar un DNI.
-REGISTRATION=$(jq -n --arg email "$EMAIL" --arg version "$TERMS_VERSION" \
-  '{email:$email,password:"Secreta123",name:"Smoke OCR",dni:"00000000",termsAccepted:true,termsVersion:$version}')
+# La ficha sintética debe coincidir con el directorio de esta instancia de pruebas.
+REGISTRATION=$(jq -n --arg email "$EMAIL" --arg version "$TERMS_VERSION" --arg dni "${SMOKE_DNI:-00000000}" --arg fullName "${SMOKE_FULL_NAME:-Persona Sintética}" \
+  '{email:$email,password:"Secreta123",name:"Smoke OCR",dni:$dni,fullName:$fullName,termsAccepted:true,termsVersion:$version}')
 TOKEN=$(curl -fsS -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "$REGISTRATION" | jq -er '.accessToken | strings | select(length > 0)') || fail "registro sin DNI fallido"
+  -d "$REGISTRATION" | jq -er '.accessToken | strings | select(length > 0)') || fail "registro con datos sintéticos fallido"
 ok "token obtenido ($EMAIL)"
 AUTH="Authorization: Bearer $TOKEN"
 

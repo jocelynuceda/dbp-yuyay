@@ -89,7 +89,6 @@ class IdentityRecordTest {
     @Test
     void aOneLetterDifferenceRequestsCorrectionEvenWhenTheSurnameMatches() {
         var person = new IdentityRecord("LUIS FELIPE", "RAMOS", "SOTO");
-        assertThat(person.nameSimilarity("Luiz Ramos")).isEqualTo(0.75);
         assertThat(person.matchesName("Luiz Ramos")).isFalse();
         assertThat(person.matchesName("Felipe Ramos")).isTrue();
         assertThat(person.matchesName("Luiz Felipe Ramos")).isFalse();

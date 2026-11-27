@@ -77,8 +77,10 @@ class RegisterDniIntegrationTest {
     @DisplayName("sin DNI no se crea la cuenta ni se consume cuota")
     void missingDniIsRejected() throws Exception {
         String email = email();
-        register(email, "Anita", null).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("dni"));
+        // Una APK anterior omite ambos campos e indica al usuario que debe actualizar.
+        register(email, "Anita", null, "192.0.2.1", null).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("dni"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("Ingresa tu DNI. Si no ves el campo, actualiza Yuyay."));
         assertFalse(users.existsByEmailIgnoreCase(email));
         verify(identityDirectory, never()).findByDni(any());
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM registration_dni_quotas", Integer.class));
@@ -94,15 +96,15 @@ class RegisterDniIntegrationTest {
     }
 
     @Test
-    @DisplayName("la consulta devuelve el nombre completo")
-    void lookupReturnsTheFullName() throws Exception {
-        lookup(DNI).andExpect(status().isOk())
-                .andExpect(jsonPath("$.fullName").value("ANA LUCIA QUISPE MAMANI"));
+    @DisplayName("la ruta pública de autocompletado ya no existe")
+    void anonymousFullNameLookupIsAbsent() throws Exception {
+        lookup(DNI).andExpect(status().isNotFound());
+        verify(identityDirectory, never()).findByDni(any());
     }
 
     @Test
-    @DisplayName("se guarda el nombre de usuario y, aparte, el nombre completo del directorio")
-    void accountKeepsUsernameAndDirectoryFullName() throws Exception {
+    @DisplayName("se guarda el nombre de usuario y, aparte, el nombre declarado contrastado")
+    void accountKeepsUsernameAndDeclaredName() throws Exception {
         when(identityDirectory.findByDni(DNI)).thenAnswer(call -> {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             return new IdentityLookup.Found(ANA);
@@ -111,9 +113,9 @@ class RegisterDniIntegrationTest {
         register(email, "Anita", DNI)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.user.name").value("Anita"))
-                .andExpect(jsonPath("$.user.fullName").value("ANA LUCIA QUISPE MAMANI"))
+                .andExpect(jsonPath("$.user.fullName").value("Ana Quispe"))
                 .andExpect(jsonPath("$.user.dni").doesNotExist());
-        assertEquals("ANA LUCIA QUISPE MAMANI", users.findByEmailIgnoreCase(email).orElseThrow().getFullName());
+        assertEquals("Ana Quispe", users.findByEmailIgnoreCase(email).orElseThrow().getFullName());
     }
 
     @Test
@@ -123,7 +125,7 @@ class RegisterDniIntegrationTest {
         String email = email();
         register(email, "Anita", DNI)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[?(@.field == 'dni')].message").value("DNI no existe, ingresa uno válido"));
+                .andExpect(jsonPath("$.fieldErrors[?(@.field == 'dni')].message").value("Revisa el DNI y escribe tus nombres y apellidos tal como figuran en tu documento."));
         assertFalse(users.existsByEmailIgnoreCase(email));
     }
 
@@ -137,14 +139,35 @@ class RegisterDniIntegrationTest {
     }
 
     @Test
-    @DisplayName("sin proveedor configurado se guarda el nombre escrito y no se consulta")
-    void unconfiguredDirectoryKeepsTheTypedName() throws Exception {
+    void unconfiguredDirectoryRejectsRegistrationBeforeSpendingQuota() throws Exception {
         when(identityDirectory.isConfigured()).thenReturn(false);
-        lookup(DNI).andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.code").value("DNI_LOOKUP_NOT_CONFIGURED"));
         String email = email();
-        register(email, "Anita", DNI, "192.0.2.1", "Ana Quispe").andExpect(status().isCreated())
-                .andExpect(jsonPath("$.user.fullName").value("Ana Quispe"));
+        register(email, "Anita", DNI).andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("DNI_LOOKUP_UNAVAILABLE"));
+        assertFalse(users.existsByEmailIgnoreCase(email));
+        verify(identityDirectory, never()).findByDni(any());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM registration_dni_quotas", Integer.class));
+    }
+
+    @Test
+    void wrongDeclaredNameCanBeCorrectedWithoutCreatingAnAccountOrRevealingTheOfficialName() throws Exception {
+        String email = email();
+        // El alias coincide con el documento pero solo se debe contrastar el nombre declarado.
+        register(email, "Ana Quispe", DNI, "192.0.2.1", "Ana Flores")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("dni"))
+                .andExpect(jsonPath("$.fieldErrors[0].message")
+                        .value("Revisa el DNI y escribe tus nombres y apellidos tal como figuran en tu documento."));
+        assertFalse(users.existsByEmailIgnoreCase(email));
+        register(email, "Anita", DNI, "192.0.2.1", "Ana Quispe").andExpect(status().isCreated());
+        verify(identityDirectory, times(2)).findByDni(DNI);
+    }
+
+    @Test
+    void missingDeclaredNameDoesNotSpendALookup() throws Exception {
+        register(email(), "Ana Quispe", DNI, "192.0.2.1", null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("fullName"));
         verify(identityDirectory, never()).findByDni(any());
     }
 
@@ -217,7 +240,7 @@ class RegisterDniIntegrationTest {
     }
 
     private ResultActions register(String email, String name, String dni, String origin) throws Exception {
-        return register(email, name, dni, origin, null);
+        return register(email, name, dni, origin, "Ana Quispe");
     }
 
     private ResultActions register(String email, String name, String dni, String origin, String fullName) throws Exception {
