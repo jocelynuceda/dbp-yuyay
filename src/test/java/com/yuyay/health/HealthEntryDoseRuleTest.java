@@ -80,7 +80,7 @@ class HealthEntryDoseRuleTest {
     }
 
     private String register(String email) throws Exception {
-        String body = "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}";
+        String body = "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"dni\":\"12345678\",\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}";
         String response = mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

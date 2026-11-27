@@ -110,7 +110,7 @@ class ReminderDeliveryRaceIntegrationTest {
 
     private JsonNode register(String email, String name) throws Exception {
         return send(post("/api/v1/auth/register"), null,
-                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201);
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"dni\":\"12345678\",\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201);
     }
 
     private JsonNode send(MockHttpServletRequestBuilder req, String token, String body, int expected) throws Exception {

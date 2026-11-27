@@ -34,7 +34,7 @@ class AuthIntegrationTest {
     @Autowired UserRepository users;
 
     private static final String REGISTER = """
-            {"email": "%s", "password": "Secreta123", "name": "Ana", "termsAccepted": true, "termsVersion": "1.0"}
+            {"email": "%s", "password": "Secreta123", "name": "Ana", "dni": "12345678", "termsAccepted": true, "termsVersion": "1.0"}
             """;
 
     @Test
@@ -69,7 +69,7 @@ class AuthIntegrationTest {
     void registrationRejectsAbsentFalseOrCoercedAcceptanceAndInvalidVersion() throws Exception {
         String email = "terms-required@yuyay.app";
         String prefix = """
-                {"email": "%s", "password": "Secreta123", "name": "Ana"
+                {"email": "%s", "password": "Secreta123", "name": "Ana", "dni": "12345678"
                 """.formatted(email);
         assertRegistrationError(prefix + "}", "TERMS_ACCEPTANCE_REQUIRED");
         assertRegistrationError(prefix + """

@@ -182,7 +182,7 @@ class GoogleAuthIntegrationTest {
         String localEmail = uniqueEmail();
         String password = "Original123";
         request("/register", Map.of("email", localEmail, "password", password, "name", "Local",
-                "termsAccepted", true, "termsVersion", "1.0"), 201);
+                "dni", "12345678", "termsAccepted", true, "termsVersion", "1.0"), 201);
         String unlinkedSubject = UUID.randomUUID().toString();
         String localToken = token(unlinkedSubject, localEmail.toUpperCase(java.util.Locale.ROOT), builder -> builder);
         JsonNode conflict = request("/google", Map.of("idToken", localToken), 409);

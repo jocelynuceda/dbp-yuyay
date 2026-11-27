@@ -23,6 +23,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,6 +38,8 @@ class CareSubjectIdentityCheckIntegrationTest {
 
     private static final String BASE = "/api/v1/care-subjects";
     private static final String DNI = "12345678";
+    /** DNI de la cuenta que se registra; distinto del que se contrasta en cada prueba. */
+    private static final String SIGNUP_DNI = "87654321";
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
@@ -157,10 +160,14 @@ class CareSubjectIdentityCheckIntegrationTest {
     private record Session(String token, long id) {}
 
     private Session register() throws Exception {
+        // El registro también contrasta su DNI: se responde "no disponible" y se olvida la llamada
+        // para que cada prueba solo vea las consultas del contraste del perfil.
+        when(identityDirectory.findByDni(SIGNUP_DNI)).thenReturn(new IdentityLookup.Unavailable("prueba"));
         JsonNode auth = send(post("/api/v1/auth/register"), null, Map.of(
                 "email", "identity." + UUID.randomUUID() + "@yuyay.app",
                 "password", "Secreta123", "name", "Prueba",
-                "termsAccepted", true, "termsVersion", "1.0"), 201);
+                "termsAccepted", true, "dni", SIGNUP_DNI, "termsVersion", "1.0"), 201);
+        clearInvocations(identityDirectory);
         return new Session(auth.get("accessToken").asText(), auth.get("user").get("id").asLong());
     }
 

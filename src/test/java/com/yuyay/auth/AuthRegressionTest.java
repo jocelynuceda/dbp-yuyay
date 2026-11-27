@@ -95,6 +95,7 @@ class AuthRegressionTest {
         Map<String, Object> payload = new HashMap<>(body);
         if (path.equals("/register")) {
             payload.put("termsAccepted", true);
+            payload.put("dni", "12345678");
             payload.put("termsVersion", "1.0");
         }
         var response = mvc.perform(post("/api/v1/auth" + path).contentType(MediaType.APPLICATION_JSON)

@@ -7,8 +7,11 @@ import com.yuyay.auth.dto.RegisterRequestDTO;
 import com.yuyay.auth.service.GoogleIdTokenVerifier.GoogleIdentity;
 import com.yuyay.config.AppProperties;
 import com.yuyay.event.UserRegisteredEvent;
+import com.yuyay.identity.IdentityDirectory;
+import com.yuyay.identity.IdentityLookup;
 import com.yuyay.exception.AuthFlowException;
 import com.yuyay.exception.DuplicateEmailException;
+import com.yuyay.exception.FieldRejectedException;
 import com.yuyay.exception.InvalidCredentialsException;
 import com.yuyay.exception.InvalidTokenException;
 import com.yuyay.security.JwtService;
@@ -45,6 +48,7 @@ public class AuthService {
     private final ApplicationEventPublisher eventPublisher;
     private final TermsService termsService;
     private final Clock clock;
+    private final IdentityDirectory identityDirectory;
 
     @Transactional
     public AuthResponseDTO register(RegisterRequestDTO dto) {
@@ -52,6 +56,8 @@ public class AuthService {
         if (userRepository.existsByEmailIgnoreCase(dto.email())) {
             throw new DuplicateEmailException("El email ya está registrado");
         }
+        // Después del email duplicado: la consulta de DNI se paga o consume cuota.
+        requireDniMatchesName(dto.dni(), dto.name());
         User user = User.builder()
                 .email(dto.email().toLowerCase(Locale.ROOT))
                 .passwordHash(passwordEncoder.encode(dto.password()))
@@ -59,6 +65,25 @@ public class AuthService {
                 .gender(dto.gender())
                 .build();
         return registerUser(user, version);
+    }
+
+    /**
+     * Contrasta el DNI con el nombre declarado. No acredita identidad: reduce el nombre inventado y
+     * el error de tipeo. Si el directorio no responde, el registro sigue: un proveedor caído no puede
+     * impedir que alguien cree su cuenta. El DNI no se guarda ni aparece en los mensajes.
+     */
+    private void requireDniMatchesName(String dni, String name) {
+        IdentityLookup lookup = identityDirectory.findByDni(dni);
+        switch (lookup) {
+            case IdentityLookup.Found found when !found.person().matchesName(name) ->
+                    throw new FieldRejectedException("dni",
+                            "El nombre no coincide con el de este DNI. Escribe tu nombre y apellidos como figuran en tu documento.");
+            case IdentityLookup.NotFound ignored ->
+                    throw new FieldRejectedException("dni", "No encontramos este DNI. Revisa los ocho dígitos.");
+            default -> {
+                // Coincide, o el directorio no está disponible: se permite el registro.
+            }
+        }
     }
 
     @Transactional
