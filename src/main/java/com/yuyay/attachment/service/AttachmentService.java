@@ -176,14 +176,43 @@ public class AttachmentService {
                 attachment.getContentType(), attachment.getOriginalFilename());
     }
 
+    public AttachmentResponse rename(Long subjectId, Long attachmentId, String filename) {
+        Long meId = currentUserService.getCurrentUserId();
+        authorizationService.requireAccessForUpdate(meId, subjectId);
+        Attachment attachment = loadForUpdate(subjectId, attachmentId);
+        requireFileManager(meId, subjectId, attachment);
+        String name = filename.strip();
+        String extension = StringUtils.getFilenameExtension(name);
+        String stem = StringUtils.stripFilenameExtension(name);
+        if (stem.isBlank() || stem.matches("[. ]+") || name.matches("(?s).*[\\p{Cc}\\p{Cf}/\\\\:*?\"<>|].*")
+                || extension == null || !matchesFileType(extension, attachment.getContentType())) {
+            throw new InvalidAttachmentException("Usa un nombre válido y conserva la extensión del archivo.");
+        }
+        if (!name.equals(attachment.getOriginalFilename())) {
+            attachment.setOriginalFilename(name);
+            eventPublisher.publishEvent(AccessRecordedEvent.byUser(subjectId, meId, AccessAction.UPDATE, "ATTACHMENT", attachmentId));
+        }
+        return mapper.toResponse(attachment);
+    }
+
+    private boolean matchesFileType(String extension, String type) {
+        return ("." + extension).equalsIgnoreCase(ALLOWED_TYPES.get(type))
+                || ("image/jpeg".equals(type) && "jpeg".equalsIgnoreCase(extension))
+                || (("audio/mp4".equals(type) || "audio/x-m4a".equals(type)) && "mp4".equalsIgnoreCase(extension));
+    }
+
+    private void requireFileManager(Long meId, Long subjectId, Attachment attachment) {
+        if (!attachment.getUploadedBy().getId().equals(meId)) {
+            authorizationService.requireRole(meId, subjectId, CareRole.PRINCIPAL);
+        }
+    }
+
     /** Lo borra quien lo subió o el principal. Si respalda un registro se conserva: el historial no se reescribe. */
     public void delete(Long subjectId, Long attachmentId) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireAccess(meId, subjectId);
         Attachment attachment = load(subjectId, attachmentId);
-        if (!attachment.getUploadedBy().getId().equals(meId)) {
-            authorizationService.requireRole(meId, subjectId, CareRole.PRINCIPAL);
-        }
+        requireFileManager(meId, subjectId, attachment);
         if (attachment.getOcrStatus() == OcrStatus.PENDING) {
             throw new InvalidOperationException("Espera a que termine la lectura del documento");
         }
