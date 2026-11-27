@@ -1,5 +1,6 @@
 package com.yuyay.user.service;
 
+import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.dto.UpdateUserDTO;
@@ -11,9 +12,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
+    private static final LocalDate MIN_BIRTH_DATE = LocalDate.of(1900, 1, 1);
+
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final CurrentUserService currentUser;
@@ -26,8 +31,13 @@ public class UserService {
     @Transactional
     public UserResponseDTO updateMe(UpdateUserDTO dto) {
         User user = findById(currentUser.getCurrentUserId());
-        user.setName(dto.name());
-        if (dto.gender() != null) user.setGender(dto.gender());
+        user.setName(dto.getName());
+        if (dto.getGender() != null) user.setGender(dto.getGender());
+        LocalDate birthDate = dto.getBirthDate();
+        if (birthDate != null && birthDate.isBefore(MIN_BIRTH_DATE)) {
+            throw new InvalidOperationException("Revisa la fecha de nacimiento: no puede ser anterior a 1900");
+        }
+        if (dto.isBirthDateProvided()) user.setBirthDate(birthDate);
         return userMapper.toResponse(user);
     }
 
