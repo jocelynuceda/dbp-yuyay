@@ -394,6 +394,41 @@ en contra.
 una vía de desbloqueo (administrador con prueba de identidad); mientras no existan, es más seguro
 **detectar el duplicado y avisar** que impedirlo.
 
+### 3.7 Qué significa «eliminar la cuenta»
+
+Precisión del 26-nov-2026: al eliminar la cuenta el DNI queda libre y se puede abrir otra con él, y
+la eliminación **no se puede deshacer**.
+
+Eso descarta el borrado blando: si la cuenta se pudiera restaurar, el DNI estaría en dos cuentas a
+la vez y la regla de §3.6 se rompe.
+
+Pero tampoco puede ser un `DELETE` de la fila. Catorce entidades apuntan a `users` con clave ajena,
+y dos de ellas son la cadena de auditoría que sostiene el producto:
+`CareAuthorizationDeclaration.declaredBy` (quién declaró el consentimiento sobre una persona) y
+`HealthEntryVersion.declaredBy` (quién declaró cada versión clínica). Borrar la fila falla por las
+claves ajenas o, si se pone en cascada, **destruye el historial de salud de otras personas y la
+prueba de su consentimiento**. Quien cuidó a su madre no puede llevarse el historial de la madre al
+cerrar su cuenta.
+
+Forma correcta: **borrar el dato identificante y conservar la fila como lápida.**
+
+```
+User
+  email, name, passwordHash, googleSubject, gender, dniHmac  ->  borrados
+  deletedAt : Instant                                        ->  marcado
+```
+
+El historial queda legible como «declarado por una cuenta eliminada», que es la verdad. Es
+irreversible, porque el dato se fue de verdad y no quedó una bandera que alguien pueda desmarcar. Y
+como `dniHmac` se borra, el DNI vuelve a estar libre: la regla de §3.6 se cumple sin romper nada.
+
+**Lo que falta decidir:** qué pasa con los perfiles donde esa cuenta era el único `PRINCIPAL`.
+Si la cuenta era la titular de su propio perfil, ese perfil y sus registros se van con ella —es el
+derecho de supresión—. Si era cuidadora del perfil de otra persona sin cuenta, el perfil quedaría
+sin nadie que pueda abrirlo. Recomendación: **impedir el borrado hasta que lo entregue o lo elimine
+explícitamente**, porque borrar el historial de la madre en silencio y dejarlo inaccesible en
+silencio son las dos malas.
+
 ---
 
 ## 4. Recordatorios de medicación
