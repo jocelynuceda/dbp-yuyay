@@ -199,7 +199,10 @@ class MedicationScheduleIntegrationTest {
                 "password", "Secreta123",
                 "name", name,
                 "termsAccepted", true,
-                "termsVersion", "1.0"), 201).get("accessToken").asText());
+                "termsVersion", "1.2",
+                // El registro contrasta el DNI; en pruebas responde el directorio sintético
+                "dni", "12345678",
+                "fullName", "Persona Sintetica"), 201).get("accessToken").asText());
     }
 
     private JsonNode send(MockHttpServletRequestBuilder request, String token, Object body, int expected) throws Exception {
