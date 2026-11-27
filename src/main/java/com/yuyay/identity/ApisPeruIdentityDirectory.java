@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.regex.Pattern;
 
 /**
  * Directorio de identidad sobre la consulta de DNI de APIsPERU ({@code dniruc.apisperu.com}).
@@ -28,6 +29,8 @@ import java.time.Duration;
 @Component
 @ConditionalOnExpression("!'${app.reniec.api-token:}'.isEmpty()")
 public class ApisPeruIdentityDirectory implements IdentityDirectory {
+
+    private static final Pattern NO_RESULTS = Pattern.compile("No\\s+se\\s+encontraron\\s+resultados\\s*\\.?", Pattern.CASE_INSENSITIVE);
 
     private final RestClient client;
 
@@ -65,7 +68,7 @@ public class ApisPeruIdentityDirectory implements IdentityDirectory {
         try {
             return client.get()
                     .uri("/api/v1/dni/{dni}", dni)
-                    .exchange((request, response) -> read(response.getStatusCode(), body(response)));
+                    .exchange((request, response) -> read(dni, response.getStatusCode(), body(response)));
         } catch (RestClientException | IllegalStateException e) {
             // Solo el tipo de fallo. El mensaje de la excepción incluye la URI de la petición, y la
             // URI lleva el DNI dentro: registrarlo guardaría el dato personal que esta clase promete
@@ -85,7 +88,7 @@ public class ApisPeruIdentityDirectory implements IdentityDirectory {
         }
     }
 
-    private IdentityLookup read(HttpStatusCode status, DniResponse body) {
+    private IdentityLookup read(String dni, HttpStatusCode status, DniResponse body) {
         if (status.value() == 404 || status.value() == 422) {
             return new IdentityLookup.NotFound();
         }
@@ -97,9 +100,12 @@ public class ApisPeruIdentityDirectory implements IdentityDirectory {
             log.warn("APIsPERU respondió HTTP {}", status.value());
             return new IdentityLookup.Unavailable("El servicio de consulta respondió con un error");
         }
-        if (body == null || body.nombres() == null || body.nombres().isBlank()) {
-            // Algunos errores del proveedor llegan como 200 con un cuerpo sin datos.
+        if (body != null && body.message() != null && NO_RESULTS.matcher(body.message().strip()).matches()) {
             return new IdentityLookup.NotFound();
+        }
+        if (body == null || !dni.equals(body.dni()) || Boolean.FALSE.equals(body.success()) || isBlank(body.nombres())
+                || (isBlank(body.apellidoPaterno()) && isBlank(body.apellidoMaterno()))) {
+            return new IdentityLookup.Unavailable("Respuesta incompleta del servicio de consulta");
         }
         return new IdentityLookup.Found(new IdentityRecord(
                 body.nombres().strip(),
@@ -107,11 +113,18 @@ public class ApisPeruIdentityDirectory implements IdentityDirectory {
                 body.apellidoMaterno() == null ? "" : body.apellidoMaterno().strip()));
     }
 
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     record DniResponse(
+            String dni,
+            Boolean success,
             String nombres,
             String apellidoPaterno,
-            String apellidoMaterno
+            String apellidoMaterno,
+            String message
     ) {
     }
 }

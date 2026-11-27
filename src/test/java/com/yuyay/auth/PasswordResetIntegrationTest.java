@@ -107,7 +107,7 @@ class PasswordResetIntegrationTest {
     private String register(String email) throws Exception {
         String response = post("/register",
                 "{\"email\":\"" + email + "\",\"password\":\"" + OLD_PASSWORD + "\",\"name\":\"Ana\","
-                        + "\"termsAccepted\":true,\"termsVersion\":\"1.0\"}")
+                        + "\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\"}")
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return json.readTree(response).get("refreshToken").asString();

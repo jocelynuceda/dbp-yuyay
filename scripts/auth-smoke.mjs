@@ -22,12 +22,15 @@ async function call(path, body, expected, access) {
 }
 
 const terms = await call('/auth/terms', undefined, 200);
+assert.match(terms.text, /APIsPERU/);
+// Usar una ficha sintética del directorio de la instancia local.
+const fullName = process.env.SMOKE_FULL_NAME ?? 'Persona Sintética';
 const acceptance = { termsAccepted: true, termsVersion: terms.version };
-await call('/auth/register', { email, password, name: 'Synthetic Diagnostic', ...acceptance }, 201);
+await call('/auth/register', { email, password, name: 'Synthetic Diagnostic', fullName, dni: process.env.SMOKE_DNI ?? '00000000', ...acceptance }, 201);
 const session = await call('/auth/login', { email: email.toUpperCase(), password }, 200);
 await call('/users/me', undefined, 200, session.accessToken);
 await call('/auth/login', { email, password: password.trim() }, 401);
-await call('/auth/register', { email, password, name: 'Duplicate', ...acceptance }, 409);
+await call('/auth/register', { email, password, name: 'Duplicate', fullName, dni: process.env.SMOKE_DNI ?? '00000000', ...acceptance }, 409);
 const rotated = await call('/auth/refresh', { refreshToken: session.refreshToken }, 200);
 await call('/auth/refresh', { refreshToken: session.refreshToken }, 401);
 await call('/auth/logout', { refreshToken: rotated.refreshToken }, 204);

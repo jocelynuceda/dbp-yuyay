@@ -18,4 +18,9 @@ public class DisabledIdentityDirectory implements IdentityDirectory {
         log.debug(REASON);
         return new IdentityLookup.Unavailable(REASON);
     }
+
+    @Override
+    public boolean isConfigured() {
+        return false;
+    }
 }

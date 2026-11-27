@@ -7,11 +7,19 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface CareRelationshipRepository extends JpaRepository<CareRelationship, Long> {
     boolean existsByUserIdAndCareSubjectIdAndStatus(Long userId, Long careSubjectId, CareStatus status);
+
+    @Query("""
+            select r.careSubject.id from CareRelationship r
+            where r.user.id = :userId and r.careSubject.id in :subjectIds and r.status = :status
+            """)
+    Set<Long> findCareSubjectIdsByUserAndStatus(Long userId, Collection<Long> subjectIds, CareStatus status);
 
     boolean existsByUserIdAndCareSubjectIdAndStatusAndRole(Long userId, Long careSubjectId, CareStatus status, CareRole role);
 

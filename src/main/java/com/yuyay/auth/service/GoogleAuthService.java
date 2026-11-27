@@ -12,10 +12,10 @@ public class GoogleAuthService {
     private final GoogleIdTokenVerifier verifier;
     private final AuthService authService;
 
-    public AuthResponseDTO signIn(GoogleAuthRequestDTO dto) {
+    public AuthResponseDTO signIn(GoogleAuthRequestDTO dto, String origin) {
         var identity = verifier.verify(dto.idToken());
         try {
-            return authService.loginOrRegisterGoogle(identity, dto);
+            return authService.loginOrRegisterGoogle(identity, dto, origin);
         } catch (DataIntegrityViolationException ex) {
             // El índice único arbitra el alta entre instancias. La lectura se hace tras el rollback.
             return authService.recoverGoogleRegistration(identity).orElseThrow(() -> ex);

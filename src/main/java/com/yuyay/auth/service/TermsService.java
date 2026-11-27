@@ -2,7 +2,7 @@ package com.yuyay.auth.service;
 
 import com.yuyay.auth.dto.TermsResponseDTO;
 import com.yuyay.exception.AuthFlowException;
-import com.yuyay.exception.GoogleTermsRequiredException;
+import com.yuyay.exception.GoogleRegistrationRequiredException;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets;
 
 @Service
 public class TermsService {
-    private static final String CURRENT_VERSION = "1.0";
+    private static final String CURRENT_VERSION = "1.2";
 
     private final TermsResponseDTO current;
 
@@ -55,11 +55,11 @@ public class TermsService {
 
     public String requireCurrentGoogleAcceptance(String acceptedVersion) {
         if (acceptedVersion == null) {
-            throw new GoogleTermsRequiredException("TERMS_ACCEPTANCE_REQUIRED",
+            throw new GoogleRegistrationRequiredException("TERMS_ACCEPTANCE_REQUIRED",
                     "Debes aceptar los términos y el aviso de privacidad para crear una cuenta", current.version());
         }
         if (!current.version().equals(acceptedVersion)) {
-            throw new GoogleTermsRequiredException("TERMS_VERSION_OUTDATED",
+            throw new GoogleRegistrationRequiredException("TERMS_VERSION_OUTDATED",
                     "Consulta y acepta la versión vigente de los términos y el aviso de privacidad", current.version());
         }
         return current.version();
