@@ -6,7 +6,10 @@ import com.yuyay.care.dto.CareAuthorizationUpdateRequest;
 import com.yuyay.care.dto.CareSubjectCreateRequest;
 import com.yuyay.care.dto.CareSubjectResponse;
 import com.yuyay.care.dto.CareSubjectUpdateRequest;
+import com.yuyay.care.dto.IdentityCheckRequest;
+import com.yuyay.care.dto.IdentityCheckResponse;
 import com.yuyay.care.service.CareAuthorizationDeclarationService;
+import com.yuyay.care.service.CareSubjectIdentityCheckService;
 import com.yuyay.care.service.CareSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ public class CareSubjectController {
 
     private final CareSubjectService service;
     private final CareAuthorizationDeclarationService declarations;
+    private final CareSubjectIdentityCheckService identityChecks;
 
     @PostMapping
     public ResponseEntity<CareSubjectResponse> create(@Valid @RequestBody CareSubjectCreateRequest req) {
@@ -48,6 +52,12 @@ public class CareSubjectController {
     public CareAuthorizationDeclarationResponse declareAuthorization(
             @PathVariable Long id, @Valid @RequestBody CareAuthorizationUpdateRequest req) {
         return declarations.declare(id, req);
+    }
+
+    @PostMapping("/{id}/identity-check")
+    public IdentityCheckResponse checkIdentity(
+            @PathVariable Long id, @Valid @RequestBody IdentityCheckRequest req) {
+        return identityChecks.check(id, req);
     }
 
     @GetMapping("/{id}")

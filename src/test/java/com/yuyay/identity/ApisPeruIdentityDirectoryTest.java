@@ -1,0 +1,121 @@
+package com.yuyay.identity;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+
+import java.io.IOException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+
+class ApisPeruIdentityDirectoryTest {
+
+    private static final String BASE_URL = "https://dniruc.apisperu.com";
+    private static final String DNI = "12345678";
+    private static final String URL = BASE_URL + "/api/v1/dni/" + DNI;
+
+    private MockRestServiceServer server;
+    private ApisPeruIdentityDirectory directory;
+
+    @BeforeEach
+    void setUp() {
+        RestClient.Builder builder = RestClient.builder();
+        server = MockRestServiceServer.bindTo(builder).build();
+        directory = new ApisPeruIdentityDirectory(builder, BASE_URL, "token-de-prueba");
+    }
+
+    @Test
+    void readsNamesAndSendsTheTokenAsABearerHeader() {
+        server.expect(requestTo(URL))
+                .andExpect(header("Authorization", "Bearer token-de-prueba"))
+                .andRespond(withSuccess("""
+                        {"dni":"12345678","nombres":"ANA MARIA",
+                         "apellidoPaterno":"QUISPE","apellidoMaterno":"ROJAS","codVerifica":"4"}
+                        """, MediaType.APPLICATION_JSON));
+
+        IdentityLookup lookup = directory.findByDni(DNI);
+
+        assertThat(lookup).isInstanceOf(IdentityLookup.Found.class);
+        IdentityRecord person = ((IdentityLookup.Found) lookup).person();
+        assertThat(person.fullName()).isEqualTo("ANA MARIA QUISPE ROJAS");
+        server.verify();
+    }
+
+    @Test
+    void anUnknownDniIsNotFound() {
+        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);
+    }
+
+    @Test
+    void anEmptyBodyWithTwoHundredIsAlsoNotFound() {
+        server.expect(requestTo(URL))
+                .andRespond(withSuccess("{\"message\":\"No se encontraron resultados\"}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);
+    }
+
+    @Test
+    void aRejectedCredentialIsUnavailableAndNotNotFound() {
+        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
+    }
+
+    @Test
+    void aServerErrorIsUnavailable() {
+        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
+    }
+
+    @Test
+    void aConnectionFailureIsUnavailableAndNeverThrows() {
+        server.expect(requestTo(URL)).andRespond(request -> {
+            throw new IOException("conexión rechazada");
+        });
+
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
+    }
+
+    @Test
+    void aMalformedDniSpendsNoQuery() {
+        assertThatThrownBy(() -> directory.findByDni("1234"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        server.verify(); // ninguna petición esperada ni realizada
+    }
+
+    @Test
+    void theDniNeverReachesTheLog() {
+        Logger logger = (Logger) LoggerFactory.getLogger(ApisPeruIdentityDirectory.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+            directory.findByDni(DNI);
+
+            assertThat(appender.list).isNotEmpty();
+            assertThat(appender.list)
+                    .noneMatch(event -> event.getFormattedMessage().contains(DNI));
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+}
