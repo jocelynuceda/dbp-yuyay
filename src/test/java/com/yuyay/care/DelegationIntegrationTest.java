@@ -9,16 +9,27 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -33,6 +44,7 @@ class DelegationIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired PlatformTransactionManager transactions;
     @MockitoBean Clock clock;
 
     private String ownerToken;
@@ -126,6 +138,79 @@ class DelegationIntegrationTest {
 
         mvc.perform(get("/api/v1/delegate/health-entries").header("Authorization", "Bearer " + delegateToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void secondaryCaregiverCanSeeButCannotRevokeAnActiveDelegation() throws Exception {
+        String email = "secondary." + UUID.randomUUID() + "@yuyay.app";
+        String secondary = register(email);
+        long invitation = postJson("/api/v1/care-subjects/" + subjectId + "/relationships", ownerToken,
+                json.writeValueAsString(Map.of("email", email, "role", "CAREGIVER")), 201).get("id").asLong();
+        mvc.perform(post("/api/v1/me/relationships/" + invitation + "/accept")
+                .header("Authorization", "Bearer " + secondary)).andExpect(status().isOk());
+        JsonNode link = createDelegation("MEDICATION");
+        String delegate = exchange(link);
+        long id = link.get("delegation").get("id").asLong();
+        mvc.perform(get("/api/v1/care-subjects/" + subjectId + "/delegations")
+                .header("Authorization", "Bearer " + secondary)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(id));
+        mvc.perform(delete("/api/v1/delegations/" + id).header("Authorization", "Bearer " + secondary))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/delegate/me").header("Authorization", "Bearer " + delegate))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void exchangeWaitsForPendingRevocation() throws Exception {
+        JsonNode link = createDelegation("MEDICATION");
+        overlap(revokeRequest(link), 204, exchangeRequest(link), 403);
+    }
+
+    @Test
+    void revocationWaitsForPendingExchangeAndEndsIssuedSession() throws Exception {
+        JsonNode link = createDelegation("MEDICATION");
+        String body = overlap(exchangeRequest(link), 200, revokeRequest(link), 204);
+        String delegateToken = json.readTree(body).get("accessToken").asText();
+        mvc.perform(get("/api/v1/delegate/me").header("Authorization", "Bearer " + delegateToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void concurrentExchangesIssueOnlyOneSession() throws Exception {
+        JsonNode link = createDelegation("MEDICATION");
+        overlap(exchangeRequest(link), 200, exchangeRequest(link), 400);
+    }
+
+    private RequestBuilder revokeRequest(JsonNode link) {
+        return delete("/api/v1/delegations/" + link.get("delegation").get("id").asLong())
+                .header("Authorization", "Bearer " + ownerToken);
+    }
+
+    private RequestBuilder exchangeRequest(JsonNode link) {
+        return post("/api/v1/public/delegations/" + link.get("token").asText() + "/exchange");
+    }
+
+    private String overlap(RequestBuilder first, int firstStatus, RequestBuilder second, int secondStatus) throws Exception {
+        try (var worker = Executors.newSingleThreadExecutor()) {
+            var started = new CountDownLatch(1);
+            record Pending(String body, Future<Integer> result) {}
+            Pending pending = new TransactionTemplate(transactions).execute(tx -> {
+                try {
+                    var response = mvc.perform(first).andExpect(status().is(firstStatus)).andReturn().getResponse();
+                    Future<Integer> result = worker.submit(() -> {
+                        started.countDown();
+                        return mvc.perform(second).andReturn().getResponse().getStatus();
+                    });
+                    assertTrue(started.await(5, TimeUnit.SECONDS));
+                    assertThrows(TimeoutException.class, () -> result.get(250, TimeUnit.MILLISECONDS));
+                    return new Pending(response.getContentAsString(), result);
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            assertEquals(secondStatus, pending.result().get(10, TimeUnit.SECONDS));
+            return pending.body();
+        }
     }
 
     @Test
