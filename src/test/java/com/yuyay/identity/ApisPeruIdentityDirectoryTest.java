@@ -81,7 +81,9 @@ class ApisPeruIdentityDirectoryTest {
     void aServerErrorIsUnavailable() {
         server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
 
-        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
+        assertThat(directory.findByDni(DNI))
+                .isInstanceOfSatisfying(IdentityLookup.Unavailable.class,
+                        unavailable -> assertThat(unavailable.noResponse()).isFalse());
     }
 
     @Test
@@ -90,7 +92,9 @@ class ApisPeruIdentityDirectoryTest {
             throw new IOException("conexión rechazada");
         });
 
-        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
+        assertThat(directory.findByDni(DNI))
+                .isInstanceOfSatisfying(IdentityLookup.Unavailable.class,
+                        unavailable -> assertThat(unavailable.noResponse()).isTrue());
     }
 
     @Test

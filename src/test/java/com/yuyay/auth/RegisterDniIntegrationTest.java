@@ -94,12 +94,23 @@ class RegisterDniIntegrationTest {
         String email = email();
         register(email, "Ana Quispe", DNI)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[?(@.field == 'dni')].message").value("No encontramos este DNI. Revisa los ocho dígitos."));
+                .andExpect(jsonPath("$.fieldErrors[?(@.field == 'dni')].message").value("DNI no existe, ingresa uno válido"));
         assertFalse(users.existsByEmailIgnoreCase(email));
     }
 
     @Test
-    @DisplayName("si el directorio no responde, el registro sigue")
+    @DisplayName("si el directorio no responde: 400 «Tiempo de espera superado» y no se crea la cuenta")
+    void unresponsiveDirectoryIsRejected() throws Exception {
+        when(identityDirectory.findByDni(DNI)).thenReturn(new IdentityLookup.Unavailable("sin respuesta", true));
+        String email = email();
+        register(email, "Ana Quispe", DNI)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[?(@.field == 'dni')].message").value("Tiempo de espera superado"));
+        assertFalse(users.existsByEmailIgnoreCase(email));
+    }
+
+    @Test
+    @DisplayName("sin token o con el proveedor respondiendo error, el registro sigue")
     void unavailableDirectoryDoesNotBlockSignup() throws Exception {
         when(identityDirectory.findByDni(DNI)).thenReturn(new IdentityLookup.Unavailable("caído"));
         String email = email();

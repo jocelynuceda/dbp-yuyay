@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -71,7 +72,8 @@ public class ApisPeruIdentityDirectory implements IdentityDirectory {
             // URI lleva el DNI dentro: registrarlo guardaría el dato personal que esta clase promete
             // no registrar, y los logs se conservan.
             log.warn("No se pudo consultar el DNI en APIsPERU: {}", e.getClass().getSimpleName());
-            return new IdentityLookup.Unavailable("El servicio de consulta no respondió");
+            return new IdentityLookup.Unavailable("El servicio de consulta no respondió",
+                    e instanceof ResourceAccessException);
         }
     }
 

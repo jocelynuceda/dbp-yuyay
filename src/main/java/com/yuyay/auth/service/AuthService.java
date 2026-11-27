@@ -69,8 +69,8 @@ public class AuthService {
 
     /**
      * Contrasta el DNI con el nombre declarado. No acredita identidad: reduce el nombre inventado y
-     * el error de tipeo. Si el directorio no responde, el registro sigue: un proveedor caído no puede
-     * impedir que alguien cree su cuenta. El DNI no se guarda ni aparece en los mensajes.
+     * el error de tipeo. Si el directorio no responde a tiempo, se pide reintentar. Sin credencial o si
+     * el proveedor contesta con un error, el registro sigue. El DNI no se guarda ni aparece en los mensajes.
      */
     private void requireDniMatchesName(String dni, String name) {
         IdentityLookup lookup = identityDirectory.findByDni(dni);
@@ -79,9 +79,11 @@ public class AuthService {
                     throw new FieldRejectedException("dni",
                             "El nombre no coincide con el de este DNI. Escribe tu nombre y apellidos como figuran en tu documento.");
             case IdentityLookup.NotFound ignored ->
-                    throw new FieldRejectedException("dni", "No encontramos este DNI. Revisa los ocho dígitos.");
+                    throw new FieldRejectedException("dni", "DNI no existe, ingresa uno válido");
+            case IdentityLookup.Unavailable unavailable when unavailable.noResponse() ->
+                    throw new FieldRejectedException("dni", "Tiempo de espera superado");
             default -> {
-                // Coincide, o el directorio no está disponible: se permite el registro.
+                // Coincide, o no se pudo consultar por otra causa: se permite el registro.
             }
         }
     }
