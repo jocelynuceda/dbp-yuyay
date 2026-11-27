@@ -143,7 +143,9 @@ public class ClaimInvitationService {
 
     public void revoke(Long careSubjectId, Long invitationId) {
         Long actorId = currentUserService.getCurrentUserId();
-        authorizationService.requireRole(actorId, careSubjectId, CareRole.PRINCIPAL);
+        // Con el perfil bloqueado, un canje en curso termina antes de que se lea la invitación, y
+        // quien dejó de ser PRINCIPAL con ese canje ya no puede revocarla.
+        authorizationService.requireRoleForUpdate(actorId, careSubjectId, CareRole.PRINCIPAL);
 
         ClaimInvitation invitation = invitations.findById(invitationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invitación de entrega no encontrada"));

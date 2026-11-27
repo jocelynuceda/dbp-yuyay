@@ -14,6 +14,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -21,6 +23,13 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,6 +61,7 @@ class ClaimInvitationIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
+    @Autowired PlatformTransactionManager transactions;
 
     /** El enlace ya no vuelve en la respuesta: la única copia sale por correo. */
     @MockitoBean EmailSender emailSender;
@@ -302,7 +312,74 @@ class ClaimInvitationIntegrationTest {
         send(get(BASE + "/" + id), caregiver, null, 403);
     }
 
+    // --- cruces con un canje que todavía no se ha confirmado ---
+
+    @Test
+    @DisplayName("revocar mientras se canjea espera al canje y no pisa su resultado")
+    void revokingDuringTheExchangeWaitsAndDoesNotOverwriteIt() throws Exception {
+        long id = createSubject("Adolescente", LocalDate.now().minusYears(17), "LEGAL_REPRESENTATION");
+        String token = emitAndReadToken(id, child.email());
+        long invitationId = invitationIdOf(id);
+
+        duringAnUncommittedExchange(token, () ->
+                send(delete(BASE + "/" + id + "/claim-invitations/" + invitationId), caregiver, null, 403));
+
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT count(*) FROM claim_invitations WHERE id = ? "
+                        + "AND exchanged_at IS NOT NULL AND exchanged_by = ? AND revoked_at IS NULL",
+                Integer.class, invitationId, child.id()));
+    }
+
+    @Test
+    @DisplayName("aceptar otro PRINCIPAL mientras se canjea no crea un segundo titular")
+    void acceptingAnotherPrincipalDuringTheExchangeDoesNotCreateASecondTitular() throws Exception {
+        long id = createSubject("Adolescente", LocalDate.now().minusYears(17), "LEGAL_REPRESENTATION");
+        Session other = register();
+        long pending = send(post(BASE + "/" + id + "/relationships"), caregiver,
+                Map.of("email", other.email(), "role", "PRINCIPAL"), 201).get("id").asLong();
+        String token = emitAndReadToken(id, child.email());
+
+        duringAnUncommittedExchange(token, () ->
+                send(post("/api/v1/me/relationships/" + pending + "/accept"), other, null, 200));
+
+        JsonNode relationships = send(get(BASE + "/" + id + "/relationships"), child, null, 200);
+        assertEquals("CAREGIVER", roleOf(relationships, other.id()));
+        assertEquals(1, principalCount(relationships));
+    }
+
     // --- apoyo ---
+
+    /**
+     * Canjea dentro de una transacción que se mantiene abierta, lanza la otra petición desde otro
+     * hilo y solo entonces confirma. La pausa le da tiempo a leer antes de la confirmación si nada
+     * la obliga a esperar.
+     */
+    private void duringAnUncommittedExchange(String token, Callable<JsonNode> competing) throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<JsonNode> result = new TransactionTemplate(transactions).execute(tx -> {
+                try {
+                    send(post(EXCHANGE), child, Map.of("token", token), 200);
+                    Future<JsonNode> other = executor.submit(competing);
+                    awaitBriefly(other);
+                    return other;
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            result.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private void awaitBriefly(Future<?> future) throws InterruptedException, ExecutionException {
+        try {
+            future.get(500, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException stillBlocked) {
+            // Es lo esperado: está en la cola del bloqueo del perfil.
+        }
+    }
 
     private record Session(String token, long id, String email) {}
 
