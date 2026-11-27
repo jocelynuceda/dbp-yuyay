@@ -8,6 +8,7 @@ import com.yuyay.care.entity.Delegation;
 import com.yuyay.care.repository.CareRelationshipRepository;
 import com.yuyay.care.repository.CareSubjectRepository;
 import com.yuyay.care.repository.DelegationRepository;
+import com.yuyay.common.Gender;
 import com.yuyay.consultation.entity.Consultation;
 import com.yuyay.consultation.entity.Handoff;
 import com.yuyay.consultation.entity.HandoffItem;
@@ -116,36 +117,41 @@ public class DemoDataSeeder {
     }
 
     private Users createUsers() {
-        User ana = saveUser(ANA_EMAIL, "Ana Torres");
-        User bruno = saveUser(BRUNO_EMAIL, "Bruno Torres");
+        // Con género y fecha de nacimiento, el avatar automático de cada uno coincide con su edad
+        LocalDate today = LocalDate.now();
+        User ana = saveUser(ANA_EMAIL, "Ana Torres", Gender.FEMALE, today.minusYears(45).minusDays(20));
+        User bruno = saveUser(BRUNO_EMAIL, "Bruno Torres", Gender.MALE, today.minusYears(42).minusDays(75));
         return new Users(ana, bruno);
     }
 
-    private User saveUser(String email, String name) {
+    private User saveUser(String email, String name, Gender gender, LocalDate birthDate) {
         // Igual que AuthService.register: email en minúsculas, hash con el PasswordEncoder, rol USER.
         return userRepo.save(User.builder()
                 .email(email.toLowerCase())
                 .passwordHash(passwordEncoder.encode(demoPassword))
                 .name(name)
+                .gender(gender)
+                .birthDate(birthDate)
                 .role(Role.USER)
                 .build());
     }
 
     private Subjects createSubjects(Users users) {
         LocalDate today = LocalDate.now();
-        CareSubject rosa = createSubject(users.ana(), "Rosa", today.minusYears(72).minusDays(40),
+        CareSubject rosa = createSubject(users.ana(), "Rosa", Gender.FEMALE, today.minusYears(72).minusDays(40),
                 "Mamá. Vive en Jesús María. Controles en la clínica cada 3 meses.");
-        CareSubject pedro = createSubject(users.ana(), "Pedro", today.minusYears(75).minusDays(100),
+        CareSubject pedro = createSubject(users.ana(), "Pedro", Gender.MALE, today.minusYears(75).minusDays(100),
                 "Papá. Camina todas las mañanas. Usa lentes para leer.");
-        CareSubject lucia = createSubject(users.ana(), "Lucía", today.minusYears(8).minusDays(60),
+        CareSubject lucia = createSubject(users.ana(), "Lucía", Gender.FEMALE, today.minusYears(8).minusDays(60),
                 "Hija. Tercer grado de primaria. Asma desde los 4 años.");
         return new Subjects(rosa, pedro, lucia);
     }
 
     // Mismo patrón que CareSubjectService.create: persona + relación PRINCIPAL ACTIVE del creador.
-    private CareSubject createSubject(User owner, String name, LocalDate birthDate, String notes) {
+    private CareSubject createSubject(User owner, String name, Gender gender, LocalDate birthDate, String notes) {
         CareSubject subject = subjectRepo.save(CareSubject.builder()
                 .name(name)
+                .gender(gender)
                 .birthDate(birthDate)
                 .notes(notes)
                 .build());

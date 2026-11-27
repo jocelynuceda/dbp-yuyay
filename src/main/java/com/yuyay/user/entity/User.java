@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,6 +58,9 @@ public class User {
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private Gender gender;
+
+    /** Opcional. Con ella se muestra la edad en el perfil y el avatar automático cambia con la edad. */
+    private LocalDate birthDate;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
