@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Tu perfil en Yuyay</title>
+</head>
+<body>
+<h2>Tu perfil en Yuyay</h2>
+
+<p>
+    <strong th:text="${handedOverBy}">Quien te cuida</strong> quiere entregarte el perfil de
+    <strong th:text="${careSubjectName}">tu nombre</strong> en Yuyay, para que pases a administrarlo
+    tú.
+</p>
+
+<p>
+    <a th:href="${claimLink}">Recibir mi perfil</a>
+</p>
+
+<p>
+    Este enlace es personal y de un solo uso. Para usarlo necesitas iniciar sesión en Yuyay con esta
+    misma dirección de correo.
+</p>
+
+<p th:text="'El enlace vence el ' + ${validUntil} + '.'">El enlace vence pronto.</p>
+
+<p>
+    Si no esperabas este correo, no abras el enlace: quien te lo envió seguirá administrando el
+    perfil como hasta ahora.
+</p>
+
+<p>Yuyay</p>
+</body>
+</html>

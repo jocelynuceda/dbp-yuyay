@@ -7,7 +7,6 @@ import com.yuyay.care.dto.CareSubjectCreateRequest;
 import com.yuyay.care.dto.CareSubjectResponse;
 import com.yuyay.care.dto.CareSubjectUpdateRequest;
 import com.yuyay.care.dto.ClaimInvitationCreateRequest;
-import com.yuyay.care.dto.ClaimInvitationCreatedResponse;
 import com.yuyay.care.dto.ClaimInvitationResponse;
 import com.yuyay.care.dto.IdentityCheckRequest;
 import com.yuyay.care.dto.IdentityCheckResponse;
@@ -67,7 +66,7 @@ public class CareSubjectController {
 
     @PostMapping("/{id}/claim-invitations")
     @ResponseStatus(HttpStatus.CREATED)
-    public ClaimInvitationCreatedResponse emitClaimInvitation(
+    public ClaimInvitationResponse emitClaimInvitation(
             @PathVariable Long id, @Valid @RequestBody ClaimInvitationCreateRequest req) {
         return claimInvitations.emit(id, req);
     }

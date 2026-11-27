@@ -4,9 +4,12 @@ import com.yuyay.care.entity.CareRelationship;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.entity.Delegation;
 import com.yuyay.care.repository.CareRelationshipRepository;
+import com.yuyay.care.entity.ClaimInvitation;
+import com.yuyay.care.repository.ClaimInvitationRepository;
 import com.yuyay.care.repository.DelegationRepository;
 import com.yuyay.config.AppProperties;
 import com.yuyay.event.CaregiverInvitedEvent;
+import com.yuyay.event.ClaimInvitationCreatedEvent;
 import com.yuyay.event.DelegationCreatedEvent;
 import com.yuyay.event.UserRegisteredEvent;
 import com.yuyay.event.listener.EmailListener;
@@ -19,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 
@@ -31,6 +35,7 @@ class EmailLinksTest {
     @Mock EmailService email;
     @Mock CareRelationshipRepository relationships;
     @Mock DelegationRepository delegations;
+    @Mock ClaimInvitationRepository claimInvitations;
     @Mock UserRepository users;
     private EmailListener listener;
 
@@ -38,7 +43,7 @@ class EmailLinksTest {
     void setUp() {
         // The API and web hosts differ; trailing slashes must not produce // in paths.
         AppProperties properties = new AppProperties(null, "https://api.example", "https://web.example///", null, null, null);
-        listener = new EmailListener(email, relationships, delegations, users, properties);
+        listener = new EmailListener(email, relationships, delegations, claimInvitations, users, properties);
     }
 
     @Test
@@ -72,5 +77,25 @@ class EmailLinksTest {
 
         verify(email).sendTemplate(eq("nurse@example.com"), eq("Acceso temporal a la informacion de Rosa"), eq("delegation"),
                 eq(Map.of("careSubjectName", "Rosa", "shareLink", "https://web.example/acceso/opaque-token")));
+    }
+
+    @Test
+    void theClaimLinkGoesToTheInvitedMailboxWithTheNamesOfBothSides() {
+        when(claimInvitations.findById(7L)).thenReturn(Optional.of(ClaimInvitation.builder().id(7L)
+                .careSubject(CareSubject.builder().name("Rosa").build())
+                .createdBy(User.builder().name("Marta").build())
+                .invitedEmail("rosa@example.com")
+                .validUntil(Instant.parse("2026-12-03T05:00:00Z"))
+                .build()));
+
+        listener.onClaimInvitationCreated(
+                new ClaimInvitationCreatedEvent(7L, "https://web.example/entrega/un-token"));
+
+        verify(email).sendTemplate(eq("rosa@example.com"), eq("Te entregan tu perfil en Yuyay"),
+                eq("profile-claim"), eq(Map.of(
+                        "careSubjectName", "Rosa",
+                        "handedOverBy", "Marta",
+                        "claimLink", "https://web.example/entrega/un-token",
+                        "validUntil", "03/12/2026")));
     }
 }

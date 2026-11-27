@@ -114,6 +114,16 @@ public class CareRelationshipService {
             throw new InvalidCareRelationshipException("La invitación no está pendiente");
         }
 
+        CareSubject subject = rel.getCareSubject();
+        if (rel.getRole() == CareRole.PRINCIPAL
+                && subject.getAccountUser() != null
+                && !subject.getAccountUser().getId().equals(meId)) {
+            // El perfil se entregó a su titular entre la invitación y esta aceptación. El acceso se
+            // conserva, pero como cuidador: dos PRINCIPAL dejarían a dos personas decidiendo sobre
+            // los mismos datos de salud, y solo una de ellas es su dueña.
+            rel.setRole(CareRole.CAREGIVER);
+        }
+
         rel.setStatus(CareStatus.ACTIVE);
         Instant now = Instant.now();
         rel.setAcceptedAt(now);

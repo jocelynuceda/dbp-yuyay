@@ -1,11 +1,14 @@
 package com.yuyay.event.listener;
 
 import com.yuyay.care.entity.CareRelationship;
+import com.yuyay.care.entity.ClaimInvitation;
 import com.yuyay.care.entity.Delegation;
 import com.yuyay.care.repository.CareRelationshipRepository;
+import com.yuyay.care.repository.ClaimInvitationRepository;
 import com.yuyay.care.repository.DelegationRepository;
 import com.yuyay.config.AppProperties;
 import com.yuyay.event.CaregiverInvitedEvent;
+import com.yuyay.event.ClaimInvitationCreatedEvent;
 import com.yuyay.event.DelegationCreatedEvent;
 import com.yuyay.event.UserRegisteredEvent;
 import com.yuyay.notification.email.EmailService;
@@ -20,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @Slf4j
@@ -27,9 +32,14 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class EmailListener {
 
+    /** Fecha en la zona en la que vive la app, la misma que usan los recordatorios. */
+    private static final DateTimeFormatter DAY =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.of("America/Lima"));
+
     private final EmailService emailService;
     private final CareRelationshipRepository careRelationshipRepository;
     private final DelegationRepository delegationRepository;
+    private final ClaimInvitationRepository claimInvitationRepository;
     private final UserRepository userRepository;
     private final AppProperties appProperties;
 
@@ -113,6 +123,39 @@ public class EmailListener {
                     ));
         } catch (Exception e) {
             log.error("Fallo enviando bienvenida al usuario {}", event.userId(), e);
+        }
+    }
+
+    /**
+     * El enlace de entrega solo sale por aquí. Quien emite la invitación no lo recibe: que llegue al
+     * buzón invitado es lo que acredita ese correo, porque abrir una cuenta con contraseña da sesión
+     * sin comprobarlo.
+     */
+    @Async("eventExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onClaimInvitationCreated(ClaimInvitationCreatedEvent event) {
+        try {
+            ClaimInvitation invitation = claimInvitationRepository
+                    .findById(event.invitationId())
+                    .orElse(null);
+            if (invitation == null) {
+                log.warn("ClaimInvitation {} no encontrada", event.invitationId());
+                return;
+            }
+
+            emailService.sendTemplate(
+                    invitation.getInvitedEmail(),
+                    "Te entregan tu perfil en Yuyay",
+                    "profile-claim",
+                    Map.of(
+                            "careSubjectName", invitation.getCareSubject().getName(),
+                            "handedOverBy", invitation.getCreatedBy().getName(),
+                            "claimLink", event.claimLink(),
+                            "validUntil", DAY.format(invitation.getValidUntil())
+                    ));
+        } catch (Exception e) {
+            log.error("Fallo enviando el enlace de entrega {}", event.invitationId(), e);
         }
     }
 }

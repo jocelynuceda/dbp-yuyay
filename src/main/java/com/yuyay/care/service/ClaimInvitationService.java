@@ -3,7 +3,6 @@ package com.yuyay.care.service;
 import com.yuyay.care.dto.ClaimExchangeRequest;
 import com.yuyay.care.dto.ClaimExchangeResponse;
 import com.yuyay.care.dto.ClaimInvitationCreateRequest;
-import com.yuyay.care.dto.ClaimInvitationCreatedResponse;
 import com.yuyay.care.dto.ClaimInvitationResponse;
 import com.yuyay.care.entity.CareAuthorizationType;
 import com.yuyay.care.entity.CareRelationship;
@@ -21,6 +20,7 @@ import com.yuyay.exception.ForbiddenCareSubjectAccessException;
 import com.yuyay.exception.InvalidCareRelationshipException;
 import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
+import com.yuyay.event.ClaimInvitationCreatedEvent;
 import com.yuyay.notification.entity.Notification;
 import com.yuyay.notification.entity.NotificationType;
 import com.yuyay.notification.repository.NotificationRepository;
@@ -30,6 +30,7 @@ import com.yuyay.security.TokenHasher;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,6 +65,7 @@ public class ClaimInvitationService {
     private final AuthorizationService authorizationService;
     private final CurrentUserService currentUserService;
     private final AppProperties properties;
+    private final ApplicationEventPublisher events;
     private final int minAge;
     private final int validDays;
 
@@ -78,6 +80,7 @@ public class ClaimInvitationService {
             AuthorizationService authorizationService,
             CurrentUserService currentUserService,
             AppProperties properties,
+            ApplicationEventPublisher events,
             @Value("${app.care.self-claim-min-age:16}") int minAge,
             @Value("${app.care.claim-invitation-valid-days:7}") int validDays) {
         this.invitations = invitations;
@@ -90,11 +93,17 @@ public class ClaimInvitationService {
         this.authorizationService = authorizationService;
         this.currentUserService = currentUserService;
         this.properties = properties;
+        this.events = events;
         this.minAge = minAge;
         this.validDays = validDays;
     }
 
-    public ClaimInvitationCreatedResponse emit(Long careSubjectId, ClaimInvitationCreateRequest request) {
+    /**
+     * El enlace no vuelve en la respuesta: se envía al buzón invitado. Esa es la única prueba de que
+     * quien canjea controla ese correo, porque registrarse con contraseña abre sesión sin
+     * comprobarlo. Quien emite ve que la invitación existe, no la llave.
+     */
+    public ClaimInvitationResponse emit(Long careSubjectId, ClaimInvitationCreateRequest request) {
         Long actorId = currentUserService.getCurrentUserId();
         CareSubject subject = authorizationService.requireRoleForUpdate(actorId, careSubjectId, CareRole.PRINCIPAL);
 
@@ -119,7 +128,8 @@ public class ClaimInvitationService {
                 .build());
 
         String claimLink = properties.frontendUrl() + "/entrega/" + rawToken;
-        return new ClaimInvitationCreatedResponse(toResponse(invitation), rawToken, claimLink);
+        events.publishEvent(new ClaimInvitationCreatedEvent(invitation.getId(), claimLink));
+        return toResponse(invitation);
     }
 
     @Transactional(readOnly = true)
@@ -154,7 +164,17 @@ public class ClaimInvitationService {
         User actor = users.findById(actorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
-        ClaimInvitation invitation = invitations.findByTokenHash(TokenHasher.sha256(request.token()))
+        String tokenHash = TokenHasher.sha256(request.token());
+
+        // El bloqueo del perfil va primero y todo lo que decide la entrega se lee después de él. Si
+        // la invitación se leyera antes, una revocación o una reemisión que entren en paralelo
+        // quedarían fuera de la decisión y el perfil se entregaría contra la última orden dada.
+        Long careSubjectId = invitations.findCareSubjectIdByTokenHash(tokenHash)
+                .orElseThrow(() -> new ResourceNotFoundException("Este enlace de entrega no existe"));
+        CareSubject subject = subjects.findForUpdateById(careSubjectId)
+                .orElseThrow(() -> new CareSubjectNotFoundException(careSubjectId));
+
+        ClaimInvitation invitation = invitations.findForUpdateByTokenHash(tokenHash)
                 .orElseThrow(() -> new ResourceNotFoundException("Este enlace de entrega no existe"));
         if (invitation.getExchangedAt() != null) {
             throw new InvalidOperationException("Este enlace ya fue utilizado");
@@ -168,11 +188,11 @@ public class ClaimInvitationService {
             throw new ForbiddenCareSubjectAccessException("Este enlace fue emitido para otra cuenta");
         }
 
-        CareSubject subject = subjects.findForUpdateById(invitation.getCareSubject().getId())
-                .orElseThrow(() -> new CareSubjectNotFoundException(invitation.getCareSubject().getId()));
-        if (subject.getAccountUser() != null) {
-            throw new InvalidOperationException("Esta persona ya es titular de su perfil");
-        }
+        // Las mismas condiciones que permitieron emitir, comprobadas de nuevo aquí: entre la emisión
+        // y el canje el perfil pudo declararse ficticio, cambiar de fecha de nacimiento o haberse
+        // entregado ya por otro enlace.
+        requireClaimable(subject, careSubjectId);
+        requireMinimumAge(subject);
 
         Instant now = Instant.now();
         invitation.setExchangedAt(now);
