@@ -347,6 +347,25 @@ class ClaimInvitationIntegrationTest {
         assertEquals(1, principalCount(relationships));
     }
 
+    @Test
+    @DisplayName("editar mientras se canjea conserva las notas, el titular y la fecha de entrega")
+    void editingDuringTheExchangeKeepsTheNotesTheTitularAndTheClaimDate() throws Exception {
+        LocalDate birthDate = LocalDate.now().minusYears(17);
+        long id = createSubject("Adolescente", birthDate, "LEGAL_REPRESENTATION");
+        String token = emitAndReadToken(id, child.email());
+
+        duringAnUncommittedExchange(token, () ->
+                send(patch(BASE + "/" + id), caregiver, Map.of(
+                        "name", "Adolescente",
+                        "birthDate", birthDate.toString(),
+                        "notes", "Alergia a la penicilina"), 200));
+
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT count(*) FROM care_subjects WHERE id = ? AND notes = ? "
+                        + "AND account_user_id = ? AND claimed_at IS NOT NULL",
+                Integer.class, id, "Alergia a la penicilina", child.id()));
+    }
+
     // --- apoyo ---
 
     /**
