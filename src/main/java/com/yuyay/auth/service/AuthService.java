@@ -86,25 +86,12 @@ public class AuthService {
         }
     }
 
-    public String lookUpFullName(String dni, String origin) {
-        return switch (consultDni(dni, origin)) {
-            case IdentityLookup.Found found -> found.person().fullName();
-            case IdentityLookup.NotFound ignored ->
-                    throw new FieldRejectedException("dni", "No encontramos ese DNI. Revisa los ocho dígitos.");
-            case IdentityLookup.Unavailable ignored -> throw directoryUnavailable();
-        };
-    }
-
-    private IdentityLookup consultDni(String dni, String origin) {
+    private void requireDniMatch(String dni, String declaredName, String origin) {
         if (!identityDirectory.isConfigured()) {
             throw directoryUnavailable();
         }
         dniQuota.reserve(origin);
-        return identityDirectory.findByDni(dni);
-    }
-
-    private void requireDniMatch(String dni, String declaredName, String origin) {
-        boolean matches = switch (consultDni(dni, origin)) {
+        boolean matches = switch (identityDirectory.findByDni(dni)) {
             case IdentityLookup.Found found -> found.person().matchesName(declaredName);
             case IdentityLookup.NotFound ignored -> false;
             case IdentityLookup.Unavailable ignored -> throw directoryUnavailable();

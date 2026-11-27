@@ -42,7 +42,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -97,42 +96,10 @@ class RegisterDniIntegrationTest {
     }
 
     @Test
-    @DisplayName("la consulta devuelve el nombre del DNI para que la persona lo confirme, sin guardarlo en caché")
-    void lookupReturnsTheNameOnTheDocument() throws Exception {
-        lookup(DNI).andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(jsonPath("$.fullName").value("ANA LUCIA QUISPE MAMANI"))
-                .andExpect(jsonPath("$.dni").doesNotExist());
-    }
-
-    @Test
-    @DisplayName("la consulta rechaza en el campo dni lo mal escrito y lo inexistente")
-    void lookupRejectsMalformedAndUnknownDni() throws Exception {
-        lookup("1234567").andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("dni"));
+    @DisplayName("la ruta pública de autocompletado ya no existe")
+    void anonymousFullNameLookupIsAbsent() throws Exception {
+        lookup(DNI).andExpect(status().isNotFound());
         verify(identityDirectory, never()).findByDni(any());
-        when(identityDirectory.findByDni(DNI)).thenReturn(new IdentityLookup.NotFound());
-        lookup(DNI).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("dni"));
-    }
-
-    @Test
-    @DisplayName("la consulta gasta el mismo cupo que el registro")
-    void lookupSharesTheRegistrationQuota() throws Exception {
-        lookup(DNI).andExpect(status().isOk());
-        lookup(DNI).andExpect(status().isOk());
-        lookup(DNI).andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("DNI_LOOKUP_LIMIT"));
-        verify(identityDirectory, times(2)).findByDni(DNI);
-    }
-
-    @Test
-    @DisplayName("sin proveedor configurado la consulta responde 503 sin gastar cupo")
-    void lookupWithoutProviderIsUnavailable() throws Exception {
-        when(identityDirectory.isConfigured()).thenReturn(false);
-        lookup(DNI).andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.code").value("DNI_LOOKUP_UNAVAILABLE"));
-        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM registration_dni_quotas", Integer.class));
     }
 
     @Test
@@ -268,10 +235,6 @@ class RegisterDniIntegrationTest {
 
     private ResultActions lookup(String dni) throws Exception {
         return mvc.perform(post("/api/v1/auth/dni-lookup")
-                .with(req -> {
-                    req.setRemoteAddr("192.0.2.1");
-                    return req;
-                })
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(Map.of("dni", dni))));
     }

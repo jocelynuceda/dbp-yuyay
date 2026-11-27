@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -70,6 +72,16 @@ class AccountDeletionIntegrationTest {
         send(delete(DELETE_ME), account, Map.of("confirmation", "eliminar", "profileIds", List.of(id)), 400);
 
         assertEquals(200, statusOf(get(SUBJECTS + "/" + id), account));
+    }
+
+    @Test
+    @DisplayName("un identificador nulo se rechaza y deja la cuenta activa")
+    void rejectsNullProfileIdsWithoutDeletingTheAccount() throws Exception {
+        Session account = register();
+        send(delete(DELETE_ME), account, Map.of(
+                "confirmation", WORD, "profileIds", Collections.singletonList(null)), 400);
+
+        assertEquals(account.id().longValue(), send(get(DELETE_ME), account, null, 200).get("id").asLong());
     }
 
     @Test
@@ -131,17 +143,20 @@ class AccountDeletionIntegrationTest {
     void theTombstoneKeepsNoPersonalData() throws Exception {
         String email = "lapida." + UUID.randomUUID() + "@yuyay.app";
         Session account = register(email);
+        JsonNode updated = send(patch(DELETE_ME), account, Map.of("name", "Prueba", "birthDate", "1981-05-10"), 200);
+        assertEquals("1981-05-10", updated.get("birthDate").asText());
 
         send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of()), 204);
 
         Map<String, Object> row = jdbc.queryForMap(
-                "select email, name, full_name, password_hash, google_subject, deleted_at from users where id = ?",
+                "select email, name, full_name, password_hash, google_subject, birth_date, deleted_at from users where id = ?",
                 account.id());
         assertEquals("eliminado+" + account.id() + "@yuyay.invalid", row.get("email"));
         assertEquals("Cuenta eliminada", row.get("name"));
         assertNull(row.get("full_name"));
         assertNull(row.get("password_hash"));
         assertNull(row.get("google_subject"));
+        assertNull(row.get("birth_date"));
         assertFalse(row.get("deleted_at") == null);
     }
 

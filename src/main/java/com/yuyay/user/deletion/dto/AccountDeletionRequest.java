@@ -1,6 +1,7 @@
 package com.yuyay.user.deletion.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
@@ -12,6 +13,6 @@ import java.util.List;
 public record AccountDeletionRequest(
         @NotBlank(message = "Falta la palabra de confirmación")
         String confirmation,
-        List<Long> profileIds
+        List<@NotNull Long> profileIds
 ) {
 }

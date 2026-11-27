@@ -87,6 +87,7 @@ public interface AccountDeletionRepository extends Repository<CareRelationship, 
                    u.passwordHash = null,
                    u.googleSubject = null,
                    u.gender = null,
+                   u.birthDate = null,
                    u.deletedAt = :now
              where u.id = :userId and u.deletedAt is null
             """)

@@ -11,16 +11,6 @@ La versión vigente es `1.2`. El cliente presenta el texto y solicita una confir
 explícita antes de enviar un alta. Conviene volver a consultar el endpoint si la
 versión resulta obsoleta.
 
-## Confirmar el nombre antes del alta
-
-`POST /dni-lookup` con `{"dni": "00000000"}` devuelve `{"fullName": "..."}`, el nombre que figura
-en el documento, con `Cache-Control: no-store`. El cliente lo muestra, la persona confirma que es
-ella y después elige su nombre de usuario. Un DNI inexistente responde 400 en el campo `dni`.
-
-Es una ruta anónima que revela un dato personal a quien conozca un DNI. La protege solo el cupo
-diario de abajo, que comparte con el alta: **un registro completo gasta dos consultas**. El texto de
-términos 1.2 todavía describe únicamente el contraste y debe actualizarse antes de publicar esto.
-
 ## Alta por correo
 
 `POST /register` devuelve `201 Created`. Conserva los campos anteriores y exige
@@ -29,17 +19,17 @@ la confirmación booleana `termsAccepted: true` y la cadena `termsVersion` vigen
 que se muestra en la aplicación; puede repetirse y no se contrasta con el documento.
 
 La persona escribe sus nombres y apellidos en `fullName`. Al registrar la cuenta, el servidor
-consulta APIsPERU otra vez y compara el nombre declarado con los datos de ese DNI. Acepta
+consulta APIsPERU una sola vez y compara el nombre declarado con los datos de ese DNI. Acepta
 al menos un nombre y un apellido en palabras distintas del documento, tolerando tildes,
 mayúsculas y orden. Las palabras adicionales deben pertenecer al documento. En la cuenta se
 guarda el texto escrito por la persona, aparte de su alias; el número de DNI se descarta.
 
 Una discrepancia y un documento inexistente devuelven el mismo error 400 en el campo `dni`.
-El alta no devuelve el nombre del directorio. Un fallo del proveedor, una respuesta
+El nombre del directorio no sale en la respuesta. Un fallo del proveedor, una respuesta
 ilegible o la falta de configuración devuelven 503 `DNI_LOOKUP_UNAVAILABLE` y el alta se
 puede reintentar. La coincidencia no demuestra que la persona sea titular del documento.
 
-El presupuesto de consulta y registro por día UTC se comparte entre las instancias mediante la base de datos.
+El presupuesto del registro por día UTC se comparte entre las instancias mediante la base de datos.
 Por defecto se permiten 5 consultas por origen y 50 en total, configurables con
 `REGISTRATION_DNI_PER_ORIGIN` y `REGISTRATION_DNI_DAILY_LIMIT`. Al agotarse un cupo se responde 429
 antes de llamar al proveedor. Sin proveedor configurado no se descuenta cupo. Los contadores por origen usan
