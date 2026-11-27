@@ -339,7 +339,7 @@ public class DemoDataSeeder {
 
     /** Perfil propio de Ana («Este perfil es para mí»): en la agenda sus tomas aparecen como «Yo». */
     private void createOwnProfile(User ana) {
-        CareSubject self = createSubject(ana, ana.getName(), LocalDate.now().minusYears(45), null);
+        CareSubject self = createSubject(ana, ana.getName(), ana.getGender(), ana.getBirthDate(), null);
         declarationRepo.save(CareAuthorizationDeclaration.builder()
                 .careSubject(self)
                 .declaredBy(ana)
