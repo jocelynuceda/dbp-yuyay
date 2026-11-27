@@ -2,6 +2,8 @@ package com.yuyay.auth.controller;
 
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.yuyay.auth.dto.AuthResponseDTO;
+import com.yuyay.auth.dto.DniLookupRequestDTO;
+import com.yuyay.auth.dto.DniLookupResponseDTO;
 import com.yuyay.auth.dto.GoogleAuthRequestDTO;
 import com.yuyay.auth.dto.LoginRequestDTO;
 import com.yuyay.auth.dto.RefreshTokenRequestDTO;
@@ -33,6 +35,17 @@ public class AuthController {
     @GetMapping("/terms")
     public ResponseEntity<TermsResponseDTO> terms() {
         return ResponseEntity.ok().cacheControl(CacheControl.noCache()).body(termsService.current());
+    }
+
+    /**
+     * Nombre que figura en el DNI, para que la persona confirme que es ella antes de crear la cuenta.
+     * Es anónima y revela un dato personal: la protege el mismo cupo diario que el registro.
+     */
+    @PostMapping("/dni-lookup")
+    public ResponseEntity<DniLookupResponseDTO> dniLookup(
+            @Valid @RequestBody DniLookupRequestDTO dto, HttpServletRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new DniLookupResponseDTO(authService.lookUpFullName(dto.dni(), request.getRemoteAddr())));
     }
 
     @PostMapping("/register")
