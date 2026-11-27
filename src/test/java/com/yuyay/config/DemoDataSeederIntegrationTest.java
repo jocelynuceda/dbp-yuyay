@@ -54,10 +54,11 @@ class DemoDataSeederIntegrationTest {
     @Autowired NotificationRepository notifications;
 
     @Test
-    void anaSeesHerThreePeopleWithPaginatedEntries() throws Exception {
+    void anaSeesHerPeopleWithPaginatedEntries() throws Exception {
         String ana = login("ana@demo.yuyay");
         JsonNode people = getJson("/api/v1/care-subjects", ana);
-        assertEquals(3, people.size());
+        // Rosa, Pedro, Lucía y su perfil propio (para la agenda de medicamentos)
+        assertEquals(4, people.size());
         long rosa = idByName(people, "Rosa");
 
         JsonNode page0 = getJson("/api/v1/care-subjects/" + rosa + "/health-entries?page=0&size=10", ana);

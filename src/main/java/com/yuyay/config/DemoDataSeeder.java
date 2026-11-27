@@ -1,10 +1,14 @@
 package com.yuyay.config;
 
+import com.yuyay.care.entity.CareAuthorizationDeclaration;
+import com.yuyay.care.entity.CareAuthorizationScope;
+import com.yuyay.care.entity.CareAuthorizationType;
 import com.yuyay.care.entity.CareRelationship;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareStatus;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.entity.Delegation;
+import com.yuyay.care.repository.CareAuthorizationDeclarationRepository;
 import com.yuyay.care.repository.CareRelationshipRepository;
 import com.yuyay.care.repository.CareSubjectRepository;
 import com.yuyay.care.repository.DelegationRepository;
@@ -21,6 +25,11 @@ import com.yuyay.health.entity.HealthEntryVersion;
 import com.yuyay.health.repository.HealthCategoryRepository;
 import com.yuyay.health.repository.HealthEntryRepository;
 import com.yuyay.health.repository.HealthEntryVersionRepository;
+import com.yuyay.medication.entity.DoseLog;
+import com.yuyay.medication.entity.DoseStatus;
+import com.yuyay.medication.entity.MedicationSchedule;
+import com.yuyay.medication.repository.DoseLogRepository;
+import com.yuyay.medication.repository.MedicationScheduleRepository;
 import com.yuyay.notification.entity.Notification;
 import com.yuyay.notification.entity.NotificationType;
 import com.yuyay.notification.repository.NotificationRepository;
@@ -40,6 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -71,6 +81,9 @@ public class DemoDataSeeder {
     private final HandoffRepository handoffRepo;
     private final DelegationRepository delegationRepo;
     private final NotificationRepository notificationRepo;
+    private final MedicationScheduleRepository scheduleRepo;
+    private final CareAuthorizationDeclarationRepository declarationRepo;
+    private final DoseLogRepository doseLogRepo;
     private final PasswordEncoder passwordEncoder;
 
     // Inyección por campo: no es final, así que Lombok no lo mete al constructor.
@@ -108,6 +121,8 @@ public class DemoDataSeeder {
         createPedroEntries(users, subjects.pedro());
         createLuciaEntries(users, subjects.lucia());
         createConsultations(users, subjects.rosa());
+        createMedicationSchedules(users, subjects.rosa(), rosaEntries);
+        createOwnProfile(users.ana());
         createHandoff(users, subjects.rosa(), rosaEntries);
         createDelegation(users, subjects.rosa());
         createNotifications(users, subjects);
@@ -314,6 +329,57 @@ public class DemoDataSeeder {
                 "Vacuna contra la influenza 2026",
                 null,
                 null, null, today.minusMonths(5), ConfidenceLevel.CONFIRMED, null));
+    }
+
+    /** Perfil propio de Ana («Este perfil es para mí»): en la agenda sus tomas aparecen como «Yo». */
+    private void createOwnProfile(User ana) {
+        CareSubject self = createSubject(ana, ana.getName(), LocalDate.now().minusYears(45), null);
+        declarationRepo.save(CareAuthorizationDeclaration.builder()
+                .careSubject(self)
+                .declaredBy(ana)
+                .type(CareAuthorizationType.SELF)
+                .scope(CareAuthorizationScope.OWN_DATA)
+                .textVersion("1")
+                .text("Confirmo que este perfil corresponde a mi persona.")
+                .declaredAt(Instant.now())
+                .build());
+        SavedEntry vitamin = createEntry(self, HealthCategory.MEDICATION, ana, new EntryData(
+                "Vitamina D", "Indicada en el último chequeo.", "1000 UI", "1 vez al día",
+                LocalDate.now().minusMonths(2), ConfidenceLevel.CONFIRMED, null));
+        scheduleRepo.save(MedicationSchedule.builder()
+                .healthEntry(vitamin.entry())
+                .careSubject(self)
+                .times(new ArrayList<>(List.of(LocalTime.of(9, 0))))
+                .startDate(LocalDate.now().minusMonths(2))
+                .updatedBy(ana)
+                .updatedAt(Instant.now())
+                .build());
+    }
+
+    /** Horarios de Rosa para la agenda «Hoy»: Bruno ya marcó la toma de las 8 del losartán. */
+    private void createMedicationSchedules(Users users, CareSubject rosa, List<SavedEntry> rosaEntries) {
+        LocalDate today = LocalDate.now();
+        Instant now = Instant.now();
+        for (SavedEntry saved : rosaEntries) {
+            List<LocalTime> times = switch (saved.latest().getTitle()) {
+                case "Losartán" -> List.of(LocalTime.of(8, 0), LocalTime.of(20, 0));
+                case "Metformina" -> List.of(LocalTime.of(13, 0));
+                default -> null;
+            };
+            if (times == null) continue;
+            MedicationSchedule schedule = scheduleRepo.save(MedicationSchedule.builder()
+                    .healthEntry(saved.entry())
+                    .careSubject(rosa)
+                    .times(new ArrayList<>(times))
+                    .startDate(today.minusMonths(1))
+                    .updatedBy(users.ana())
+                    .updatedAt(now)
+                    .build());
+            if (times.size() == 2) {
+                doseLogRepo.save(DoseLog.builder().schedule(schedule).date(today).time(times.get(0))
+                        .status(DoseStatus.TAKEN).markedBy(users.bruno()).markedAt(now).build());
+            }
+        }
     }
 
     // Mismo patrón que HealthEntryService.create: registro + versión 1 (CREATED) declarada por el autor.
