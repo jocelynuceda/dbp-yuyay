@@ -5,6 +5,7 @@ import com.yuyay.care.dto.CareAuthorizationPolicyResponse;
 import com.yuyay.care.dto.CareAuthorizationPolicyResponse.Option;
 import com.yuyay.care.dto.CareAuthorizationUpdateRequest;
 import com.yuyay.care.entity.CareAuthorizationDeclaration;
+import com.yuyay.care.entity.CareAuthorizationType;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.mapper.CareAuthorizationDeclarationMapper;
@@ -63,6 +64,18 @@ public class CareAuthorizationDeclarationService {
         }
         User actor = userRepo.getReferenceById(actorId);
         return mapper.toResponse(append(subject, actor, option, null, null));
+    }
+
+    /**
+     * Registra la declaración {@code SELF} del titular que acaba de recibir su perfil: su propia voz
+     * sobre su dato, con el texto y la versión vigentes. No reescribe el historial anterior.
+     */
+    CareAuthorizationDeclaration appendSelfDeclaration(CareSubject subject, User actor) {
+        Option self = CareAuthorizationPolicy.CURRENT.options().stream()
+                .filter(option -> option.type() == CareAuthorizationType.SELF)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("El catálogo no incluye la declaración SELF"));
+        return append(subject, actor, self, null, null);
     }
 
     Optional<CareSubject> replayCreation(Long actorId, String requestId, String payloadHash) {

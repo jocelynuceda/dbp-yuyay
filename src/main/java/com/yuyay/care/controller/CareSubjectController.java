@@ -6,10 +6,14 @@ import com.yuyay.care.dto.CareAuthorizationUpdateRequest;
 import com.yuyay.care.dto.CareSubjectCreateRequest;
 import com.yuyay.care.dto.CareSubjectResponse;
 import com.yuyay.care.dto.CareSubjectUpdateRequest;
+import com.yuyay.care.dto.ClaimInvitationCreateRequest;
+import com.yuyay.care.dto.ClaimInvitationCreatedResponse;
+import com.yuyay.care.dto.ClaimInvitationResponse;
 import com.yuyay.care.dto.IdentityCheckRequest;
 import com.yuyay.care.dto.IdentityCheckResponse;
 import com.yuyay.care.service.CareAuthorizationDeclarationService;
 import com.yuyay.care.service.CareSubjectIdentityCheckService;
+import com.yuyay.care.service.ClaimInvitationService;
 import com.yuyay.care.service.CareSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +31,7 @@ public class CareSubjectController {
     private final CareSubjectService service;
     private final CareAuthorizationDeclarationService declarations;
     private final CareSubjectIdentityCheckService identityChecks;
+    private final ClaimInvitationService claimInvitations;
 
     @PostMapping
     public ResponseEntity<CareSubjectResponse> create(@Valid @RequestBody CareSubjectCreateRequest req) {
@@ -58,6 +63,24 @@ public class CareSubjectController {
     public IdentityCheckResponse checkIdentity(
             @PathVariable Long id, @Valid @RequestBody IdentityCheckRequest req) {
         return identityChecks.check(id, req);
+    }
+
+    @PostMapping("/{id}/claim-invitations")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ClaimInvitationCreatedResponse emitClaimInvitation(
+            @PathVariable Long id, @Valid @RequestBody ClaimInvitationCreateRequest req) {
+        return claimInvitations.emit(id, req);
+    }
+
+    @GetMapping("/{id}/claim-invitations")
+    public List<ClaimInvitationResponse> listClaimInvitations(@PathVariable Long id) {
+        return claimInvitations.listBySubject(id);
+    }
+
+    @DeleteMapping("/{id}/claim-invitations/{invitationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeClaimInvitation(@PathVariable Long id, @PathVariable Long invitationId) {
+        claimInvitations.revoke(id, invitationId);
     }
 
     @GetMapping("/{id}")

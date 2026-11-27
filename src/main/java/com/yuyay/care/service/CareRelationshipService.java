@@ -135,6 +135,12 @@ public class CareRelationshipService {
         if (rel.getStatus() == CareStatus.REVOKED) {
             throw new InvalidOperationException("La relación ya fue revocada");
         }
+        CareSubject subject = loadSubject(subjectId);
+        if (subject.getAccountUser() != null
+                && subject.getAccountUser().getId().equals(rel.getUser().getId())) {
+            // La autonomía que da el canje no se puede deshacer desde afuera (§3.1 del análisis).
+            throw new InvalidOperationException("No se puede quitar el acceso al titular de sus propios datos");
+        }
         if (rel.getRole() == CareRole.PRINCIPAL
                 && relationshipRepo.countByCareSubjectIdAndStatusAndRole(subjectId, CareStatus.ACTIVE, CareRole.PRINCIPAL) <= 1) {
             throw new InvalidOperationException("No se puede revocar al único PRINCIPAL de esta persona");

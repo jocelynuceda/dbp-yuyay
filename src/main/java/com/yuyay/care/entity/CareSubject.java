@@ -5,6 +5,7 @@ import com.yuyay.common.Gender;
 import com.yuyay.consultation.entity.Consultation;
 import com.yuyay.consultation.entity.Handoff;
 import com.yuyay.health.entity.HealthEntry;
+import com.yuyay.user.entity.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -16,7 +17,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "care_subjects")
+@Table(
+        name = "care_subjects",
+        // Una cuenta es titular de a lo sumo un perfil. En PostgreSQL varios NULL conviven en un
+        // índice único, así que los perfiles sin dueño no se estorban.
+        uniqueConstraints = @UniqueConstraint(name = "uk_care_subject_account_user", columnNames = "account_user_id")
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -43,6 +49,18 @@ public class CareSubject {
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    /**
+     * La cuenta de la persona a la que pertenece este perfil, cuando existe.
+     *
+     * <p>Si no es null, ese perfil <b>es</b> esa persona: deja de ser «alguien de quien un cuidador
+     * habla» y pasa a tener titular. Se fija al canjear la entrega y no se vuelve a mover.
+     */
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "account_user_id")
+    private User accountUser;
+
+    private Instant claimedAt;
 
     @OneToMany(mappedBy = "careSubject", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
