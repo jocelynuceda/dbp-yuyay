@@ -422,12 +422,49 @@ El historial queda legible como «declarado por una cuenta eliminada», que es l
 irreversible, porque el dato se fue de verdad y no quedó una bandera que alguien pueda desmarcar. Y
 como `dniHmac` se borra, el DNI vuelve a estar libre: la regla de §3.6 se cumple sin romper nada.
 
-**Lo que falta decidir:** qué pasa con los perfiles donde esa cuenta era el único `PRINCIPAL`.
-Si la cuenta era la titular de su propio perfil, ese perfil y sus registros se van con ella —es el
-derecho de supresión—. Si era cuidadora del perfil de otra persona sin cuenta, el perfil quedaría
-sin nadie que pueda abrirlo. Recomendación: **impedir el borrado hasta que lo entregue o lo elimine
-explícitamente**, porque borrar el historial de la madre en silencio y dejarlo inaccesible en
-silencio son las dos malas.
+**Perfiles donde esa cuenta era el único `PRINCIPAL`.** Decidido el 26-nov-2026: no se elige por
+ella. Se le muestra qué pierde y ella confirma.
+
+Esto no es un cuadro de diálogo del frontend. Un cliente puede no mostrarlo, así que la
+confirmación tiene que ser un dato que el servidor exija y verifique:
+
+```
+GET    /api/v1/users/me/deletion-preview   -- qué se pierde, sin borrar nada
+DELETE /api/v1/users/me                    -- exige confirmar ese detalle
+```
+
+La vista previa separa los perfiles según la consecuencia, porque son distintas:
+
+| Grupo | Qué pasa |
+|---|---|
+| Su propio perfil (es `accountUser`) | Se elimina con sus registros. Es el derecho de supresión. |
+| Perfiles donde es el único `PRINCIPAL` | **Nadie podría abrirlos.** Puede entregarlos antes (§3.4) o aceptar que se eliminen, con el nombre y cuántos registros tiene cada uno. |
+| Perfiles con otro `PRINCIPAL` activo | No se pierde nada: siguen accesibles y ella solo deja de figurar. |
+
+El `DELETE` exige la palabra `ELIMINAR` y repetir los identificadores que aceptó perder. Si la
+lista cambió desde la vista previa —agregó un perfil mientras decidía— el servidor rechaza y obliga
+a verla otra vez, igual que `declare` ya rechaza una declaración cuando el historial cambió debajo
+(`previousDeclarationId`).
+
+Lo que la pantalla debe decir con claridad, porque es lo que más sorprende: su nombre desaparece de
+la cadena de auditoría, pero **las declaraciones que hizo sobre otras personas no se borran**.
+Quedan como «declarado por una cuenta eliminada». No puede retirar la prueba del consentimiento con
+que registró a otro, y eso es a propósito.
+
+**Entregado el 26-nov-2026:** las dos rutas, la confirmación verificada en el servidor, la lápida,
+el acceso cerrado —el filtro resuelve el usuario en cada petición, así que descartar la cuenta
+eliminada ahí corta también los tokens ya emitidos— y el correo liberado para volver a registrarse.
+Nueve pruebas de integración.
+
+**Límite aceptado el 26-nov-2026:** un perfil con historial de salud no se puede eliminar. La
+regla ya existía en `CareSubjectService.delete` y **se decidió no cambiarla**, así que el borrado se
+rechaza y la vista previa lo avisa antes, nombrando el perfil.
+
+Hay que decir lo que eso implica, porque no es solo un detalle técnico: **quien ya registró datos de
+salud no puede eliminar su cuenta todavía.** El derecho de supresión queda a medias y el DNI de
+§3.6 no se liberaría en ese caso. Es una limitación conocida y asumida (R9 en §6), no un descuido:
+el borrado en cascada del historial propio arrastra archivos en almacenamiento, no solo filas, y
+conservar el historial se consideró preferible a construir ese camino ahora.
 
 ---
 
@@ -564,6 +601,7 @@ el texto aclarando que lo no confirmado no equivale a no tomado.
 | R3 | La inmutabilidad del historial choca con el derecho de supresión que el nuevo titular adquiere. | Es el mismo problema ya abierto en #73; el canje lo vuelve exigible antes. Definir conservación y supresión antes del piloto. |
 | R4 | El bucle diario eleva la expectativa de fiabilidad (§1.3). | Métricas de envío, reintentos, y copy que no prometa más de lo que el canal garantiza. |
 | R5 | Cambio de esquema con *backfill* (perfiles propios de cuentas existentes) bajo `ddl-auto=update`. | `update` agrega la columna, pero no hace backfill ni garantiza índices parciales. Es el caso que justifica Flyway antes de empezar. |
+| R9 | **El borrado de cuenta no alcanza a quien tiene historial de salud** (§3.7). La regla de no eliminar un perfil con registros se mantuvo a propósito, así que esas cuentas no se pueden eliminar y su derecho de supresión queda pendiente. | Decirlo en la pantalla con el perfil que bloquea, y ofrecer la entrega del perfil (§3.4) como salida cuando el titular es otro. Resolver el borrado en cascada del historial propio —incluidos los archivos en almacenamiento— antes del piloto con datos reales. |
 | R6 | Edad mínima y consentimiento de menores sobre dato sensible; el reglamento pudo cambiar desde 2013. **La edad es declarada, no verificada** (§3.5): un año falso o mal tecleado abre o cierra el canje. | Política configurable + revisión legal con el texto vigente antes del piloto. Aviso a los cuidadores activos al emitir y al canjear, para que un error sea visible. Texto del canje redactado para que un adolescente lo entienda. No afirmar en producto que una declaración «verifica» algo. |
 
 ---

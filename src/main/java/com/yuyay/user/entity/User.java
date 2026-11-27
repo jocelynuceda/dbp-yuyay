@@ -61,9 +61,21 @@ public class User {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    /**
+     * Cuándo se eliminó la cuenta. La fila sobrevive como lápida porque catorce entidades la
+     * referencian, entre ellas la cadena de auditoría del consentimiento y de las versiones
+     * clínicas: borrarla se llevaría el historial de otras personas. El dato identificante sí se
+     * borra, así que esto no se puede deshacer.
+     */
+    private Instant deletedAt;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<CareRelationship> careRelationships = new ArrayList<>();
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
 
     public boolean hasPasswordCredential() {
         return googleSubject == null && passwordHash != null && !passwordHash.isBlank();
