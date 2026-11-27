@@ -1,5 +1,6 @@
 package com.yuyay.user.deletion;
 
+import com.yuyay.attachment.entity.OcrStatus;
 import com.yuyay.care.entity.CareRelationship;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareStatus;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Elimina la cuenta borrando el dato identificante y conservando la fila como lápida: catorce
@@ -144,20 +146,32 @@ public class AccountDeletionService {
             lost.add(own);
         }
 
-        Map<Long, Long> entryCounts = entryCounts(lost.stream().map(CareSubject::getId).toList());
+        List<Long> lostIds = lost.stream().map(CareSubject::getId).toList();
+        Map<Long, Long> entryCounts = countsBySubject(lostIds, queries::countActiveEntriesBySubject);
+        Map<Long, Long> documentCounts = countsBySubject(lostIds, queries::countAttachmentsBySubject);
+        Set<Long> readingDocuments = lostIds.isEmpty()
+                ? Set.of()
+                : Set.copyOf(queries.subjectIdsWithPendingOcr(lostIds, OcrStatus.PENDING));
         List<ProfileAtRisk> toDelete = lost.stream()
                 .map(subject -> {
                     long count = entryCounts.getOrDefault(subject.getId(), 0L);
                     boolean isOwn = own != null && own.getId().equals(subject.getId());
-                    return new ProfileAtRisk(subject.getId(), subject.getName(), count, count > 0, isOwn);
+                    return new ProfileAtRisk(subject.getId(), subject.getName(), count, count > 0, isOwn,
+                            documentCounts.getOrDefault(subject.getId(), 0L));
                 })
                 .toList();
 
-        List<String> blockers = toDelete.stream()
-                .filter(ProfileAtRisk::hasHistory)
-                .map(profile -> "El perfil de " + profile.name() + " tiene historial de salud y no se puede"
-                        + " eliminar: entrégalo a su titular o vacíalo antes de eliminar la cuenta.")
-                .toList();
+        List<String> blockers = new ArrayList<>();
+        for (ProfileAtRisk profile : toDelete) {
+            if (profile.hasHistory()) {
+                blockers.add("El perfil de " + profile.name() + " tiene historial de salud y no se puede"
+                        + " eliminar: entrégalo a su titular o vacíalo antes de eliminar la cuenta.");
+            }
+            if (readingDocuments.contains(profile.id())) {
+                blockers.add("Se está leyendo un documento del perfil de " + profile.name()
+                        + ". Espera a que termine e inténtalo otra vez.");
+            }
+        }
 
         List<Long> deletedIds = toDelete.isEmpty()
                 ? List.of(NO_SUBJECT)
@@ -166,16 +180,17 @@ public class AccountDeletionService {
         return new AccountDeletionPreview(
                 toDelete,
                 kept.stream().map(subject -> new ProfileKept(subject.getId(), subject.getName())).toList(),
-                blockers,
+                List.copyOf(blockers),
                 queries.countDeclarationsKept(userId, deletedIds),
                 CONFIRMATION_WORD,
                 Instant.now().truncatedTo(ChronoUnit.MICROS));
     }
 
-    private Map<Long, Long> entryCounts(List<Long> subjectIds) {
+    /** Convierte las filas (perfil, cantidad) de una consulta agrupada en un mapa. */
+    private static Map<Long, Long> countsBySubject(List<Long> subjectIds, Function<List<Long>, List<Object[]>> query) {
         if (subjectIds.isEmpty()) return Map.of();
         Map<Long, Long> counts = new HashMap<>();
-        for (Object[] row : queries.countActiveEntriesBySubject(subjectIds)) {
+        for (Object[] row : query.apply(subjectIds)) {
             counts.put((Long) row[0], (Long) row[1]);
         }
         return counts;

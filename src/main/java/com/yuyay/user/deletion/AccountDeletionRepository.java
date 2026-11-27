@@ -1,5 +1,6 @@
 package com.yuyay.user.deletion;
 
+import com.yuyay.attachment.entity.OcrStatus;
 import com.yuyay.care.entity.CareRelationship;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareStatus;
@@ -50,6 +51,21 @@ public interface AccountDeletionRepository extends Repository<CareRelationship, 
              group by h.careSubject.id
             """)
     List<Object[]> countActiveEntriesBySubject(Collection<Long> subjectIds);
+
+    /** Cuántos documentos y notas de voz tiene cada perfil: se borran con él. */
+    @Query("""
+            select a.careSubject.id, count(a) from Attachment a
+             where a.careSubject.id in :subjectIds
+             group by a.careSubject.id
+            """)
+    List<Object[]> countAttachmentsBySubject(Collection<Long> subjectIds);
+
+    /** Perfiles con un documento que todavía se está leyendo: no se pueden borrar a mitad de la lectura. */
+    @Query("""
+            select distinct a.careSubject.id from Attachment a
+             where a.careSubject.id in :subjectIds and a.ocrStatus = :pending
+            """)
+    List<Long> subjectIdsWithPendingOcr(Collection<Long> subjectIds, OcrStatus pending);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

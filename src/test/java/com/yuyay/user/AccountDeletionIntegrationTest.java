@@ -1,5 +1,7 @@
 package com.yuyay.user;
 
+import com.yuyay.attachment.ocr.TextExtractor;
+import com.yuyay.attachment.storage.FileStorage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,7 +9,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
@@ -23,7 +27,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -42,6 +51,10 @@ class AccountDeletionIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
+
+    // Sin almacenamiento ni lectura de texto reales: solo importa qué se borra y cuándo
+    @MockitoBean FileStorage fileStorage;
+    @MockitoBean TextExtractor textExtractor;
 
     @Test
     @DisplayName("sin sesión no se puede ver ni ejecutar el borrado")
@@ -196,7 +209,62 @@ class AccountDeletionIntegrationTest {
                 Integer.class, owner.id()) >= 1);
     }
 
+    @Test
+    @DisplayName("un perfil con documentos pero sin registros se borra con sus documentos")
+    void aProfileWithDocumentsIsDeletedWithThem() throws Exception {
+        Session account = register();
+        long id = createSubject(account, "Ana Quispe");
+        long documentId = uploadDocument(account, id);
+        String storageKey = jdbc.queryForObject("select storage_key from attachments where id = ?", String.class, documentId);
+
+        JsonNode preview = send(get(PREVIEW), account, null, 200);
+        assertEquals(1, preview.get("profilesToDelete").get(0).get("documentCount").asLong());
+        assertTrue(preview.get("blockers").isEmpty());
+
+        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of(id)), 204);
+
+        assertEquals(0, jdbc.queryForObject("select count(*) from attachments where care_subject_id = ?", Integer.class, id));
+        assertEquals(0, jdbc.queryForObject("select count(*) from care_subjects where id = ?", Integer.class, id));
+        // El archivo se borra del almacenamiento después de confirmar, no antes
+        verify(fileStorage).delete(storageKey);
+    }
+
+    @Test
+    @DisplayName("un documento que se está leyendo bloquea el borrado y lo dice antes")
+    void aDocumentBeingReadBlocksTheDeletion() throws Exception {
+        Session account = register();
+        long id = createSubject(account, "Ana Quispe");
+        long documentId = uploadDocument(account, id);
+        jdbc.update("update attachments set ocr_status = 'PENDING' where id = ?", documentId);
+
+        JsonNode preview = send(get(PREVIEW), account, null, 200);
+        assertTrue(preview.get("blockers").get(0).asText().contains("Se está leyendo un documento"));
+        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of(id)), 409);
+
+        // Nada cambió: la cuenta sigue entrando y el documento sigue ahí
+        send(get(PREVIEW), account, null, 200);
+        assertEquals(1, jdbc.queryForObject("select count(*) from attachments where id = ?", Integer.class, documentId));
+        verify(fileStorage, never()).delete(anyString());
+    }
+
     // --- apoyo ---
+
+    /** Sube una foto y espera a que termine su lectura de texto, como en la app. */
+    private long uploadDocument(Session actor, long subjectId) throws Exception {
+        when(textExtractor.extractText(anyString())).thenReturn("Receta de ejemplo");
+        var out = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(30, 20, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", out);
+        MockMultipartFile file = new MockMultipartFile("file", "receta.png", "image/png", out.toByteArray());
+        String body = mvc.perform(multipart(SUBJECTS + "/" + subjectId + "/attachments").file(file)
+                        .param("source", "camera").header("Authorization", "Bearer " + actor.token()))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long documentId = json.readTree(body).get("id").asLong();
+        for (int i = 0; i < 100 && "PENDING".equals(
+                jdbc.queryForObject("select ocr_status from attachments where id = ?", String.class, documentId)); i++) {
+            Thread.sleep(20);
+        }
+        return documentId;
+    }
 
     private record Session(String token, Long id, String email) {}
 
