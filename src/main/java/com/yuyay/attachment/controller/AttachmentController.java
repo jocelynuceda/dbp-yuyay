@@ -3,9 +3,11 @@ package com.yuyay.attachment.controller;
 import com.yuyay.attachment.dto.AttachmentAccessResponse;
 import com.yuyay.attachment.dto.AttachmentContent;
 import com.yuyay.attachment.dto.AttachmentResponse;
+import com.yuyay.attachment.dto.RenameAttachmentRequest;
 import com.yuyay.attachment.scope.DocumentScopeService;
 import com.yuyay.attachment.service.AttachmentService;
 import com.yuyay.common.ClientHeader;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -66,6 +68,12 @@ public class AttachmentController {
                         .filename(content.filename(), StandardCharsets.UTF_8).build().toString())
                 .cacheControl(CacheControl.noStore())
                 .body(new ByteArrayResource(content.bytes()));
+    }
+
+    @PatchMapping("/{attachmentId}")
+    public AttachmentResponse rename(@PathVariable Long subjectId, @PathVariable Long attachmentId,
+                                     @Valid @RequestBody RenameAttachmentRequest request) {
+        return documentScopeService.annotate(attachmentService.rename(subjectId, attachmentId, request.filename()));
     }
 
     @DeleteMapping("/{attachmentId}")

@@ -405,6 +405,45 @@ class AttachmentIntegrationTest {
     }
 
     @Test
+    void renamingDocumentKeepsOcrAndDownloadsTheSameBytesWithTheNewName() throws Exception {
+        when(textExtractor.extractText(anyString())).thenReturn("Texto revisado");
+        long id = upload(subjectId, ownerToken, "foto.jpeg", "image/jpeg", FAKE_JPEG, 201).get("id").asLong();
+        awaitOcr(subjectId, id);
+        String path = url(subjectId) + "/" + id;
+        rename(path, ownerToken, "Control.jpeg", 200);
+        mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(jsonPath("$.originalFilename").value("Control.jpeg"))
+                .andExpect(jsonPath("$.ocrText").value("Texto revisado"));
+        mvc.perform(get(url(subjectId)).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(jsonPath("$[0].originalFilename").value("Control.jpeg"));
+        when(fileStorage.load(anyString())).thenReturn(FAKE_JPEG);
+        mvc.perform(get(path + "/content").header("Authorization", "Bearer " + ownerToken))
+                .andExpect(content().bytes(FAKE_JPEG))
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("Control.jpeg")));
+        assertEquals("UPDATE", awaitAttachmentLog(id).get("action").asText());
+    }
+
+    @Test
+    void renameRejectsInvalidNamesAndRequiresAccessToThatSubject() throws Exception {
+        long id = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
+        String path = url(subjectId) + "/" + id;
+        for (String invalid : java.util.List.of("", ".m4a", "nota.pdf", "a/b.m4a", "a".repeat(252) + ".m4a")) {
+            rename(path, ownerToken, invalid, 400);
+        }
+        rename(path, strangerToken, "Otro.m4a", 403);
+        rename(url(otherSubjectId) + "/" + id, ownerToken, "Otro.m4a", 404);
+        mvc.perform(get(path).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(jsonPath("$.originalFilename").value("nota.m4a"));
+    }
+
+    private void rename(String path, String token, String filename, int expected) throws Exception {
+        mvc.perform(patch(path).header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content(json.writeValueAsString(java.util.Map.of("filename", filename))))
+                .andExpect(status().is(expected));
+    }
+
+    @Test
     void deleteRemovesRowAndStoredFile() throws Exception {
         long id = upload(subjectId, ownerToken, "nota.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
         String path = "/api/v1/care-subjects/" + subjectId + "/attachments/" + id;
@@ -451,6 +490,9 @@ class AttachmentIntegrationTest {
         long brunoFile = upload(subjectId, brunoToken, "b.m4a", "audio/mp4", FAKE_M4A, 201).get("id").asLong();
         String base = "/api/v1/care-subjects/" + subjectId + "/attachments/";
 
+        rename(base + ownerFile, brunoToken, "No autorizado.m4a", 403);
+        rename(base + brunoFile, brunoToken, "Seguimiento.m4a", 200);
+        rename(base + brunoFile, ownerToken, "Seguimiento final.m4a", 200);
         mvc.perform(delete(base + ownerFile).header("Authorization", "Bearer " + brunoToken))
                 .andExpect(status().isForbidden());
         mvc.perform(delete(base + brunoFile).header("Authorization", "Bearer " + brunoToken))
