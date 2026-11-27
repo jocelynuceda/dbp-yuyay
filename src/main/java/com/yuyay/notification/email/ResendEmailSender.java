@@ -11,7 +11,9 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@ConditionalOnExpression("!'${app.mail.resend-api-key:}'.isEmpty()")
+@ConditionalOnExpression(
+        "'${spring.mail.username:}'.isEmpty() and !'${app.mail.resend-api-key:}'.isEmpty()"
+)
 public class ResendEmailSender implements EmailSender {
 
     private final Resend resend;
