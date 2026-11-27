@@ -15,10 +15,19 @@ public record RegisterRequestDTO(
         @NotBlank @Size(min = 8, max = 72)
         @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = "debe contener al menos una letra y un número")
         String password,
+        /** Nombre de usuario: el que se muestra en la app. */
         @NotBlank @Size(max = 120) String name,
         Gender gender,
-        /** Solo se contrasta con el nombre; no se guarda ni se escribe en logs. */
-        @NotBlank @Pattern(regexp = "\\d{8}", message = "El DNI debe tener ocho dígitos") String dni,
+        /** Obligatorio. Solo sirve para contrastar el nombre declarado; no se guarda ni se escribe en logs. */
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+        @Pattern(regexp = "\\d{8}", message = "El DNI debe tener ocho dígitos") String dni,
+        /** Nombre declarado de la persona; el directorio se usa únicamente para el contraste. */
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @Size(max = 200) String fullName,
         @Schema(type = "boolean", requiredMode = Schema.RequiredMode.REQUIRED) JsonNode termsAccepted,
         @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED) JsonNode termsVersion
-) {}
+) {
+    @Override
+    public String toString() {
+        return "RegisterRequestDTO[datos de registro reservados]";
+    }
+}

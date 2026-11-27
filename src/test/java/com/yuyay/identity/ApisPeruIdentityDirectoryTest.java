@@ -5,6 +5,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -61,13 +63,28 @@ class ApisPeruIdentityDirectoryTest {
         assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);
     }
 
-    @Test
-    void anEmptyBodyWithTwoHundredIsAlsoNotFound() {
+    @ParameterizedTest
+    @ValueSource(strings = {"No se encontraron resultados", " No  se encontraron RESULTADOS. "})
+    void anExplicitNoResultsResponseIsNotFound(String message) {
         server.expect(requestTo(URL))
-                .andRespond(withSuccess("{\"message\":\"No se encontraron resultados\"}",
+                .andRespond(withSuccess("{\"message\":\"" + message + "\"}",
                         MediaType.APPLICATION_JSON));
 
         assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);
+    }
+
+    @Test
+    void anEmptySuccessDoesNotProveThatTheDocumentIsMissing() {
+        server.expect(requestTo(URL)).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
+    }
+
+    @Test
+    void aResponseForAnotherDocumentIsUnavailable() {
+        server.expect(requestTo(URL)).andRespond(withSuccess("""
+                {"dni":"00000000","nombres":"ANA","apellidoPaterno":"QUISPE"}
+                """, MediaType.APPLICATION_JSON));
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
     }
 
     @Test
@@ -82,8 +99,7 @@ class ApisPeruIdentityDirectoryTest {
         server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
 
         assertThat(directory.findByDni(DNI))
-                .isInstanceOfSatisfying(IdentityLookup.Unavailable.class,
-                        unavailable -> assertThat(unavailable.noResponse()).isFalse());
+                .isInstanceOf(IdentityLookup.Unavailable.class);
     }
 
     @Test
@@ -93,8 +109,7 @@ class ApisPeruIdentityDirectoryTest {
         });
 
         assertThat(directory.findByDni(DNI))
-                .isInstanceOfSatisfying(IdentityLookup.Unavailable.class,
-                        unavailable -> assertThat(unavailable.noResponse()).isTrue());
+                .isInstanceOf(IdentityLookup.Unavailable.class);
     }
 
     @Test
@@ -135,7 +150,8 @@ class ApisPeruIdentityDirectoryTest {
         server.expect(requestTo(URL))
                 .andRespond(withSuccess("{\"nombres\": no es json}", MediaType.APPLICATION_JSON));
 
-        assertThat(logsOf(() -> directory.findByDni(DNI)))
+        assertThat(logsOf(() -> assertThat(directory.findByDni(DNI))
+                .isInstanceOf(IdentityLookup.Unavailable.class)))
                 .noneMatch(message -> message.contains(DNI));
     }
 

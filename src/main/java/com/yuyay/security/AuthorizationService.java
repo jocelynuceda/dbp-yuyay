@@ -40,6 +40,16 @@ public class AuthorizationService {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
+    public CareSubject requireAccessForUpdate(Long userId, Long careSubjectId) {
+        requireAccess(userId, careSubjectId);
+        CareSubject subject = careSubjects.findForUpdateById(careSubjectId)
+                .orElseThrow(() -> new CareSubjectNotFoundException(careSubjectId));
+        // Una revocación puede haberse confirmado mientras esperábamos el bloqueo.
+        requireAccess(userId, careSubjectId);
+        return subject;
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
     public CareSubject requireRoleForUpdate(Long userId, Long careSubjectId, CareRole role) {
         requireRole(userId, careSubjectId, role);
         CareSubject subject = careSubjects.findForUpdateById(careSubjectId)

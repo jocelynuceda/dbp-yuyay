@@ -136,7 +136,7 @@ class GenderIntegrationTest {
 
     private String body(String prefix, String name, String genderField) {
         return "{\"email\":\"" + prefix + "." + UUID.randomUUID() + "@yuyay.app\""
-                + ",\"termsAccepted\":true,\"dni\":\"12345678\",\"termsVersion\":\"1.0\",\"password\":\"Secreta123\"," + genderField + "\"name\":\"" + name + "\"}";
+                + ",\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\",\"password\":\"Secreta123\"," + genderField + "\"name\":\"" + name + "\"}";
     }
 
     private JsonNode send(MockHttpServletRequestBuilder req, String token, String body, int expected) throws Exception {

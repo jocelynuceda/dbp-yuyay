@@ -7,7 +7,7 @@ las solicitudes a Yuyay por HTTPS.
 
 `GET /terms` es público y devuelve `200 OK` con `version` y `text` en JSON.
 `text` contiene los términos de uso y el aviso de privacidad íntegros en español.
-La versión vigente es `1.0`. El cliente presenta el texto y solicita una confirmación
+La versión vigente es `1.2`. El cliente presenta el texto y solicita una confirmación
 explícita antes de enviar un alta. Conviene volver a consultar el endpoint si la
 versión resulta obsoleta.
 
@@ -15,15 +15,38 @@ versión resulta obsoleta.
 
 `POST /register` devuelve `201 Created`. Conserva los campos anteriores y exige
 la confirmación booleana `termsAccepted: true` y la cadena `termsVersion` vigente.
-`gender` sigue siendo opcional.
+`dni` es obligatorio (ocho dígitos) y `gender` se puede omitir. `name` es el **nombre de usuario**
+que se muestra en la aplicación; puede repetirse y no se contrasta con el documento.
+
+La persona escribe sus nombres y apellidos en `fullName`. Al registrar la cuenta, el servidor
+consulta APIsPERU una sola vez y compara el nombre declarado con los datos de ese DNI. Acepta
+al menos un nombre y un apellido en palabras distintas del documento, tolerando tildes,
+mayúsculas y orden. Las palabras adicionales deben pertenecer al documento. En la cuenta se
+guarda el texto escrito por la persona, aparte de su alias; el número de DNI se descarta.
+
+Una discrepancia y un documento inexistente devuelven el mismo error 400 en el campo `dni`.
+El nombre del directorio no sale en la respuesta. Un fallo del proveedor, una respuesta
+ilegible o la falta de configuración devuelven 503 `DNI_LOOKUP_UNAVAILABLE` y el alta se
+puede reintentar. La coincidencia no demuestra que la persona sea titular del documento.
+
+El presupuesto del registro por día UTC se comparte entre las instancias mediante la base de datos.
+Por defecto se permiten 5 consultas por origen y 50 en total, configurables con
+`REGISTRATION_DNI_PER_ORIGIN` y `REGISTRATION_DNI_DAILY_LIMIT`. Al agotarse un cupo se responde 429
+antes de llamar al proveedor. Sin proveedor configurado no se descuenta cupo. Los contadores por origen usan
+una clave derivada que cambia diariamente y se purgan cada hora después de vencer.
+Tomcat obtiene el origen del proxy inmediato de confianza. Con el proxy de Vercel varios usuarios
+pueden compartir una dirección de salida. Si cambia la red de Docker, configurar las direcciones
+de Caddy en `YUYAY_TRUSTED_PROXY_CIDRS`. El puerto del backend debe seguir ligado a loopback.
 
 ```json
 {
   "email": "cuenta@example.invalid",
   "password": "Ejemplo1234",
   "name": "Persona de prueba",
+  "dni": "00000000",
+  "fullName": "Persona Sintética",
   "termsAccepted": true,
-  "termsVersion": "1.0"
+  "termsVersion": "1.2"
 }
 ```
 
@@ -32,13 +55,19 @@ la confirmación booleana `termsAccepted: true` y la cadena `termsVersion` vigen
 `POST /google` recibe el **ID token** que obtiene el cliente web o móvil de Google.
 El primer intento puede enviar `{"idToken":"<ID token>"}`. Para una cuenta nueva,
 el backend devuelve `428` con `currentVersion`. El cliente consulta `GET /terms`,
-muestra el texto y espera la confirmación explícita del usuario. Al confirmar,
-envía `acceptedTermsVersion` con la versión que mostró.
+muestra el texto y espera la confirmación explícita del usuario. Para completar
+el alta, envía la versión aceptada junto con el DNI, los nombres y apellidos
+escritos por la persona y el alias que eligió. El registro por correo y el de Google
+comparten el mismo contraste y cupo. Las cuentas Google anteriores pueden volver a
+entrar únicamente con su ID token, incluso si el directorio no está disponible.
 
 ```json
 {
   "idToken": "<ID token>",
-  "acceptedTermsVersion": "1.0"
+  "acceptedTermsVersion": "1.2",
+  "dni": "00000000",
+  "fullName": "Persona Sintética",
+  "name": "Mi alias"
 }
 ```
 
@@ -89,10 +118,13 @@ Los siguientes errores agregan `code` al objeto habitual de error
 | --- | --- | --- |
 | 400 en `/register`, 428 en `/google` | `TERMS_ACCEPTANCE_REQUIRED` | Presentar el texto vigente y solicitar confirmación para crear la cuenta. |
 | 400 en `/register`, 428 en `/google` | `TERMS_VERSION_OUTDATED` | Volver a obtener el texto y solicitar confirmación de la versión nueva. |
+| 428 en `/google` | `REGISTRATION_DETAILS_REQUIRED` | La aceptación está vigente. Pedir DNI, nombres y apellidos y alias antes de reenviar la solicitud. |
 | 400 en `/google` | `TERMS_VERSION_INVALID` | Enviar la versión como una cadena de hasta 32 caracteres, con contenido y sin espacios en los extremos. |
 | 401 | `GOOGLE_TOKEN_INVALID` | Reiniciar el flujo de Google y obtener un ID token nuevo. |
 | 409 | `GOOGLE_EMAIL_CONFLICT` | Mostrar el mensaje del servidor, que indica el método de ingreso de la cuenta existente. |
 | 503 | `GOOGLE_AUTH_UNAVAILABLE` | Mostrar que Google no está disponible en este momento. |
+| 503 | `DNI_LOOKUP_UNAVAILABLE` | El directorio del DNI no está disponible. El alta se puede reintentar. |
+| 429 | `DNI_LOOKUP_LIMIT` | Se llegó al presupuesto de consultas del origen o del día. |
 
 El `428` es la señal acordada por Yuyay para el alta con Google. Incluye
 `currentVersion` con la versión vigente y `Cache-Control: no-store`.
@@ -119,7 +151,7 @@ y el mensaje indica actualizar Yuyay si la opción no aparece.
   `uq_users_google_subject`. El usuario de base debe poder modificar el esquema,
   igual que con `ddl-auto=update`. Se conservan los hashes y las cuentas anteriores.
 - El alta guarda versión y fecha del servidor con la cuenta en la misma
-  transacción. La versión 1.0 se sirve desde `terms/yuyay-1.0.txt`. Una nueva
+  transacción. La versión 1.2 se sirve desde `terms/yuyay-1.2.txt`. Una nueva
   versión del documento debe tener su propio recurso y actualizar la versión
   vigente. Una eventual nueva aceptación de cuentas existentes tendrá un flujo
   explícito.

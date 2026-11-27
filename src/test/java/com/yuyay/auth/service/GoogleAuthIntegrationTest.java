@@ -8,11 +8,18 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.yuyay.event.UserRegisteredEvent;
+import com.yuyay.identity.IdentityDirectory;
+import com.yuyay.identity.IdentityLookup;
+import com.yuyay.identity.IdentityRecord;
+import com.yuyay.notification.email.EmailSender;
+import com.yuyay.user.entity.Role;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.PasswordResetCodeRepository;
 import com.yuyay.user.repository.RefreshTokenRepository;
 import com.yuyay.user.repository.UserRepository;
 import jakarta.validation.Validator;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,12 +30,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.NullNode;
@@ -41,17 +52,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.registration.dni-per-origin=3")
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @ActiveProfiles("test")
 class GoogleAuthIntegrationTest {
@@ -68,9 +87,28 @@ class GoogleAuthIntegrationTest {
     @Autowired PasswordResetCodeRepository resetCodes;
     @Autowired RefreshTokenRepository refreshTokens;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired CommittedRegistrations committedRegistrations;
+    @MockitoBean IdentityDirectory directory;
+    @MockitoBean EmailSender emailSender;
+
+    @BeforeEach
+    void prepareDirectory() {
+        jdbc.update("DELETE FROM registration_dni_quotas");
+        when(directory.isConfigured()).thenReturn(true);
+        when(directory.findByDni("12345678")).thenAnswer(invocation -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            return new IdentityLookup.Found(new IdentityRecord("PERSONA", "SINTETICA", "PEREZ"));
+        });
+    }
 
     @TestConfiguration
     static class TestKeys {
+        @Bean
+        CommittedRegistrations committedRegistrations() {
+            return new CommittedRegistrations();
+        }
+
         @Bean @Primary
         Clock testClock() {
             return Clock.fixed(NOW, ZoneOffset.UTC);
@@ -80,6 +118,15 @@ class GoogleAuthIntegrationTest {
         GoogleIdTokenVerifier testVerifier(Clock clock, Validator validator) throws JOSEException {
             NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(KEY.toRSAPublicKey()).build();
             return new GoogleIdTokenVerifier(WEB_CLIENT + ", " + SECOND_CLIENT, clock, validator, decoder);
+        }
+    }
+
+    static class CommittedRegistrations {
+        private final List<Long> userIds = new CopyOnWriteArrayList<>();
+
+        @TransactionalEventListener
+        void record(UserRegisteredEvent event) {
+            userIds.add(event.userId());
         }
     }
 
@@ -103,12 +150,13 @@ class GoogleAuthIntegrationTest {
         };
         for (String idToken : invalid) {
             JsonNode error = request("/google", Map.of("idToken", idToken,
-                    "acceptedTermsVersion", "1.0"), 401);
+                    "acceptedTermsVersion", "1.2"), 401);
             assertEquals("GOOGLE_TOKEN_INVALID", error.path("code").asString());
         }
         JsonNode invalidToken = request("/google", Map.of("idToken", "malformed", "acceptedTermsVersion", true), 401);
         assertEquals("GOOGLE_TOKEN_INVALID", invalidToken.path("code").asString());
         assertTrue(users.findByGoogleSubject(subject).isEmpty());
+        verifyNoInteractions(directory);
     }
 
     @Test
@@ -120,10 +168,13 @@ class GoogleAuthIntegrationTest {
         assertTermsChallenge(Map.of("idToken", idToken), "TERMS_ACCEPTANCE_REQUIRED");
         assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", NullNode.getInstance()),
                 "TERMS_ACCEPTANCE_REQUIRED");
-        assertTermsChallenge(Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "1.0"),
+        assertTermsChallenge(Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678"),
                 "TERMS_ACCEPTANCE_REQUIRED");
         assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", "2026-11"),
                 "TERMS_VERSION_OUTDATED");
+        assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", "1.2"),
+                "REGISTRATION_DETAILS_REQUIRED");
+        verifyNoInteractions(directory);
         assertTrue(users.findByGoogleSubject(subject).isEmpty());
         assertTrue(users.findByEmailIgnoreCase(email).isEmpty());
         assertEquals(sessionsBefore, refreshTokens.count());
@@ -135,7 +186,9 @@ class GoogleAuthIntegrationTest {
         assertFalse(created.path("user").has("googleSubject"));
         assertFalse(created.path("user").has("passwordHash"));
         assertNull(saved.getPasswordHash());
-        assertEquals("1.0", saved.getTermsVersion());
+        assertEquals("Alias", saved.getName());
+        assertEquals("Persona Sintética", saved.getFullName());
+        assertEquals("1.2", saved.getTermsVersion());
         assertEquals(NOW, saved.getTermsAcceptedAt());
 
         String changedEmail = uniqueEmail();
@@ -147,6 +200,7 @@ class GoogleAuthIntegrationTest {
         assertEquals(NOW, users.findByGoogleSubject(subject).orElseThrow().getTermsAcceptedAt());
         JsonNode withOldVersion = request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "0.9"), 200);
         assertEquals(saved.getId().longValue(), withOldVersion.path("user").path("id").asLong());
+        verify(directory, times(1)).findByDni("12345678");
 
         mvc.perform(get("/api/v1/users/me")
                         .header("Authorization", "Bearer " + created.path("accessToken").asString()))
@@ -182,7 +236,7 @@ class GoogleAuthIntegrationTest {
         String localEmail = uniqueEmail();
         String password = "Original123";
         request("/register", Map.of("email", localEmail, "password", password, "name", "Local",
-                "dni", "12345678", "termsAccepted", true, "termsVersion", "1.0"), 201);
+                "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678", "fullName", "Persona Sintetica"), 201);
         String unlinkedSubject = UUID.randomUUID().toString();
         String localToken = token(unlinkedSubject, localEmail.toUpperCase(java.util.Locale.ROOT), builder -> builder);
         JsonNode conflict = request("/google", Map.of("idToken", localToken), 409);
@@ -199,6 +253,46 @@ class GoogleAuthIntegrationTest {
                 builder -> builder)), 409);
         assertEquals("GOOGLE_EMAIL_CONFLICT", googleConflict.path("code").asString());
         assertTrue(users.findByGoogleSubject(otherSubject).isEmpty());
+    }
+
+    @Test
+    void existingGoogleAccountWithoutDeclaredNameCanSignInWhileTheDirectoryIsDown() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        String email = uniqueEmail();
+        User legacy = users.save(User.builder().email(email).name("Google anterior")
+                .googleSubject(subject).role(Role.USER).build());
+        when(directory.isConfigured()).thenReturn(false);
+        JsonNode session = request("/google", Map.of("idToken", token(subject, email, builder -> builder)), 200);
+        assertEquals(legacy.getId().longValue(), session.path("user").path("id").asLong());
+        verifyNoInteractions(directory);
+    }
+
+    @Test
+    void googleAndPasswordShareTheLookupBudgetAndHandleFailuresWithoutIssuingSessions() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        String idToken = token(subject, uniqueEmail(), builder -> builder);
+        long before = refreshTokens.count();
+        Map<String, String> wrongName = Map.of("idToken", idToken, "acceptedTermsVersion", "1.2",
+                "dni", "12345678", "fullName", "Otra Persona", "name", "Alias");
+        JsonNode malformed = request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.2",
+                "dni", "123", "fullName", "Persona Sintética", "name", "Alias"), 400);
+        assertEquals("dni", malformed.path("fieldErrors").get(0).path("field").asString());
+        verifyNoInteractions(directory);
+        JsonNode mismatch = request("/google", wrongName, 400);
+        assertEquals("dni", mismatch.path("fieldErrors").get(0).path("field").asString());
+        when(directory.findByDni("12345678")).thenReturn(new IdentityLookup.NotFound());
+        JsonNode absent = request("/google", wrongName, 400);
+        assertEquals(mismatch.path("fieldErrors"), absent.path("fieldErrors"));
+        when(directory.findByDni("12345678")).thenReturn(new IdentityLookup.Unavailable("temporal"));
+        JsonNode unavailable = request("/google", wrongName, 503);
+        assertEquals("DNI_LOOKUP_UNAVAILABLE", unavailable.path("code").asString());
+        JsonNode limit = request("/register", Map.of("email", uniqueEmail(), "password", "Original123",
+                "name", "Alias", "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678",
+                "fullName", "Persona Sintética"), 429);
+        assertEquals("DNI_LOOKUP_LIMIT", limit.path("code").asString());
+        assertTrue(users.findByGoogleSubject(subject).isEmpty());
+        assertEquals(before, refreshTokens.count());
+        verify(directory, times(3)).findByDni("12345678");
     }
 
     @Test
@@ -223,6 +317,13 @@ class GoogleAuthIntegrationTest {
         String secondEmail = uniqueEmail();
         String firstToken = token(subject, firstEmail, builder -> builder);
         String secondToken = token(subject, secondEmail, builder -> builder);
+        var pendingLookups = new CountDownLatch(2);
+        when(directory.findByDni("12345678")).thenAnswer(call -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            pendingLookups.countDown();
+            assertTrue(pendingLookups.await(5, TimeUnit.SECONDS), "Ambas altas deben solaparse en la consulta externa");
+            return new IdentityLookup.Found(new IdentityRecord("PERSONA", "SINTETICA", ""));
+        });
         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -247,10 +348,13 @@ class GoogleAuthIntegrationTest {
         User saved = users.findByGoogleSubject(subject).orElseThrow();
         assertEquals(NOW, saved.getTermsAcceptedAt());
         assertTrue(users.findByEmailIgnoreCase(saved.getEmail().equals(firstEmail) ? secondEmail : firstEmail).isEmpty());
+        assertEquals(1L, committedRegistrations.userIds.stream().filter(saved.getId()::equals).count());
+        verify(emailSender, timeout(10000).times(1)).send(eq(saved.getEmail()), eq("Te damos la bienvenida a Yuyay"), any());
     }
 
     private JsonNode signUp(String idToken) throws Exception {
-        return request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.0"), 200);
+        return request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.2",
+                "dni", "12345678", "fullName", "Persona Sintética", "name", "Alias"), 200);
     }
 
     private void assertTermsChallenge(Map<String, ?> body, String code) throws Exception {
@@ -260,7 +364,7 @@ class GoogleAuthIntegrationTest {
         JsonNode error = json.readTree(response.getContentAsByteArray());
         assertEquals(428, error.path("status").asInt());
         assertEquals(code, error.path("code").asString());
-        assertEquals("1.0", error.path("currentVersion").asString());
+        assertEquals("1.2", error.path("currentVersion").asString());
         assertFalse(error.has("accessToken"));
         assertFalse(error.has("refreshToken"));
     }

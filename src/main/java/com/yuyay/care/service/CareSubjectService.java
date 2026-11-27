@@ -117,9 +117,9 @@ public class CareSubjectService {
 
     public CareSubjectResponse update(Long subjectId, CareSubjectUpdateRequest req) {
         Long meId = currentUserService.getCurrentUserId();
-        authorizationService.requireAccess(meId, subjectId);
-
-        CareSubject cs = loadSubject(subjectId);
+        // La entrega escribe titular y fecha en la misma fila: sin el bloqueo, esta edición los
+        // reescribiría con los valores que leyó antes de que se confirmara.
+        CareSubject cs = authorizationService.requireAccessForUpdate(meId, subjectId);
 
         cs.setName(req.name());
         cs.setBirthDate(req.birthDate());

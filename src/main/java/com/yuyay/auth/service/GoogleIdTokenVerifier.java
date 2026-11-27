@@ -82,11 +82,7 @@ public class GoogleIdTokenVerifier {
             throw invalidToken();
         }
         String email = rawEmail.toLowerCase(Locale.ROOT);
-        String name = claims.get("name") instanceof String profileName ? profileName.strip() : "";
-        if (name.isEmpty() || name.length() > 120) {
-            name = "Usuario de Google";
-        }
-        GoogleIdentity identity = new GoogleIdentity(subject, email, name);
+        GoogleIdentity identity = new GoogleIdentity(subject, email);
         if (!validator.validate(identity).isEmpty()) {
             throw invalidToken();
         }
@@ -113,5 +109,5 @@ public class GoogleIdTokenVerifier {
                 "El acceso con Google no está disponible en este momento");
     }
 
-    public record GoogleIdentity(String subject, @NotBlank @Email @Size(max = 150) String email, String name) {}
+    public record GoogleIdentity(String subject, @NotBlank @Email @Size(max = 150) String email) {}
 }

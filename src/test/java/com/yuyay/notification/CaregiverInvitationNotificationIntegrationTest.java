@@ -1,5 +1,9 @@
 package com.yuyay.notification;
 
+import com.yuyay.notification.entity.Notification;
+import com.yuyay.notification.entity.NotificationType;
+import com.yuyay.notification.repository.NotificationRepository;
+import com.yuyay.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,13 +14,18 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
+import static com.yuyay.notification.entity.NotificationType.APPOINTMENT_REMINDER;
+import static com.yuyay.notification.entity.NotificationType.ENTRY_CHANGED;
+import static com.yuyay.notification.entity.NotificationType.PROFILE_CLAIMED;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -33,6 +42,8 @@ class CaregiverInvitationNotificationIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired NotificationRepository notifications;
+    @Autowired UserRepository users;
 
     @Test
     void inviteNotifiesInviteeAndAcceptNotifiesPrincipal() throws Exception {
@@ -135,6 +146,100 @@ class CaregiverInvitationNotificationIntegrationTest {
                 notice.get("body").asText());
     }
 
+    @Test
+    void revokedCaregiverReceivesRedactedClinicalNoticesFromListAndMarkAsRead() throws Exception {
+        String ownerToken = register("owner." + UUID.randomUUID() + "@yuyay.app", "Ana Torres");
+        String caregiverEmail = "caregiver." + UUID.randomUUID() + "@yuyay.app";
+        String caregiverToken = register(caregiverEmail, "Bruno Torres");
+        long revokedSubject = createSubject(ownerToken, "Lucía");
+        long activeSubject = createSubject(ownerToken, "Rosa");
+        long pendingSubject = createSubject(ownerToken, "Pedro");
+        long revokedRelationship = invite(ownerToken, revokedSubject, caregiverEmail, "CAREGIVER");
+        long activeRelationship = invite(ownerToken, activeSubject, caregiverEmail, "CAREGIVER");
+        for (long relationshipId : List.of(revokedRelationship, activeRelationship)) {
+            mvc.perform(post("/api/v1/me/relationships/" + relationshipId + "/accept")
+                            .header("Authorization", "Bearer " + caregiverToken))
+                    .andExpect(status().isOk());
+        }
+        invite(ownerToken, pendingSubject, caregiverEmail, "CAREGIVER");
+
+        Notification entry = saveNotice(caregiverEmail, ENTRY_CHANGED, revokedSubject);
+        Notification reminder = saveNotice(caregiverEmail, APPOINTMENT_REMINDER, revokedSubject);
+        Notification activeEntry = saveNotice(caregiverEmail, ENTRY_CHANGED, activeSubject);
+        Notification account = saveNotice(caregiverEmail, PROFILE_CLAIMED, null);
+        String path = "/api/v1/notifications?unread=true&size=50";
+        JsonNode before = getJson(path, caregiverToken);
+        assertEquals(5, before.get("totalElements").asLong());
+        for (Notification clinical : List.of(entry, reminder, activeEntry)) {
+            assertVisible(clinical, findNotice(before, clinical.getId()));
+        }
+
+        mvc.perform(delete("/api/v1/care-subjects/" + revokedSubject + "/relationships/" + revokedRelationship)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().is2xxSuccessful());
+
+        JsonNode after = getJson(path, caregiverToken);
+        assertEquals(5, after.get("totalElements").asLong());
+        assertEquals(5, unreadCount(caregiverToken));
+        assertEquals(3, getJson("/api/v1/notifications?unread=true&size=2", caregiverToken)
+                .get("totalPages").asLong());
+        assertVisible(activeEntry, findNotice(after, activeEntry.getId()));
+        assertVisible(account, findNotice(after, account.getId()));
+        assertTrue(StreamSupport.stream(after.get("content").spliterator(), false)
+                .anyMatch(n -> "INVITATION".equals(n.get("type").asText())
+                        && pendingSubject == n.get("careSubjectId").asLong()
+                        && "Te invitaron a cuidar a Pedro".equals(n.get("title").asText())));
+        for (Notification clinical : List.of(entry, reminder)) {
+            assertRedacted(findNotice(after, clinical.getId()), false);
+            String response = mvc.perform(patch("/api/v1/notifications/" + clinical.getId() + "/read")
+                            .header("Authorization", "Bearer " + caregiverToken))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertRedacted(json.readTree(response), true);
+        }
+        assertEquals(3, unreadCount(caregiverToken));
+        JsonNode read = getJson("/api/v1/notifications?unread=false&size=50", caregiverToken);
+        assertRedacted(findNotice(read, entry.getId()), true);
+        assertRedacted(findNotice(read, reminder.getId()), true);
+    }
+
+    private long createSubject(String token, String name) throws Exception {
+        return postJson("/api/v1/care-subjects", token, """
+                {"requestId":"%s","declaration":{"type":"FICTITIOUS","textVersion":"1","confirmed":true},"name":"%s"}
+                """.formatted(UUID.randomUUID(), name), 201).get("id").asLong();
+    }
+
+    private Notification saveNotice(String email, NotificationType type, Long subjectId) {
+        return notifications.save(Notification.builder()
+                .user(users.findByEmailIgnoreCase(email).orElseThrow())
+                .type(type)
+                .title("Título sintético de " + type)
+                .body("Contenido sintético de " + type)
+                .careSubjectId(subjectId)
+                .build());
+    }
+
+    private JsonNode findNotice(JsonNode page, long id) {
+        return StreamSupport.stream(page.get("content").spliterator(), false)
+                .filter(n -> n.get("id").asLong() == id)
+                .findFirst().orElseThrow();
+    }
+
+    private void assertVisible(Notification expected, JsonNode actual) {
+        assertEquals(expected.getTitle(), actual.get("title").asText());
+        assertEquals(expected.getBody(), actual.get("body").asText());
+        if (expected.getCareSubjectId() != null) {
+            assertEquals(expected.getCareSubjectId().longValue(), actual.get("careSubjectId").asLong());
+        }
+    }
+
+    private void assertRedacted(JsonNode notice, boolean read) {
+        assertEquals("Notificación no disponible", notice.get("title").asText());
+        assertTrue(notice.path("body").isNull() || notice.path("body").isMissingNode());
+        assertTrue(notice.path("careSubjectId").isNull() || notice.path("careSubjectId").isMissingNode());
+        assertEquals(read, notice.get("read").asBoolean());
+    }
+
     private long invite(String token, long subjectId, String email, String role) throws Exception {
         return postJson("/api/v1/care-subjects/" + subjectId + "/relationships", token,
                 "{\"email\":\"" + email + "\",\"role\":\"" + role + "\"}", 201).get("id").asLong();
@@ -163,7 +268,7 @@ class CaregiverInvitationNotificationIntegrationTest {
 
     private String register(String email, String name) throws Exception {
         return postJson("/api/v1/auth/register", null,
-                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"dni\":\"12345678\",\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201)
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"" + name + "\"}", 201)
                 .get("accessToken").asText();
     }
 

@@ -7,7 +7,10 @@ import tools.jackson.databind.JsonNode;
 
 public record GoogleAuthRequestDTO(
         @NotBlank @Size(max = 8192) String idToken,
-        @Schema(type = "string", maxLength = 32) JsonNode acceptedTermsVersion
+        @Schema(type = "string", maxLength = 32) JsonNode acceptedTermsVersion,
+        String dni,
+        String fullName,
+        String name
 ) {
     @Override
     public String toString() {

@@ -87,7 +87,7 @@ public class ConsultationConfirmationService {
         }
         authorization.requireAccess(userId, subjectId);
         var saved = handoffs.saveAndFlush(handoff);
-        // Devuelve también en el primer intento los valores normalizados por la base.
+        // Devuelve tambiÃ©n en el primer intento los valores normalizados por la base.
         entityManager.refresh(saved);
         return mapper.toDetail(saved);
     }

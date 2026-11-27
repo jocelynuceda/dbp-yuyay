@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
@@ -13,7 +12,6 @@ import org.springframework.scheduling.annotation.Scheduled;
  */
 @Slf4j
 @Configuration
-@EnableScheduling
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "app.reminders", name = "enabled", havingValue = "true", matchIfMissing = true)
 class ReminderScheduler {

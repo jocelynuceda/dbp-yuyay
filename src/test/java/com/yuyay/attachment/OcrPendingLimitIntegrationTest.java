@@ -132,7 +132,7 @@ class OcrPendingLimitIntegrationTest {
 
     private String register(String email) throws Exception {
         return postJson("/api/v1/auth/register", null,
-                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"dni\":\"12345678\",\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Test\"}")
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"Test\"}")
                 .get("accessToken").asText();
     }
 
