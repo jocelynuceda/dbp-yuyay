@@ -70,6 +70,9 @@ public class SmtpEmailSender implements EmailSender {
                     e.getMessage(),
                     e
             );
+            // Quien llama decide: los avisos solo lo registran y los recordatorios lo reintentan.
+            // Sin esto, un correo que el servidor rechazó quedaría marcado como enviado.
+            throw new EmailDeliveryException("El servidor SMTP rechazó el correo", e);
         }
     }
 }
