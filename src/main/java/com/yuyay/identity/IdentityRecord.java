@@ -1,5 +1,6 @@
 package com.yuyay.identity;
 
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -16,6 +17,8 @@ public record IdentityRecord(
         String apellidoPaterno,
         String apellidoMaterno
 ) {
+    private static final Set<String> PARTICLES = Set.of("DE", "DEL", "LA", "LAS", "LOS");
+
     /** Nombre completo en el orden en que lo escribe RENIEC. */
     public String fullName() {
         return String.join(" ", nombres, apellidoPaterno, apellidoMaterno).strip().replaceAll("\\s+", " ");
@@ -34,22 +37,27 @@ public record IdentityRecord(
      * nombre y el DNI se conocen. Reduce el error de tipeo y el perfil inventado, nada más.
      */
     public boolean matchesName(String declaredName) {
-        Set<String> declared = Names.tokens(declaredName);
-        if (declared.isEmpty()) {
-            return false;
+        List<String> words = Names.tokens(declaredName);
+        Set<String> given = Set.copyOf(Names.tokens(nombres));
+        Set<String> family = Stream.concat(Names.tokens(apellidoPaterno).stream(), Names.tokens(apellidoMaterno).stream())
+                .collect(Collectors.toSet());
+
+        boolean seenGiven = false;
+        boolean seenFamily = false;
+        boolean hasPair = false;
+        for (String word : words) {
+            boolean isGiven = given.contains(word);
+            boolean isFamily = family.contains(word);
+            if (!isGiven && !isFamily) {
+                return false;
+            }
+            if (!PARTICLES.contains(word)) {
+                // El nombre y el apellido deben provenir de dos posiciones distintas.
+                hasPair |= (isFamily && seenGiven) || (isGiven && seenFamily);
+                seenGiven |= isGiven;
+                seenFamily |= isFamily;
+            }
         }
-        Set<String> given = Names.tokens(nombres);
-        Set<String> family = Stream.concat(
-                        Names.tokens(apellidoPaterno).stream(),
-                        Names.tokens(apellidoMaterno).stream())
-                .collect(Collectors.toUnmodifiableSet());
-
-        boolean nothingInvented = Stream.concat(given.stream(), family.stream())
-                .collect(Collectors.toUnmodifiableSet())
-                .containsAll(declared);
-
-        return nothingInvented
-                && declared.stream().anyMatch(given::contains)
-                && declared.stream().anyMatch(family::contains);
+        return hasPair;
     }
 }

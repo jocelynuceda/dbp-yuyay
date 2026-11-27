@@ -30,6 +30,13 @@ public class GlobalExceptionHandler {
         return build(ex.getStatus(), ex.getMessage(), req);
     }
 
+    @ExceptionHandler(FieldRejectedException.class)
+    public ResponseEntity<ErrorResponseDTO> handleFieldRejected(FieldRejectedException ex, HttpServletRequest req) {
+        List<ErrorResponseDTO.FieldErrorDTO> fields = List.of(new ErrorResponseDTO.FieldErrorDTO(ex.getField(), ex.getMessage()));
+        return ResponseEntity.badRequest().body(new ErrorResponseDTO(Instant.now(), 400, "Bad Request",
+                ex.getMessage(), req.getRequestURI(), fields, null));
+    }
+
     @ExceptionHandler(AuthFlowException.class)
     public ResponseEntity<ErrorResponseDTO> handleAuthFlow(AuthFlowException ex, HttpServletRequest req) {
         HttpStatus status = ex.getStatus();

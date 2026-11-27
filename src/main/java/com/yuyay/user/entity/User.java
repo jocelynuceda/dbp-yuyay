@@ -45,6 +45,10 @@ public class User {
     @Column(nullable = false, length = 120)
     private String name;
 
+    /** Nombre declarado y contrastado al crear la cuenta. El alias se guarda en {@code name}. */
+    @Column(length = 200, updatable = false)
+    private String fullName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
