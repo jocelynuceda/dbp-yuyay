@@ -349,9 +349,50 @@ De ahí se siguen tres cosas:
 3. **El texto que ve un adolescente de 16 debe estar redactado para que lo entienda.** Es requisito
    del reglamento, no una mejora de experiencia.
 
-Advertencia: el reglamento de 2013 pudo haber sido modificado o reemplazado, y hay indicios de
-normas más recientes sobre servicios digitales. Confirmar el texto vigente con la Autoridad Nacional
-de Protección de Datos Personales antes del piloto. Esto es insumo para esa revisión, no la revisión.
+Advertencia sobre la norma citada: el piso de 14 años viene del reglamento de 2013
+(DS 003-2013-JUS), que **fue derogado** por el DS 016-2024-JUS. No está releído qué dice el
+reglamento vigente sobre menores y sobre datos de salud, así que el piso puede haber cambiado y
+todo el párrafo anterior debe tratarse como indicio, no como la norma. Confirmar el texto vigente
+con la Autoridad Nacional de Protección de Datos Personales antes del piloto. Esto es insumo para
+esa revisión, no la revisión.
+
+
+### 3.6 Una cuenta por DNI
+
+**Regla pedida el 26-nov-2026:** una persona no puede tener dos cuentas con el mismo DNI, salvo que
+elimine la que tiene.
+
+Cumplirla obliga a recordar qué DNI ya tienen cuenta, y eso **invierte una decisión de §3.5**: hoy
+el DNI no se guarda en ningún lado —ni en la base ni en el log— y la consulta solo contrasta el
+nombre. La regla exige persistir algo por DNI.
+
+**Cómo persistirlo sin guardar el DNI legible.** Un `sha256` del DNI no protege nada: son ocho
+dígitos, cien millones de combinaciones, y la tabla completa se calcula en segundos. Hace falta un
+HMAC con una clave que viva fuera de la base:
+
+```
+User
+  dniHmac : String?        -- HMAC-SHA256(DNI, DNI_PEPPER), UNIQUE, 64 hex
+  dniCheckedAt : Instant?  -- cuándo se contrastó, no qué decía
+```
+
+Se borra junto con la cuenta, que es exactamente la excepción pedida: al eliminarla desaparece la
+fila y el DNI queda libre. Eso además juega a favor del derecho de supresión de la Ley 29733, no
+en contra.
+
+**Dos cosas la bloquean hoy:**
+
+1. **No existe eliminar la cuenta.** No hay endpoint ni servicio de borrado en todo el proyecto, así
+   que la excepción de la regla no se puede ejercer. Aplicar la unicidad ahora es bloqueo
+   permanente, sin salida para nadie.
+2. **El DNI no está verificado, solo contrastado.** Cualquiera puede escribir un DNI ajeno con el
+   nombre que le corresponde —dato que muchas veces es público— y quedárselo. La unicidad sobre un
+   identificador no verificado deja de proteger y se vuelve un arma: el primero que llega deja al
+   dueño real sin poder registrarse nunca, y hoy no habría forma de devolvérselo.
+
+**Recomendación:** dejar la regla registrada y no aplicarla todavía. Primero el borrado de cuenta y
+una vía de desbloqueo (administrador con prueba de identidad); mientras no existan, es más seguro
+**detectar el duplicado y avisar** que impedirlo.
 
 ---
 
@@ -525,3 +566,7 @@ elegir una sola, F1 es la que cambia el producto; F3 es la que cambia el uso dia
    fecha de nacimiento sigue siendo un dato que escribe un tercero sobre un menor.
 7. ¿`MISMATCH` bloquea la emisión o solo advierte al cuidador? (recomendación: bloquea, porque un
    tipeo se corrige y un nombre que no es el del DNI es justo la señal que se buscaba)
+8. ¿Se aplica «una cuenta por DNI» (§3.6)? Requiere guardar un HMAC del DNI, que hoy no se guarda, y
+   depende de dos piezas que no existen: el borrado de cuenta y una vía de desbloqueo. Sin ellas la
+   regla bloquea para siempre a quien le hayan tomado el DNI. (recomendación: registrarla, detectar
+   el duplicado y avisar, y aplicarla recién cuando esas dos piezas estén)
