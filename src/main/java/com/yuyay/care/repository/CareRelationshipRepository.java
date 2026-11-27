@@ -5,6 +5,7 @@ import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareStatus;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,10 @@ public interface CareRelationshipRepository extends JpaRepository<CareRelationsh
     boolean existsByUserIdAndCareSubjectIdAndStatusAndRole(Long userId, Long careSubjectId, CareStatus status, CareRole role);
 
     Optional<CareRelationship> findByUserIdAndCareSubjectId(Long userId, Long careSubjectId);
+
+    /** Solo el id del perfil, para bloquearlo antes de cargar en la sesión nada que se compruebe. */
+    @Query("select r.careSubject.id from CareRelationship r where r.id = :relationshipId")
+    Optional<Long> findCareSubjectIdById(Long relationshipId);
 
     @EntityGraph(attributePaths = {"user", "careSubject"})
     List<CareRelationship> findByCareSubjectIdAndStatus(Long careSubjectId, CareStatus status);

@@ -14,6 +14,7 @@ import com.yuyay.care.exception.InvalidCareAuthorizationDeclarationException;
 import com.yuyay.care.mapper.CareSubjectMapper;
 import com.yuyay.care.repository.CareRelationshipRepository;
 import com.yuyay.care.repository.CareSubjectRepository;
+import com.yuyay.care.repository.ClaimInvitationRepository;
 import com.yuyay.exception.InvalidOperationException;
 import com.yuyay.exception.ResourceNotFoundException;
 import com.yuyay.health.repository.HealthEntryRepository;
@@ -44,6 +45,7 @@ public class CareSubjectService {
     private final CareRelationshipRepository relationshipRepo;
     private final UserRepository userRepo;
     private final HealthEntryRepository healthEntryRepo;
+    private final ClaimInvitationRepository claimInvitations;
     private final CareSubjectMapper mapper;
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
@@ -115,9 +117,9 @@ public class CareSubjectService {
 
     public CareSubjectResponse update(Long subjectId, CareSubjectUpdateRequest req) {
         Long meId = currentUserService.getCurrentUserId();
-        authorizationService.requireAccess(meId, subjectId);
-
-        CareSubject cs = loadSubject(subjectId);
+        // La entrega escribe titular y fecha en la misma fila: sin el bloqueo, esta edición los
+        // reescribiría con los valores que leyó antes de que se confirmara.
+        CareSubject cs = authorizationService.requireAccessForUpdate(meId, subjectId);
 
         cs.setName(req.name());
         cs.setBirthDate(req.birthDate());
@@ -138,6 +140,9 @@ public class CareSubjectService {
         if (healthEntryRepo.existsByCareSubjectId(subjectId)) {
             throw new InvalidOperationException("No se puede eliminar una persona con historial de salud");
         }
+        // Las invitaciones de entrega apuntan al perfil: sin quitarlas antes, borrar un perfil vacío
+        // que alguna vez tuvo una invitación (aunque esté revocada) choca con la clave foránea.
+        claimInvitations.deleteByCareSubjectId(subjectId);
         subjectRepo.delete(cs);
     }
 

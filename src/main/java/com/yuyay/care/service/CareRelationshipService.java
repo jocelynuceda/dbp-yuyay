@@ -105,6 +105,12 @@ public class CareRelationshipService {
 
     public CareRelationshipResponse accept(Long relationshipId) {
         Long meId = currentUserService.getCurrentUserId();
+        // El bloqueo del perfil va primero: si hay una entrega en curso, la relación y el titular se
+        // leen cuando ya terminó y no quedan dos PRINCIPAL.
+        Long subjectId = relationshipRepo.findCareSubjectIdById(relationshipId)
+                .orElseThrow(() -> new CareRelationshipNotFoundException(relationshipId));
+        CareSubject subject = subjectRepo.findForUpdateById(subjectId)
+                .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
         CareRelationship rel = loadRelationship(relationshipId);
 
         if (!rel.getUser().getId().equals(meId)) {
@@ -114,11 +120,20 @@ public class CareRelationshipService {
             throw new InvalidCareRelationshipException("La invitación no está pendiente");
         }
 
+        if (rel.getRole() == CareRole.PRINCIPAL
+                && subject.getAccountUser() != null
+                && !subject.getAccountUser().getId().equals(meId)) {
+            // El perfil se entregó a su titular entre la invitación y esta aceptación. El acceso se
+            // conserva, pero como cuidador: dos PRINCIPAL dejarían a dos personas decidiendo sobre
+            // los mismos datos de salud, y solo una de ellas es su dueña.
+            rel.setRole(CareRole.CAREGIVER);
+        }
+
         rel.setStatus(CareStatus.ACTIVE);
         Instant now = Instant.now();
         rel.setAcceptedAt(now);
 
-        markInvitationNoticesRead(meId, rel.getCareSubject().getId(), now);
+        markInvitationNoticesRead(meId, subjectId, now);
 
         eventPublisher.publishEvent(new CaregiverJoinedEvent(rel.getId()));
         return mapper.toResponse(rel);
@@ -134,6 +149,12 @@ public class CareRelationshipService {
         }
         if (rel.getStatus() == CareStatus.REVOKED) {
             throw new InvalidOperationException("La relación ya fue revocada");
+        }
+        CareSubject subject = loadSubject(subjectId);
+        if (subject.getAccountUser() != null
+                && subject.getAccountUser().getId().equals(rel.getUser().getId())) {
+            // La autonomía que da el canje no se puede deshacer desde afuera (§3.1 del análisis).
+            throw new InvalidOperationException("No se puede quitar el acceso al titular de sus propios datos");
         }
         if (rel.getRole() == CareRole.PRINCIPAL
                 && relationshipRepo.countByCareSubjectIdAndStatusAndRole(subjectId, CareStatus.ACTIVE, CareRole.PRINCIPAL) <= 1) {

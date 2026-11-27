@@ -12,14 +12,16 @@ import java.util.regex.Pattern;
 
 @Slf4j
 @Component
-@ConditionalOnExpression("'${app.mail.resend-api-key:}'.isEmpty()")
+@ConditionalOnExpression(
+        "'${app.mail.resend-api-key:}'.isEmpty() and '${spring.mail.username:}'.isEmpty()"
+)
 public class LoggingEmailSender implements EmailSender {
 
     private static final String SIMULATED =
-            "Correo simulado (falta RESEND_API_KEY) para {}: \"{}\"{}";
+            "Correo simulado (sin RESEND_API_KEY ni SMTP) para {}: \"{}\"{}";
 
     private static final String DISABLED =
-            "Correo deshabilitado (falta RESEND_API_KEY) para {}: \"{}\"";
+            "Correo deshabilitado (sin RESEND_API_KEY ni SMTP) para {}: \"{}\"";
 
     private static final Pattern CODE = Pattern.compile("(?<!\\d)\\d{6}(?!\\d)");
     private static final Pattern LINK =
