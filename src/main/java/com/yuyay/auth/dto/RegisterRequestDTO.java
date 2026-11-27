@@ -18,7 +18,12 @@ public record RegisterRequestDTO(
         @NotBlank @Size(max = 120) String name,
         Gender gender,
         /** Solo se contrasta con el nombre; no se guarda ni se escribe en logs. */
-        @NotBlank @Pattern(regexp = "\\d{8}", message = "El DNI debe tener ocho dígitos") String dni,
+        @Pattern(regexp = "\\d{8}", message = "El DNI debe tener ocho dígitos") String dni,
         @Schema(type = "boolean", requiredMode = Schema.RequiredMode.REQUIRED) JsonNode termsAccepted,
         @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED) JsonNode termsVersion
-) {}
+) {
+    @Override
+    public String toString() {
+        return "RegisterRequestDTO[datos de registro reservados]";
+    }
+}

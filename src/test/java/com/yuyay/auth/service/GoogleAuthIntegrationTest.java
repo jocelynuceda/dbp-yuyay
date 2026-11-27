@@ -103,7 +103,7 @@ class GoogleAuthIntegrationTest {
         };
         for (String idToken : invalid) {
             JsonNode error = request("/google", Map.of("idToken", idToken,
-                    "acceptedTermsVersion", "1.0"), 401);
+                    "acceptedTermsVersion", "1.1"), 401);
             assertEquals("GOOGLE_TOKEN_INVALID", error.path("code").asString());
         }
         JsonNode invalidToken = request("/google", Map.of("idToken", "malformed", "acceptedTermsVersion", true), 401);
@@ -120,7 +120,7 @@ class GoogleAuthIntegrationTest {
         assertTermsChallenge(Map.of("idToken", idToken), "TERMS_ACCEPTANCE_REQUIRED");
         assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", NullNode.getInstance()),
                 "TERMS_ACCEPTANCE_REQUIRED");
-        assertTermsChallenge(Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "1.0"),
+        assertTermsChallenge(Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "1.1"),
                 "TERMS_ACCEPTANCE_REQUIRED");
         assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", "2026-11"),
                 "TERMS_VERSION_OUTDATED");
@@ -135,7 +135,7 @@ class GoogleAuthIntegrationTest {
         assertFalse(created.path("user").has("googleSubject"));
         assertFalse(created.path("user").has("passwordHash"));
         assertNull(saved.getPasswordHash());
-        assertEquals("1.0", saved.getTermsVersion());
+        assertEquals("1.1", saved.getTermsVersion());
         assertEquals(NOW, saved.getTermsAcceptedAt());
 
         String changedEmail = uniqueEmail();
@@ -182,7 +182,7 @@ class GoogleAuthIntegrationTest {
         String localEmail = uniqueEmail();
         String password = "Original123";
         request("/register", Map.of("email", localEmail, "password", password, "name", "Local",
-                "dni", "12345678", "termsAccepted", true, "termsVersion", "1.0"), 201);
+                "termsAccepted", true, "termsVersion", "1.1"), 201);
         String unlinkedSubject = UUID.randomUUID().toString();
         String localToken = token(unlinkedSubject, localEmail.toUpperCase(java.util.Locale.ROOT), builder -> builder);
         JsonNode conflict = request("/google", Map.of("idToken", localToken), 409);
@@ -250,7 +250,7 @@ class GoogleAuthIntegrationTest {
     }
 
     private JsonNode signUp(String idToken) throws Exception {
-        return request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.0"), 200);
+        return request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.1"), 200);
     }
 
     private void assertTermsChallenge(Map<String, ?> body, String code) throws Exception {
@@ -260,7 +260,7 @@ class GoogleAuthIntegrationTest {
         JsonNode error = json.readTree(response.getContentAsByteArray());
         assertEquals(428, error.path("status").asInt());
         assertEquals(code, error.path("code").asString());
-        assertEquals("1.0", error.path("currentVersion").asString());
+        assertEquals("1.1", error.path("currentVersion").asString());
         assertFalse(error.has("accessToken"));
         assertFalse(error.has("refreshToken"));
     }

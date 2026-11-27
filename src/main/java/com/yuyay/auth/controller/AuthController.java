@@ -37,8 +37,8 @@ public class AuthController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public AuthResponseDTO register(@Valid @RequestBody RegisterRequestDTO dto) {
-        return authService.register(dto);
+    public AuthResponseDTO register(@Valid @RequestBody RegisterRequestDTO dto, HttpServletRequest request) {
+        return authService.register(dto, request.getRemoteAddr());
     }
 
     @PostMapping("/login")

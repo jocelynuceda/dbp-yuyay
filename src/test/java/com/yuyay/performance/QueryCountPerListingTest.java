@@ -144,7 +144,7 @@ class QueryCountPerListingTest {
     }
 
     private String registerAs(String email) throws Exception {
-        String body = "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"dni\":\"12345678\",\"termsVersion\":\"1.0\",\"password\":\"Secreta123\",\"name\":\"Prueba\"}";
+        String body = "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.1\",\"password\":\"Secreta123\",\"name\":\"Prueba\"}";
         return json.readTree(postJson(null, "/api/v1/auth/register", body)).get("accessToken").asText();
     }
 

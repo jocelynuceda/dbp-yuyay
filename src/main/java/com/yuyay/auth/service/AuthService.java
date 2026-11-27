@@ -24,7 +24,9 @@ import com.yuyay.user.repository.RefreshTokenRepository;
 import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,41 +52,45 @@ public class AuthService {
     private final Clock clock;
     private final IdentityDirectory identityDirectory;
 
-    @Transactional
-    public AuthResponseDTO register(RegisterRequestDTO dto) {
+    private final RegistrationDniQuota dniQuota;
+    private final TransactionTemplate transactions;
+
+    public AuthResponseDTO register(RegisterRequestDTO dto, String origin) {
         String version = termsService.requireCurrentAcceptance(dto.termsAccepted(), dto.termsVersion());
         if (userRepository.existsByEmailIgnoreCase(dto.email())) {
             throw new DuplicateEmailException("El email ya está registrado");
         }
         // Después del email duplicado: la consulta de DNI se paga o consume cuota.
-        requireDniMatchesName(dto.dni(), dto.name());
+        if (dto.dni() != null) {
+            dniQuota.reserve(origin);
+            requireDniMatchesName(dto.dni(), dto.name());
+        }
         User user = User.builder()
                 .email(dto.email().toLowerCase(Locale.ROOT))
                 .passwordHash(passwordEncoder.encode(dto.password()))
                 .name(dto.name())
                 .gender(dto.gender())
                 .build();
-        return registerUser(user, version);
+        try {
+            return transactions.execute(status -> registerUser(user, version));
+        } catch (DataIntegrityViolationException e) {
+            if (userRepository.existsByEmailIgnoreCase(dto.email())) {
+                throw new DuplicateEmailException("El email ya está registrado");
+            }
+            throw e;
+        }
     }
 
-    /**
-     * Contrasta el DNI con el nombre declarado. No acredita identidad: reduce el nombre inventado y
-     * el error de tipeo. Si el directorio no responde a tiempo, se pide reintentar. Sin credencial o si
-     * el proveedor contesta con un error, el registro sigue. El DNI no se guarda ni aparece en los mensajes.
-     */
     private void requireDniMatchesName(String dni, String name) {
-        IdentityLookup lookup = identityDirectory.findByDni(dni);
-        switch (lookup) {
-            case IdentityLookup.Found found when !found.person().matchesName(name) ->
-                    throw new FieldRejectedException("dni",
-                            "El nombre no coincide con el de este DNI. Escribe tu nombre y apellidos como figuran en tu documento.");
-            case IdentityLookup.NotFound ignored ->
-                    throw new FieldRejectedException("dni", "DNI no existe, ingresa uno válido");
-            case IdentityLookup.Unavailable unavailable when unavailable.noResponse() ->
-                    throw new FieldRejectedException("dni", "Tiempo de espera superado");
-            default -> {
-                // Coincide, o no se pudo consultar por otra causa: se permite el registro.
-            }
+        boolean matches = switch (identityDirectory.findByDni(dni)) {
+            case IdentityLookup.Found found -> found.person().matchesName(name);
+            case IdentityLookup.NotFound ignored -> false;
+            case IdentityLookup.Unavailable ignored -> throw new AuthFlowException(
+                    HttpStatus.SERVICE_UNAVAILABLE, "DNI_LOOKUP_UNAVAILABLE",
+                    "No se pudo consultar el DNI en este momento. Inténtalo más tarde.");
+        };
+        if (!matches) {
+            throw new FieldRejectedException("dni", "Revisa el DNI y escribe al menos un nombre y un apellido tal como figuran en tu documento.");
         }
     }
 

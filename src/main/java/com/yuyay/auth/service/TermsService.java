@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets;
 
 @Service
 public class TermsService {
-    private static final String CURRENT_VERSION = "1.0";
+    private static final String CURRENT_VERSION = "1.1";
 
     private final TermsResponseDTO current;
 

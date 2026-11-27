@@ -62,12 +62,26 @@ class ApisPeruIdentityDirectoryTest {
     }
 
     @Test
-    void anEmptyBodyWithTwoHundredIsAlsoNotFound() {
+    void anExplicitNoResultsResponseIsNotFound() {
         server.expect(requestTo(URL))
                 .andRespond(withSuccess("{\"message\":\"No se encontraron resultados\"}",
                         MediaType.APPLICATION_JSON));
 
         assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);
+    }
+
+    @Test
+    void anEmptySuccessDoesNotProveThatTheDocumentIsMissing() {
+        server.expect(requestTo(URL)).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
+    }
+
+    @Test
+    void aResponseForAnotherDocumentIsUnavailable() {
+        server.expect(requestTo(URL)).andRespond(withSuccess("""
+                {"dni":"00000000","nombres":"ANA","apellidoPaterno":"QUISPE"}
+                """, MediaType.APPLICATION_JSON));
+        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
     }
 
     @Test
@@ -82,8 +96,7 @@ class ApisPeruIdentityDirectoryTest {
         server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
 
         assertThat(directory.findByDni(DNI))
-                .isInstanceOfSatisfying(IdentityLookup.Unavailable.class,
-                        unavailable -> assertThat(unavailable.noResponse()).isFalse());
+                .isInstanceOf(IdentityLookup.Unavailable.class);
     }
 
     @Test
@@ -93,8 +106,7 @@ class ApisPeruIdentityDirectoryTest {
         });
 
         assertThat(directory.findByDni(DNI))
-                .isInstanceOfSatisfying(IdentityLookup.Unavailable.class,
-                        unavailable -> assertThat(unavailable.noResponse()).isTrue());
+                .isInstanceOf(IdentityLookup.Unavailable.class);
     }
 
     @Test
@@ -135,7 +147,8 @@ class ApisPeruIdentityDirectoryTest {
         server.expect(requestTo(URL))
                 .andRespond(withSuccess("{\"nombres\": no es json}", MediaType.APPLICATION_JSON));
 
-        assertThat(logsOf(() -> directory.findByDni(DNI)))
+        assertThat(logsOf(() -> assertThat(directory.findByDni(DNI))
+                .isInstanceOf(IdentityLookup.Unavailable.class)))
                 .noneMatch(message -> message.contains(DNI));
     }
 

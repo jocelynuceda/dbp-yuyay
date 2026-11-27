@@ -1,7 +1,8 @@
 package com.yuyay.identity;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -34,22 +35,45 @@ public record IdentityRecord(
      * nombre y el DNI se conocen. Reduce el error de tipeo y el perfil inventado, nada más.
      */
     public boolean matchesName(String declaredName) {
-        Set<String> declared = Names.tokens(declaredName);
-        if (declared.isEmpty()) {
-            return false;
+        return nameSimilarity(declaredName) == 1.0;
+    }
+
+    private static final Set<String> PARTICLES = Set.of("DE", "DEL", "LA", "LAS", "LOS");
+
+    private record WordScore(double given, double family) {}
+
+    /** 0..1. Permite omitir nombres del documento. Cada palabra escrita debe corresponder
+     * al documento y dos posiciones distintas deben aportar un nombre y un apellido. */
+    double nameSimilarity(String declaredName) {
+        List<String> words = Names.tokens(declaredName);
+        List<String> given = Names.tokens(nombres);
+        List<String> family = Stream.concat(Names.tokens(apellidoPaterno).stream(),
+                Names.tokens(apellidoMaterno).stream()).toList();
+        List<WordScore> candidates = new ArrayList<>();
+        double coverage = 1.0;
+        for (String word : words) {
+            if (PARTICLES.contains(word)) {
+                if (!given.contains(word) && !family.contains(word)) return 0.0;
+                continue;
+            }
+            WordScore score = new WordScore(bestSimilarity(word, given), bestSimilarity(word, family));
+            candidates.add(score);
+            coverage = Math.min(coverage, Math.max(score.given(), score.family()));
         }
-        Set<String> given = Names.tokens(nombres);
-        Set<String> family = Stream.concat(
-                        Names.tokens(apellidoPaterno).stream(),
-                        Names.tokens(apellidoMaterno).stream())
-                .collect(Collectors.toUnmodifiableSet());
 
-        boolean nothingInvented = Stream.concat(given.stream(), family.stream())
-                .collect(Collectors.toUnmodifiableSet())
-                .containsAll(declared);
+        double bestPair = 0.0;
+        for (int i = 0; i < candidates.size(); i++) {
+            for (int k = 0; k < candidates.size(); k++) {
+                if (i != k) {
+                    bestPair = Math.max(bestPair, Math.min(candidates.get(i).given(), candidates.get(k).family()));
+                }
+            }
+        }
+        return Math.min(coverage, bestPair);
+    }
 
-        return nothingInvented
-                && declared.stream().anyMatch(given::contains)
-                && declared.stream().anyMatch(family::contains);
+    private static double bestSimilarity(String word, List<String> reference) {
+        return reference.stream().filter(candidate -> !PARTICLES.contains(candidate))
+                .mapToDouble(candidate -> Names.similarity(word, candidate)).max().orElse(0.0);
     }
 }

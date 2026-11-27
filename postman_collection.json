@@ -30,7 +30,7 @@
   "variable": [
     {
       "key": "termsVersion",
-      "value": "1.0",
+      "value": "1.1",
       "type": "string"
     },
     {
