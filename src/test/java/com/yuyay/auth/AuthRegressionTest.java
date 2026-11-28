@@ -95,7 +95,7 @@ class AuthRegressionTest {
         Map<String, Object> payload = new HashMap<>(body);
         if (path.equals("/register")) {
             payload.put("termsAccepted", true);
-            payload.put("termsVersion", "1.2");
+            payload.put("termsVersion", "1.3");
             payload.put("dni", "12345678");
             payload.put("fullName", "Persona Sintetica");
         }

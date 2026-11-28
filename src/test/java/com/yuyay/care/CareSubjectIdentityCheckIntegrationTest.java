@@ -48,7 +48,7 @@ class CareSubjectIdentityCheckIntegrationTest {
     void setUp() throws Exception {
         when(identityDirectory.isConfigured()).thenReturn(true);
         when(identityDirectory.findByDni("12345678")).thenReturn(
-                new IdentityLookup.Found(new IdentityRecord("PERSONA", "SINTETICA", "")));
+                new IdentityLookup.Found(new IdentityRecord("PERSONA", "SINTETICA", "", java.time.LocalDate.of(1990, 1, 1))));
         owner = register();
     }
 
@@ -162,7 +162,7 @@ class CareSubjectIdentityCheckIntegrationTest {
         JsonNode auth = send(post("/api/v1/auth/register"), null, Map.of(
                 "email", "identity." + UUID.randomUUID() + "@yuyay.app",
                 "password", "Secreta123", "name", "Prueba",
-                "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678", "fullName", "Persona Sintetica"), 201);
+                "termsAccepted", true, "termsVersion", "1.3", "dni", "12345678", "fullName", "Persona Sintetica"), 201);
         return new Session(auth.get("accessToken").asText(), auth.get("user").get("id").asLong());
     }
 

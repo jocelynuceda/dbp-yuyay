@@ -28,6 +28,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("Fecha de nacimiento de la cuenta (para la edad y el avatar automático)")
 class BirthDateIntegrationTest {
 
+    /** La que devuelve el directorio sintético al registrarse. */
+    private static final String DNI_BIRTH_DATE = "1990-01-01";
+
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
 
@@ -35,7 +38,7 @@ class BirthDateIntegrationTest {
     @DisplayName("guarda la fecha, la conserva si se omite y la borra con null explícito")
     void savedFromTheProfileAndKept() throws Exception {
         String token = register();
-        assertTrue(send(get("/api/v1/users/me"), token, null, 200).get("birthDate").isNull());
+        assertEquals(DNI_BIRTH_DATE, send(get("/api/v1/users/me"), token, null, 200).get("birthDate").asText());
 
         JsonNode updated = send(patch("/api/v1/users/me"), token, "{\"name\":\"Ana\",\"birthDate\":\"1981-05-10\"}", 200);
         assertEquals("1981-05-10", updated.get("birthDate").asText());
@@ -54,7 +57,7 @@ class BirthDateIntegrationTest {
         String token = register();
         send(patch("/api/v1/users/me"), token, "{\"name\":\"Ana\",\"birthDate\":\"" + LocalDate.now().plusDays(1) + "\"}", 400);
         send(patch("/api/v1/users/me"), token, "{\"name\":\"Ana\",\"birthDate\":\"1899-12-31\"}", 409);
-        assertTrue(send(get("/api/v1/users/me"), token, null, 200).get("birthDate").isNull());
+        assertEquals(DNI_BIRTH_DATE, send(get("/api/v1/users/me"), token, null, 200).get("birthDate").asText());
     }
 
     @Test
@@ -73,7 +76,7 @@ class BirthDateIntegrationTest {
 
     private String register() throws Exception {
         return send(post("/api/v1/auth/register"), null, "{\"email\":\"edad." + UUID.randomUUID() + "@yuyay.app\","
-                + "\"password\":\"Secreta123\",\"name\":\"Ana\",\"termsAccepted\":true,\"termsVersion\":\"1.2\","
+                + "\"password\":\"Secreta123\",\"name\":\"Ana\",\"termsAccepted\":true,\"termsVersion\":\"1.3\","
                 // El registro contrasta el DNI; en pruebas responde el directorio sintético
                 + "\"dni\":\"12345678\",\"fullName\":\"Persona Sintetica\"}", 201)
                 .get("accessToken").asText();

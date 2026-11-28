@@ -34,7 +34,7 @@ class AuthIntegrationTest {
     @Autowired UserRepository users;
 
     private static final String REGISTER = """
-            {"email": "%s", "password": "Secreta123", "name": "Ana", "fullName": "Persona Sintetica", "termsAccepted": true, "termsVersion": "1.2", "dni": "12345678"}
+            {"email": "%s", "password": "Secreta123", "name": "Ana", "fullName": "Persona Sintetica", "termsAccepted": true, "termsVersion": "1.3", "dni": "12345678"}
             """;
 
     @Test
@@ -48,7 +48,7 @@ class AuthIntegrationTest {
                 .andExpect(jsonPath("$.user.email").value("ana1@yuyay.app"))
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist());
         var user = users.findByEmailIgnoreCase("ana1@yuyay.app").orElseThrow();
-        assertEquals("1.2", user.getTermsVersion());
+        assertEquals("1.3", user.getTermsVersion());
         assertTrue(user.getTermsAcceptedAt().isAfter(before));
         assertTrue(user.getTermsAcceptedAt().isBefore(Instant.now()));
     }
@@ -58,10 +58,10 @@ class AuthIntegrationTest {
         var response = mvc.perform(get("/api/v1/auth/terms"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-cache"))
-                .andExpect(jsonPath("$.version").value("1.2"))
+                .andExpect(jsonPath("$.version").value("1.3"))
                 .andReturn().getResponse();
         String published = json.readTree(response.getContentAsString(StandardCharsets.UTF_8)).path("text").asString();
-        String resource = new ClassPathResource("terms/yuyay-1.2.txt").getContentAsString(StandardCharsets.UTF_8);
+        String resource = new ClassPathResource("terms/yuyay-1.3.txt").getContentAsString(StandardCharsets.UTF_8);
         assertEquals(resource, published);
     }
 
@@ -73,10 +73,10 @@ class AuthIntegrationTest {
                 """.formatted(email);
         assertRegistrationError(prefix + "}", "TERMS_ACCEPTANCE_REQUIRED");
         assertRegistrationError(prefix + """
-                ,"termsAccepted":false,"termsVersion":"1.2", "dni": "12345678"}
+                ,"termsAccepted":false,"termsVersion":"1.3", "dni": "12345678"}
                 """, "TERMS_ACCEPTANCE_REQUIRED");
         assertRegistrationError(prefix + """
-                ,"termsAccepted":"true","termsVersion":"1.2", "dni": "12345678"}
+                ,"termsAccepted":"true","termsVersion":"1.3", "dni": "12345678"}
                 """, "TERMS_ACCEPTANCE_REQUIRED");
         assertRegistrationError(prefix + """
                 ,"termsAccepted":true}
