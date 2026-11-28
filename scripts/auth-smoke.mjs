@@ -22,7 +22,7 @@ async function call(path, body, expected, access) {
 }
 
 const terms = await call('/auth/terms', undefined, 200);
-assert.match(terms.text, /APIsPERU/);
+assert.match(terms.text, /MIAPI CLOUD/);
 // Usar una ficha sintética del directorio de la instancia local.
 const fullName = process.env.SMOKE_FULL_NAME ?? 'Persona Sintética';
 const acceptance = { termsAccepted: true, termsVersion: terms.version };
