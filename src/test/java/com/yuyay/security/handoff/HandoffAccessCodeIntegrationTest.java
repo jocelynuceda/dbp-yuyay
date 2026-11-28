@@ -489,7 +489,7 @@ class HandoffAccessCodeIntegrationTest {
 
     private String register(String email) throws Exception {
         return send(post("/api/v1/auth/register"), null, Map.of("email", email, "name", "Cuidadora",
-                "password", "Secreta123", "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678", "fullName", "Persona Sintetica"), 201).get("accessToken").asText();
+                "password", "Secreta123", "termsAccepted", true, "termsVersion", "1.3", "dni", "12345678", "fullName", "Persona Sintetica"), 201).get("accessToken").asText();
     }
 
     private JsonNode send(MockHttpServletRequestBuilder request, String authToken, Object body, int expected) throws Exception {

@@ -13,11 +13,11 @@ class IdentityDirectorySelectionTest {
             new ApplicationContextRunner().withUserConfiguration(Directories.class);
 
     @Test
-    void usesApisPeruWhenThereIsAToken() {
+    void usesMiApiWhenThereIsAToken() {
         runner.withPropertyValues("app.reniec.api-token=un-token-de-prueba")
                 .run(context -> assertThat(context)
                         .hasSingleBean(IdentityDirectory.class)
-                        .hasSingleBean(ApisPeruIdentityDirectory.class)
+                        .hasSingleBean(MiApiIdentityDirectory.class)
                         .doesNotHaveBean(DisabledIdentityDirectory.class));
     }
 
@@ -26,7 +26,7 @@ class IdentityDirectorySelectionTest {
         runner.run(context -> assertThat(context)
                 .hasSingleBean(IdentityDirectory.class)
                 .hasSingleBean(DisabledIdentityDirectory.class)
-                .doesNotHaveBean(ApisPeruIdentityDirectory.class));
+                .doesNotHaveBean(MiApiIdentityDirectory.class));
     }
 
     @Test
@@ -34,7 +34,7 @@ class IdentityDirectorySelectionTest {
         runner.withPropertyValues("app.reniec.api-token=")
                 .run(context -> assertThat(context)
                         .hasSingleBean(DisabledIdentityDirectory.class)
-                        .doesNotHaveBean(ApisPeruIdentityDirectory.class));
+                        .doesNotHaveBean(MiApiIdentityDirectory.class));
     }
 
     @Test
@@ -44,7 +44,7 @@ class IdentityDirectorySelectionTest {
     }
 
     @Configuration
-    @Import({ApisPeruIdentityDirectory.class, DisabledIdentityDirectory.class})
+    @Import({MiApiIdentityDirectory.class, DisabledIdentityDirectory.class})
     static class Directories {
     }
 }

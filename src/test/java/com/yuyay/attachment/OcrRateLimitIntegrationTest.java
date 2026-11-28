@@ -205,7 +205,7 @@ class OcrRateLimitIntegrationTest {
 
     private String register(String email) throws Exception {
         return postJson("/api/v1/auth/register", null,
-                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"Test\"}")
+                "{\"email\":\"" + email + "\",\"termsAccepted\":true,\"termsVersion\":\"1.3\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"Test\"}")
                 .get("accessToken").asText();
     }
 

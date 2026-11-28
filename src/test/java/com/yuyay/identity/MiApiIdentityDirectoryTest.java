@@ -14,6 +14,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,29 +24,30 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-class ApisPeruIdentityDirectoryTest {
+class MiApiIdentityDirectoryTest {
 
-    private static final String BASE_URL = "https://dniruc.apisperu.com";
+    private static final String BASE_URL = "https://miapi.cloud";
     private static final String DNI = "12345678";
-    private static final String URL = BASE_URL + "/api/v1/dni/" + DNI;
+    private static final String URL = BASE_URL + "/v1/dni/" + DNI;
 
     private MockRestServiceServer server;
-    private ApisPeruIdentityDirectory directory;
+    private MiApiIdentityDirectory directory;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        directory = new ApisPeruIdentityDirectory(builder, BASE_URL, "token-de-prueba");
+        directory = new MiApiIdentityDirectory(builder, BASE_URL, "token-de-prueba");
     }
 
     @Test
-    void readsNamesAndSendsTheTokenAsABearerHeader() {
+    void readsNamesAndBirthDateAndSendsTheTokenAsABearerHeader() {
         server.expect(requestTo(URL))
                 .andExpect(header("Authorization", "Bearer token-de-prueba"))
                 .andRespond(withSuccess("""
-                        {"dni":"12345678","nombres":"ANA MARIA",
-                         "apellidoPaterno":"QUISPE","apellidoMaterno":"ROJAS","codVerifica":"4"}
+                        {"success":true,"datos":{"dni":"12345678","nombres":"ANA MARIA",
+                         "ape_paterno":"QUISPE","ape_materno":"ROJAS","fecha_nacimiento":"09/03/2001",
+                         "domiciliado":{"direccion":"AV. DE EJEMPLO 123"}}}
                         """, MediaType.APPLICATION_JSON));
 
         IdentityLookup lookup = directory.findByDni(DNI);
@@ -53,22 +55,26 @@ class ApisPeruIdentityDirectoryTest {
         assertThat(lookup).isInstanceOf(IdentityLookup.Found.class);
         IdentityRecord person = ((IdentityLookup.Found) lookup).person();
         assertThat(person.fullName()).isEqualTo("ANA MARIA QUISPE ROJAS");
+        assertThat(person.birthDate()).isEqualTo(LocalDate.of(2001, 3, 9));
         server.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "2001-03-09", "31/02/2001"})
+    void anUnreadableBirthDateIsLeftEmpty(String birthDate) {
+        server.expect(requestTo(URL)).andRespond(withSuccess("""
+                {"success":true,"datos":{"dni":"12345678","nombres":"ANA","ape_paterno":"QUISPE",
+                 "fecha_nacimiento":"%s"}}
+                """.formatted(birthDate), MediaType.APPLICATION_JSON));
+
+        IdentityLookup lookup = directory.findByDni(DNI);
+
+        assertThat(((IdentityLookup.Found) lookup).person().birthDate()).isNull();
     }
 
     @Test
     void anUnknownDniIsNotFound() {
         server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.NOT_FOUND));
-
-        assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"No se encontraron resultados", " No  se encontraron RESULTADOS. "})
-    void anExplicitNoResultsResponseIsNotFound(String message) {
-        server.expect(requestTo(URL))
-                .andRespond(withSuccess("{\"message\":\"" + message + "\"}",
-                        MediaType.APPLICATION_JSON));
 
         assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.NotFound.class);
     }
@@ -82,7 +88,7 @@ class ApisPeruIdentityDirectoryTest {
     @Test
     void aResponseForAnotherDocumentIsUnavailable() {
         server.expect(requestTo(URL)).andRespond(withSuccess("""
-                {"dni":"00000000","nombres":"ANA","apellidoPaterno":"QUISPE"}
+                {"success":true,"datos":{"dni":"00000000","nombres":"ANA","ape_paterno":"QUISPE"}}
                 """, MediaType.APPLICATION_JSON));
         assertThat(directory.findByDni(DNI)).isInstanceOf(IdentityLookup.Unavailable.class);
     }
@@ -156,7 +162,7 @@ class ApisPeruIdentityDirectoryTest {
     }
 
     private List<String> logsOf(Runnable call) {
-        Logger logger = (Logger) LoggerFactory.getLogger(ApisPeruIdentityDirectory.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(MiApiIdentityDirectory.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);

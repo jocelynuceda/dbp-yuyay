@@ -10,6 +10,7 @@ import com.yuyay.care.service.CareSubjectService;
 import com.yuyay.event.UserRegisteredEvent;
 import com.yuyay.identity.IdentityDirectory;
 import com.yuyay.identity.IdentityLookup;
+import com.yuyay.identity.IdentityRecord;
 import com.yuyay.exception.AuthFlowException;
 import com.yuyay.exception.DuplicateEmailException;
 import com.yuyay.exception.FieldRejectedException;
@@ -25,6 +26,7 @@ import com.yuyay.user.mapper.UserMapper;
 import com.yuyay.user.repository.RefreshTokenRepository;
 import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -37,12 +39,17 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Period;
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    private static final ZoneId PERU = ZoneId.of("America/Lima");
+
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -58,6 +65,9 @@ public class AuthService {
     private final TransactionTemplate transactions;
     private final CareSubjectService careSubjects;
 
+    @Value("${app.registration.min-age:16}")
+    private int minimumAge;
+
     public AuthResponseDTO register(RegisterRequestDTO dto, String origin) {
         String version = termsService.requireCurrentAcceptance(dto.termsAccepted(), dto.termsVersion());
         if (userRepository.existsByEmailIgnoreCase(dto.email())) {
@@ -70,12 +80,13 @@ public class AuthService {
             throw new FieldRejectedException("fullName", "Escribe tus nombres y apellidos. Si no ves el campo, actualiza Yuyay.");
         }
         // Después del email duplicado: la consulta de DNI se paga o consume cuota.
-        requireDniMatch(dto.dni(), dto.fullName(), origin);
+        LocalDate birthDate = requireDniMatch(dto.dni(), dto.fullName(), origin);
         User user = User.builder()
                 .email(dto.email().toLowerCase(Locale.ROOT))
                 .passwordHash(passwordEncoder.encode(dto.password()))
                 .name(dto.name())
                 .fullName(dto.fullName().strip())
+                .birthDate(birthDate)
                 .gender(dto.gender())
                 .build();
         try {
@@ -88,18 +99,31 @@ public class AuthService {
         }
     }
 
-    private void requireDniMatch(String dni, String declaredName, String origin) {
+    /** Devuelve la fecha de nacimiento del DNI, ya comprobada la edad mínima. */
+    private LocalDate requireDniMatch(String dni, String declaredName, String origin) {
         if (!identityDirectory.isConfigured()) {
             throw directoryUnavailable();
         }
         dniQuota.reserve(origin);
-        boolean matches = switch (identityDirectory.findByDni(dni)) {
-            case IdentityLookup.Found found -> found.person().matchesName(declaredName);
-            case IdentityLookup.NotFound ignored -> false;
+        IdentityRecord person = switch (identityDirectory.findByDni(dni)) {
+            case IdentityLookup.Found found -> found.person();
+            case IdentityLookup.NotFound ignored -> null;
             case IdentityLookup.Unavailable ignored -> throw directoryUnavailable();
         };
-        if (!matches) {
+        if (person == null || !person.matchesName(declaredName)) {
             throw new FieldRejectedException("dni", "Revisa el DNI y escribe tus nombres y apellidos tal como figuran en tu documento.");
+        }
+        // Después del nombre: así no se averigua la edad de alguien conociendo solo su DNI.
+        requireMinimumAge(person.birthDate());
+        return person.birthDate();
+    }
+
+    private void requireMinimumAge(LocalDate birthDate) {
+        if (birthDate == null) {
+            throw directoryUnavailable();
+        }
+        if (Period.between(birthDate, LocalDate.ofInstant(clock.instant(), PERU)).getYears() < minimumAge) {
+            throw new FieldRejectedException("dni", "Debes tener " + minimumAge + " años o más para crear una cuenta.");
         }
     }
 
@@ -130,9 +154,10 @@ public class AuthService {
         if (dto.fullName().length() > 200) {
             throw new FieldRejectedException("fullName", "Los nombres y apellidos admiten hasta 200 caracteres");
         }
-        requireDniMatch(dto.dni(), dto.fullName(), origin);
+        LocalDate birthDate = requireDniMatch(dto.dni(), dto.fullName(), origin);
         User user = User.builder()
                 .email(identity.email())
+                .birthDate(birthDate)
                 .googleSubject(identity.subject())
                 .name(dto.name().strip())
                 .fullName(dto.fullName().strip())

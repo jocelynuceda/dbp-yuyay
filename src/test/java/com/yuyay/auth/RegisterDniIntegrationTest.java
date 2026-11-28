@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +53,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class RegisterDniIntegrationTest {
 
     private static final String DNI = "45678912";
-    private static final IdentityRecord ANA = new IdentityRecord("ANA LUCIA", "QUISPE", "MAMANI");
+    private static final IdentityRecord ANA = new IdentityRecord("ANA LUCIA", "QUISPE", "MAMANI", LocalDate.of(1990, 1, 1));
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
@@ -229,6 +230,62 @@ class RegisterDniIntegrationTest {
         assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM registration_dni_quotas", Integer.class));
     }
 
+    @Test
+    @DisplayName("la fecha de nacimiento del DNI queda en el perfil")
+    void birthDateFromTheDniIsSavedInTheProfile() throws Exception {
+        String email = email();
+        register(email, "Anita", DNI).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.birthDate").value("1990-01-01"));
+        assertEquals(LocalDate.of(1990, 1, 1), users.findByEmailIgnoreCase(email).orElseThrow().getBirthDate());
+    }
+
+    @Test
+    @DisplayName("quien cumple 16 años hoy puede registrarse")
+    void sixteenthBirthdayIsAllowed() throws Exception {
+        bornOn(todayInLima().minusYears(16));
+        register(email(), "Anita", DNI).andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("con 15 años no se crea la cuenta")
+    void underSixteenIsRejected() throws Exception {
+        bornOn(todayInLima().minusYears(16).plusDays(1));
+        String email = email();
+        register(email, "Anita", DNI).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("dni"))
+                .andExpect(jsonPath("$.fieldErrors[0].message")
+                        .value("Debes tener 16 años o más para crear una cuenta."));
+        assertFalse(users.existsByEmailIgnoreCase(email));
+    }
+
+    @Test
+    @DisplayName("la edad no se revela si el nombre no coincide")
+    void ageIsNotRevealedWhenTheNameDoesNotMatch() throws Exception {
+        bornOn(todayInLima().minusYears(10));
+        register(email(), "Anita", DNI, "192.0.2.1", "Otra Persona").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].message")
+                        .value("Revisa el DNI y escribe tus nombres y apellidos tal como figuran en tu documento."));
+    }
+
+    @Test
+    @DisplayName("sin fecha de nacimiento no se puede comprobar la edad: 503")
+    void missingBirthDateDoesNotCreateAnAccount() throws Exception {
+        bornOn(null);
+        String email = email();
+        register(email, "Anita", DNI).andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("DNI_LOOKUP_UNAVAILABLE"));
+        assertFalse(users.existsByEmailIgnoreCase(email));
+    }
+
+    private void bornOn(LocalDate birthDate) {
+        when(identityDirectory.findByDni(DNI)).thenReturn(new IdentityLookup.Found(
+                new IdentityRecord("ANA LUCIA", "QUISPE", "MAMANI", birthDate)));
+    }
+
+    private static LocalDate todayInLima() {
+        return LocalDate.now(ZoneId.of("America/Lima"));
+    }
+
     private ResultActions register(String email, String name, String dni) throws Exception {
         return register(email, name, dni, "192.0.2.1");
     }
@@ -246,7 +303,7 @@ class RegisterDniIntegrationTest {
     private ResultActions register(String email, String name, String dni, String origin, String fullName) throws Exception {
         Map<String, Object> body = new HashMap<>(Map.of(
                 "email", email, "password", "Secreta123", "name", name,
-                "termsAccepted", true, "termsVersion", "1.2"));
+                "termsAccepted", true, "termsVersion", "1.3"));
         if (dni != null) body.put("dni", dni);
         if (fullName != null) body.put("fullName", fullName);
         return mvc.perform(post("/api/v1/auth/register")

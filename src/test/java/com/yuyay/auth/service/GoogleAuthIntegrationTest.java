@@ -100,7 +100,7 @@ class GoogleAuthIntegrationTest {
         when(directory.isConfigured()).thenReturn(true);
         when(directory.findByDni("12345678")).thenAnswer(invocation -> {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
-            return new IdentityLookup.Found(new IdentityRecord("PERSONA", "SINTETICA", "PEREZ"));
+            return new IdentityLookup.Found(new IdentityRecord("PERSONA", "SINTETICA", "PEREZ", java.time.LocalDate.of(1990, 1, 1)));
         });
     }
 
@@ -152,7 +152,7 @@ class GoogleAuthIntegrationTest {
         };
         for (String idToken : invalid) {
             JsonNode error = request("/google", Map.of("idToken", idToken,
-                    "acceptedTermsVersion", "1.2"), 401);
+                    "acceptedTermsVersion", "1.3"), 401);
             assertEquals("GOOGLE_TOKEN_INVALID", error.path("code").asString());
         }
         JsonNode invalidToken = request("/google", Map.of("idToken", "malformed", "acceptedTermsVersion", true), 401);
@@ -170,11 +170,11 @@ class GoogleAuthIntegrationTest {
         assertTermsChallenge(Map.of("idToken", idToken), "TERMS_ACCEPTANCE_REQUIRED");
         assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", NullNode.getInstance()),
                 "TERMS_ACCEPTANCE_REQUIRED");
-        assertTermsChallenge(Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678"),
+        assertTermsChallenge(Map.of("idToken", idToken, "termsAccepted", true, "termsVersion", "1.3", "dni", "12345678"),
                 "TERMS_ACCEPTANCE_REQUIRED");
         assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", "2026-11"),
                 "TERMS_VERSION_OUTDATED");
-        assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", "1.2"),
+        assertTermsChallenge(Map.of("idToken", idToken, "acceptedTermsVersion", "1.3"),
                 "REGISTRATION_DETAILS_REQUIRED");
         verifyNoInteractions(directory);
         assertTrue(users.findByGoogleSubject(subject).isEmpty());
@@ -193,7 +193,7 @@ class GoogleAuthIntegrationTest {
         assertEquals(com.yuyay.care.entity.CareRole.PRINCIPAL,
                 careRelationships.findByUserIdAndCareSubjectId(saved.getId(), ownId).orElseThrow().getRole());
         assertEquals("Persona Sintética", saved.getFullName());
-        assertEquals("1.2", saved.getTermsVersion());
+        assertEquals("1.3", saved.getTermsVersion());
         assertEquals(NOW, saved.getTermsAcceptedAt());
 
         String changedEmail = uniqueEmail();
@@ -243,7 +243,7 @@ class GoogleAuthIntegrationTest {
         String localEmail = uniqueEmail();
         String password = "Original123";
         request("/register", Map.of("email", localEmail, "password", password, "name", "Local",
-                "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678", "fullName", "Persona Sintetica"), 201);
+                "termsAccepted", true, "termsVersion", "1.3", "dni", "12345678", "fullName", "Persona Sintetica"), 201);
         String unlinkedSubject = UUID.randomUUID().toString();
         String localToken = token(unlinkedSubject, localEmail.toUpperCase(java.util.Locale.ROOT), builder -> builder);
         JsonNode conflict = request("/google", Map.of("idToken", localToken), 409);
@@ -279,9 +279,9 @@ class GoogleAuthIntegrationTest {
         String subject = UUID.randomUUID().toString();
         String idToken = token(subject, uniqueEmail(), builder -> builder);
         long before = refreshTokens.count();
-        Map<String, String> wrongName = Map.of("idToken", idToken, "acceptedTermsVersion", "1.2",
+        Map<String, String> wrongName = Map.of("idToken", idToken, "acceptedTermsVersion", "1.3",
                 "dni", "12345678", "fullName", "Otra Persona", "name", "Alias");
-        JsonNode malformed = request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.2",
+        JsonNode malformed = request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.3",
                 "dni", "123", "fullName", "Persona Sintética", "name", "Alias"), 400);
         assertEquals("dni", malformed.path("fieldErrors").get(0).path("field").asString());
         verifyNoInteractions(directory);
@@ -294,12 +294,25 @@ class GoogleAuthIntegrationTest {
         JsonNode unavailable = request("/google", wrongName, 503);
         assertEquals("DNI_LOOKUP_UNAVAILABLE", unavailable.path("code").asString());
         JsonNode limit = request("/register", Map.of("email", uniqueEmail(), "password", "Original123",
-                "name", "Alias", "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678",
+                "name", "Alias", "termsAccepted", true, "termsVersion", "1.3", "dni", "12345678",
                 "fullName", "Persona Sintética"), 429);
         assertEquals("DNI_LOOKUP_LIMIT", limit.path("code").asString());
         assertTrue(users.findByGoogleSubject(subject).isEmpty());
         assertEquals(before, refreshTokens.count());
         verify(directory, times(3)).findByDni("12345678");
+    }
+
+    @Test
+    void googleRegistrationRejectsAMinorUnderSixteen() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        when(directory.findByDni("12345678")).thenReturn(new IdentityLookup.Found(new IdentityRecord(
+                "PERSONA", "SINTETICA", "", java.time.LocalDate.ofInstant(NOW, java.time.ZoneOffset.UTC).minusYears(10))));
+
+        JsonNode error = request("/google", Map.of("idToken", token(subject, uniqueEmail(), builder -> builder),
+                "acceptedTermsVersion", "1.3", "dni", "12345678", "fullName", "Persona Sintética", "name", "Alias"), 400);
+
+        assertEquals("dni", error.path("fieldErrors").get(0).path("field").asString());
+        assertTrue(users.findByGoogleSubject(subject).isEmpty());
     }
 
     @Test
@@ -329,7 +342,7 @@ class GoogleAuthIntegrationTest {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             pendingLookups.countDown();
             assertTrue(pendingLookups.await(5, TimeUnit.SECONDS), "Ambas altas deben solaparse en la consulta externa");
-            return new IdentityLookup.Found(new IdentityRecord("PERSONA", "SINTETICA", ""));
+            return new IdentityLookup.Found(new IdentityRecord("PERSONA", "SINTETICA", "", java.time.LocalDate.of(1990, 1, 1)));
         });
         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
@@ -362,7 +375,7 @@ class GoogleAuthIntegrationTest {
     }
 
     private JsonNode signUp(String idToken) throws Exception {
-        return request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.2",
+        return request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "1.3",
                 "dni", "12345678", "fullName", "Persona Sintética", "name", "Alias"), 200);
     }
 
@@ -373,7 +386,7 @@ class GoogleAuthIntegrationTest {
         JsonNode error = json.readTree(response.getContentAsByteArray());
         assertEquals(428, error.path("status").asInt());
         assertEquals(code, error.path("code").asString());
-        assertEquals("1.2", error.path("currentVersion").asString());
+        assertEquals("1.3", error.path("currentVersion").asString());
         assertFalse(error.has("accessToken"));
         assertFalse(error.has("refreshToken"));
     }

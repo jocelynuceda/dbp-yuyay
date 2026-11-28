@@ -82,7 +82,7 @@ class HandoffSourceIntegrationTest {
         String email = "handoff-source-" + UUID.randomUUID() + "@yuyay.app";
         ownerToken = send(post("/api/v1/auth/register"), null, Map.of(
                 "email", email, "name", "Cuidadora", "password", "Secreta123",
-                "termsAccepted", true, "termsVersion", "1.2", "dni", "12345678", "fullName", "Persona Sintetica"), 201).get("accessToken").asText();
+                "termsAccepted", true, "termsVersion", "1.3", "dni", "12345678", "fullName", "Persona Sintetica"), 201).get("accessToken").asText();
         ownerId = users.findByEmailIgnoreCase(email).orElseThrow().getId();
         subjectId = createSubject();
         source = createAttachment(subjectId);
@@ -207,7 +207,9 @@ class HandoffSourceIntegrationTest {
             assertEquals("es-PE", document.getDocumentCatalog().getLanguage());
             assertTrue(text.contains("Resumen de Paciente ficticio"));
             assertTrue(text.contains("Informe revisado"));
-            assertTrue(text.contains("Condición · Confirmado"));
+            assertTrue(text.contains("Condiciones"));
+            assertTrue(text.contains("Confirmado"));
+            assertTrue(text.contains("Actualizado el "));
             assertEquals(170, text.split("Texto revisado: presión, dosis y antecedentes\\.", -1).length - 1);
             assertTrue(text.contains("Medición β ≥ 3,5 µg/L"));
             assertTrue(text.contains("FIN REVISADO"));
