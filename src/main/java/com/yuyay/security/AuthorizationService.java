@@ -27,6 +27,7 @@ public class AuthorizationService {
         if (!hasAccess(userId, careSubjectId)) {
             throw new ForbiddenCareSubjectAccessException("No tienes acceso a esta persona");
         }
+        protectRegistrationProfileWrite(userId, careSubjectId, null);
     }
 
     public boolean hasAccess(Long userId, Long careSubjectId) {
@@ -37,6 +38,22 @@ public class AuthorizationService {
         if (!careRelationships.existsByUserIdAndCareSubjectIdAndStatusAndRole(userId, careSubjectId, CareStatus.ACTIVE, role)) {
             throw new ForbiddenCareSubjectAccessException("Se requiere rol " + role + " sobre esta persona");
         }
+        protectRegistrationProfileWrite(userId, careSubjectId, role);
+    }
+
+
+    private void protectRegistrationProfileWrite(Long userId, Long subjectId, CareRole requiredRole) {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+                || org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly()
+                || !careSubjects.existsByIdAndRegistrationProfileTrue(subjectId)) return;
+        CareSubject subject = careSubjects.findForUpdateById(subjectId)
+                .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
+        // Un canje pudo revocar la relación mientras esta escritura esperaba el bloqueo.
+        boolean allowed = requiredRole == null
+                ? hasAccess(userId, subjectId)
+                : careRelationships.existsByUserIdAndCareSubjectIdAndStatusAndRole(userId, subjectId, CareStatus.ACTIVE, requiredRole);
+        if (!allowed) throw new ForbiddenCareSubjectAccessException("El acceso a esta persona cambió.");
+        subject.setRegistrationProfileUsed(true);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

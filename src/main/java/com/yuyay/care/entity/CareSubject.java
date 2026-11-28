@@ -62,6 +62,17 @@ public class CareSubject {
 
     private Instant claimedAt;
 
+    /** Identifica únicamente perfiles creados al registrarse. Los perfiles anteriores quedan en false. */
+    @org.hibernate.annotations.ColumnDefault("false")
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean registrationProfile = false;
+
+    @org.hibernate.annotations.ColumnDefault("false")
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean registrationProfileUsed = false;
+
     @OneToMany(mappedBy = "careSubject", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<CareRelationship> careRelationships = new ArrayList<>();

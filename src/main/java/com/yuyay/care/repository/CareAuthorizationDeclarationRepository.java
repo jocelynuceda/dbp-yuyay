@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CareAuthorizationDeclarationRepository extends Repository<CareAuthorizationDeclaration, Long> {
+    boolean existsByCareSubjectId(Long subjectId);
     <S extends CareAuthorizationDeclaration> S save(S declaration);
 
     Optional<CareAuthorizationDeclaration> findByDeclaredByIdAndCreationRequestId(Long userId, String requestId);

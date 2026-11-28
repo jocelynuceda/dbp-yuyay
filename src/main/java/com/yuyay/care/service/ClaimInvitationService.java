@@ -66,6 +66,7 @@ public class ClaimInvitationService {
     private final CurrentUserService currentUserService;
     private final AppProperties properties;
     private final ApplicationEventPublisher events;
+    private final CareSubjectService careSubjectService;
     private final int minAge;
     private final int validDays;
 
@@ -81,6 +82,7 @@ public class ClaimInvitationService {
             CurrentUserService currentUserService,
             AppProperties properties,
             ApplicationEventPublisher events,
+            CareSubjectService careSubjectService,
             @Value("${app.care.self-claim-min-age:16}") int minAge,
             @Value("${app.care.claim-invitation-valid-days:7}") int validDays) {
         this.invitations = invitations;
@@ -94,6 +96,7 @@ public class ClaimInvitationService {
         this.currentUserService = currentUserService;
         this.properties = properties;
         this.events = events;
+        this.careSubjectService = careSubjectService;
         this.minAge = minAge;
         this.validDays = validDays;
     }
@@ -163,7 +166,7 @@ public class ClaimInvitationService {
 
     public ClaimExchangeResponse exchange(ClaimExchangeRequest request) {
         Long actorId = currentUserService.getCurrentUserId();
-        User actor = users.findById(actorId)
+        User actor = users.findForUpdateById(actorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         String tokenHash = TokenHasher.sha256(request.token());
@@ -195,6 +198,7 @@ public class ClaimInvitationService {
         // entregado ya por otro enlace.
         requireClaimable(subject, careSubjectId);
         requireMinimumAge(subject);
+        careSubjectService.prepareSelfProfileReplacement(actor, subject.getId());
 
         Instant now = Instant.now();
         invitation.setExchangedAt(now);

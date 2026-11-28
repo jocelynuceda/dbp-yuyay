@@ -11,6 +11,7 @@ import java.util.Optional;
 
 public interface CareSubjectRepository extends JpaRepository<CareSubject, Long> {
     Optional<CareSubject> findByAccountUserId(Long userId);
+    boolean existsByIdAndRegistrationProfileTrue(Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select cs from CareSubject cs where cs.id = :id")

@@ -52,6 +52,8 @@ public class CareSubjectService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
     private final CareAuthorizationDeclarationService declarations;
+    private final com.yuyay.attachment.repository.AttachmentRepository attachmentRepo;
+    private final com.yuyay.care.repository.CareAuthorizationDeclarationRepository declarationRepo;
     private final ObjectMapper objectMapper;
 
 
@@ -61,7 +63,7 @@ public class CareSubjectService {
      * No registra una declaración SELF que la persona no haya confirmado.
      */
     public CareSubject ensureSelfProfile(Long userId) {
-        User user = userRepo.findById(userId)
+        User user = userRepo.findForUpdateById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         CareSubject subject = subjectRepo.findByAccountUserId(userId).orElseGet(() ->
                 subjectRepo.save(CareSubject.builder()
@@ -69,6 +71,7 @@ public class CareSubjectService {
                         .birthDate(user.getBirthDate())
                         .gender(user.getGender())
                         .accountUser(user)
+                        .registrationProfile(true)
                         .build()));
         if (relationshipRepo.findByUserIdAndCareSubjectId(userId, subject.getId()).isEmpty()) {
             relationshipRepo.save(CareRelationship.builder()
@@ -80,6 +83,37 @@ public class CareSubjectService {
                     .build());
         }
         return subject;
+    }
+
+
+    /** Retira solo el perfil inicial sin uso; conserva la fila y la relación como historial. */
+    public void prepareSelfProfileReplacement(User actor, Long destinationId) {
+        CareSubject previous = subjectRepo.findByAccountUserId(actor.getId()).orElse(null);
+        if (previous == null || previous.getId().equals(destinationId)) return;
+        previous = subjectRepo.findForUpdateById(previous.getId()).orElseThrow();
+        boolean used = !previous.isRegistrationProfile() || previous.isRegistrationProfileUsed()
+                || !previous.getHealthEntries().isEmpty()
+                || !previous.getConsultations().isEmpty()
+                || !previous.getHandoffs().isEmpty()
+                || !previous.getDelegations().isEmpty()
+                || !previous.getAccessLogs().isEmpty()
+                || attachmentRepo.existsByCareSubjectId(previous.getId())
+                || declarationRepo.existsByCareSubjectId(previous.getId())
+                || previous.getCareRelationships().stream().anyMatch(r -> !r.getUser().getId().equals(actor.getId()));
+        if (used) {
+            throw new InvalidOperationException("Tu perfil propio ya contiene información o actividad. Revisa ambos perfiles antes de recibir otra entrega.");
+        }
+        CareRelationship relationship = relationshipRepo.findByUserIdAndCareSubjectId(actor.getId(), previous.getId())
+                .orElseThrow(() -> new InvalidOperationException("Revisa la relación de tu perfil propio antes de continuar."));
+        if (relationship.getRole() != CareRole.PRINCIPAL || relationship.getStatus() != CareStatus.ACTIVE) {
+            throw new InvalidOperationException("La relación de tu perfil propio cambió. Revisa el estado antes de continuar.");
+        }
+        previous.setAccountUser(null);
+        previous.setRegistrationProfileUsed(true);
+        relationship.setStatus(CareStatus.REVOKED);
+        relationship.setRevokedAt(Instant.now());
+        // Liberar la unicidad antes de asociar el perfil recibido, siempre en la misma transacción.
+        subjectRepo.flush();
     }
 
     public CareSubjectResponse create(CareSubjectCreateRequest req) {
@@ -100,8 +134,13 @@ public class CareSubjectService {
             return get(previous.getId());
         }
         Option option = CareAuthorizationPolicy.validate(req.declaration());
+        boolean self = option.type() == com.yuyay.care.entity.CareAuthorizationType.SELF;
+        if (self && subjectRepo.findByAccountUserId(meId).isPresent()) {
+            throw new InvalidOperationException("Ya tienes un perfil propio. Abre ese perfil para actualizar tus datos.");
+        }
 
         CareSubject subject = mapper.toEntity(req);
+        if (self) subject.setAccountUser(me);
         subjectRepo.save(subject);
 
         CareRelationship ownerRelationship = CareRelationship.builder()
