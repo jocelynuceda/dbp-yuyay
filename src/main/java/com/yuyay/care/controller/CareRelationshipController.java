@@ -40,6 +40,12 @@ public class CareRelationshipController {
         return service.accept(relationshipId);
     }
 
+    @PostMapping("/me/relationships/{relationshipId}/decline")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void decline(@PathVariable Long relationshipId) {
+        service.decline(relationshipId);
+    }
+
     @DeleteMapping("/care-subjects/{subjectId}/relationships/{relationshipId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revoke(@PathVariable Long subjectId, @PathVariable Long relationshipId) {
