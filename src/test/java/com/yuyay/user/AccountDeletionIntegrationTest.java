@@ -280,7 +280,7 @@ class AccountDeletionIntegrationTest {
     private static Map<String, Object> registration(String email) {
         return Map.of(
                 "email", email, "password", "Secreta123", "name", "Prueba",
-                "termsAccepted", true, "termsVersion", "1.2",
+                "termsAccepted", true, "termsVersion", "1.3",
                 "fullName", "Persona Sintetica", "dni", "12345678");
     }
 

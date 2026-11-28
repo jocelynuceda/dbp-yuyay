@@ -73,7 +73,7 @@ class BirthDateIntegrationTest {
 
     private String register() throws Exception {
         return send(post("/api/v1/auth/register"), null, "{\"email\":\"edad." + UUID.randomUUID() + "@yuyay.app\","
-                + "\"password\":\"Secreta123\",\"name\":\"Ana\",\"termsAccepted\":true,\"termsVersion\":\"1.2\","
+                + "\"password\":\"Secreta123\",\"name\":\"Ana\",\"termsAccepted\":true,\"termsVersion\":\"1.3\","
                 // El registro contrasta el DNI; en pruebas responde el directorio sintético
                 + "\"dni\":\"12345678\",\"fullName\":\"Persona Sintetica\"}", 201)
                 .get("accessToken").asText();

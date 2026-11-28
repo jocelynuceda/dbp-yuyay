@@ -7,7 +7,7 @@ las solicitudes a Yuyay por HTTPS.
 
 `GET /terms` es público y devuelve `200 OK` con `version` y `text` en JSON.
 `text` contiene los términos de uso y el aviso de privacidad íntegros en español.
-La versión vigente es `1.2`. El cliente presenta el texto y solicita una confirmación
+La versión vigente es `1.3`. El cliente presenta el texto y solicita una confirmación
 explícita antes de enviar un alta. Conviene volver a consultar el endpoint si la
 versión resulta obsoleta.
 
@@ -19,7 +19,7 @@ la confirmación booleana `termsAccepted: true` y la cadena `termsVersion` vigen
 que se muestra en la aplicación; puede repetirse y no se contrasta con el documento.
 
 La persona escribe sus nombres y apellidos en `fullName`. Al registrar la cuenta, el servidor
-consulta APIsPERU una sola vez y compara el nombre declarado con los datos de ese DNI. Acepta
+consulta miapi.cloud una sola vez y compara el nombre declarado con los datos de ese DNI. Acepta
 al menos un nombre y un apellido en palabras distintas del documento, tolerando tildes,
 mayúsculas y orden. Las palabras adicionales deben pertenecer al documento. En la cuenta se
 guarda el texto escrito por la persona, aparte de su alias; el número de DNI se descarta.
@@ -28,6 +28,11 @@ Una discrepancia y un documento inexistente devuelven el mismo error 400 en el c
 El nombre del directorio no sale en la respuesta. Un fallo del proveedor, una respuesta
 ilegible o la falta de configuración devuelven 503 `DNI_LOOKUP_UNAVAILABLE` y el alta se
 puede reintentar. La coincidencia no demuestra que la persona sea titular del documento.
+
+Si el nombre coincide, se exige la edad mínima (`REGISTRATION_MIN_AGE`, 16 años) con la fecha de
+nacimiento que devuelve el proveedor, calculada en la hora de Lima. Un menor recibe 400 en el campo
+`dni`; sin fecha legible se responde 503 `DNI_LOOKUP_UNAVAILABLE`. La fecha no se guarda. Las cuentas
+existentes no se revisan.
 
 El presupuesto del registro por día UTC se comparte entre las instancias mediante la base de datos.
 Por defecto se permiten 5 consultas por origen y 50 en total, configurables con
@@ -46,7 +51,7 @@ de Caddy en `YUYAY_TRUSTED_PROXY_CIDRS`. El puerto del backend debe seguir ligad
   "dni": "00000000",
   "fullName": "Persona Sintética",
   "termsAccepted": true,
-  "termsVersion": "1.2"
+  "termsVersion": "1.3"
 }
 ```
 
@@ -64,7 +69,7 @@ entrar únicamente con su ID token, incluso si el directorio no está disponible
 ```json
 {
   "idToken": "<ID token>",
-  "acceptedTermsVersion": "1.2",
+  "acceptedTermsVersion": "1.3",
   "dni": "00000000",
   "fullName": "Persona Sintética",
   "name": "Mi alias"
@@ -151,7 +156,7 @@ y el mensaje indica actualizar Yuyay si la opción no aparece.
   `uq_users_google_subject`. El usuario de base debe poder modificar el esquema,
   igual que con `ddl-auto=update`. Se conservan los hashes y las cuentas anteriores.
 - El alta guarda versión y fecha del servidor con la cuenta en la misma
-  transacción. La versión 1.2 se sirve desde `terms/yuyay-1.2.txt`. Una nueva
+  transacción. La versión 1.3 se sirve desde `terms/yuyay-1.3.txt`. Una nueva
   versión del documento debe tener su propio recurso y actualizar la versión
   vigente. Una eventual nueva aceptación de cuentas existentes tendrá un flujo
   explícito.

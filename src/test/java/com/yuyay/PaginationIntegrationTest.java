@@ -205,7 +205,7 @@ class PaginationIntegrationTest {
 
     private JsonNode register() throws Exception {
         return send(post("/api/v1/auth/register"), null, "{\"email\":\"pagination."
-                + UUID.randomUUID() + "@yuyay.app\",\"termsAccepted\":true,\"termsVersion\":\"1.2\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"Ana\"}", 201);
+                + UUID.randomUUID() + "@yuyay.app\",\"termsAccepted\":true,\"termsVersion\":\"1.3\",\"fullName\":\"Persona Sintetica\",\"dni\":\"12345678\",\"password\":\"Secreta123\",\"name\":\"Ana\"}", 201);
     }
 
     private JsonNode send(MockHttpServletRequestBuilder request, String auth, String body, int expected) throws Exception {

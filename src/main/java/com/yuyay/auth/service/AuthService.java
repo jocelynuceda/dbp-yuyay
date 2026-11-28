@@ -9,6 +9,7 @@ import com.yuyay.config.AppProperties;
 import com.yuyay.event.UserRegisteredEvent;
 import com.yuyay.identity.IdentityDirectory;
 import com.yuyay.identity.IdentityLookup;
+import com.yuyay.identity.IdentityRecord;
 import com.yuyay.exception.AuthFlowException;
 import com.yuyay.exception.DuplicateEmailException;
 import com.yuyay.exception.FieldRejectedException;
@@ -24,6 +25,7 @@ import com.yuyay.user.mapper.UserMapper;
 import com.yuyay.user.repository.RefreshTokenRepository;
 import com.yuyay.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -36,12 +38,17 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Period;
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    private static final ZoneId PERU = ZoneId.of("America/Lima");
+
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -55,6 +62,9 @@ public class AuthService {
 
     private final RegistrationDniQuota dniQuota;
     private final TransactionTemplate transactions;
+
+    @Value("${app.registration.min-age:16}")
+    private int minimumAge;
 
     public AuthResponseDTO register(RegisterRequestDTO dto, String origin) {
         String version = termsService.requireCurrentAcceptance(dto.termsAccepted(), dto.termsVersion());
@@ -91,13 +101,24 @@ public class AuthService {
             throw directoryUnavailable();
         }
         dniQuota.reserve(origin);
-        boolean matches = switch (identityDirectory.findByDni(dni)) {
-            case IdentityLookup.Found found -> found.person().matchesName(declaredName);
-            case IdentityLookup.NotFound ignored -> false;
+        IdentityRecord person = switch (identityDirectory.findByDni(dni)) {
+            case IdentityLookup.Found found -> found.person();
+            case IdentityLookup.NotFound ignored -> null;
             case IdentityLookup.Unavailable ignored -> throw directoryUnavailable();
         };
-        if (!matches) {
+        if (person == null || !person.matchesName(declaredName)) {
             throw new FieldRejectedException("dni", "Revisa el DNI y escribe tus nombres y apellidos tal como figuran en tu documento.");
+        }
+        // Después del nombre: así no se averigua la edad de alguien conociendo solo su DNI.
+        requireMinimumAge(person.birthDate());
+    }
+
+    private void requireMinimumAge(LocalDate birthDate) {
+        if (birthDate == null) {
+            throw directoryUnavailable();
+        }
+        if (Period.between(birthDate, LocalDate.ofInstant(clock.instant(), PERU)).getYears() < minimumAge) {
+            throw new FieldRejectedException("dni", "Debes tener " + minimumAge + " años o más para crear una cuenta.");
         }
     }
 

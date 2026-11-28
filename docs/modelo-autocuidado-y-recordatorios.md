@@ -218,6 +218,10 @@ hasta que se responda la decisión 7.
 
 ### 3.5 Contraste del nombre y compuerta de edad (RENIEC / APIsPERU)
 
+> **Actualización del 27-nov-2026:** el proveedor pasó a ser miapi.cloud, que sí devuelve la fecha de
+> nacimiento. El registro exige 16 años con esa fecha, sin guardarla. Lo que sigue describe la
+> decisión anterior; la entrega del perfil sigue usando la fecha declarada.
+
 El dato que decide el canje es `CareSubject.birthDate`, y hoy lo escribe el cuidador a mano. Ese es
 el eslabón débil de §3.4: con un año falso se podría entregar el historial a un niño de 12, o
 bloquear a alguien de 17 por un error de tipeo. Verificar la fecha contra el registro civil arregla

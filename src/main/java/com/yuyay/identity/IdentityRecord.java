@@ -1,5 +1,6 @@
 package com.yuyay.identity;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -8,16 +9,20 @@ import java.util.stream.Stream;
 /**
  * Datos de identidad de un DNI tal como los devuelve el directorio consultado.
  *
- * <p>No incluye fecha de nacimiento: la consulta de DNI de APIsPERU no la entrega, y la compuerta
- * de edad del canje se resuelve con la fecha declarada en el perfil. Lo que este registro permite
- * es contrastar el nombre. Ver {@code docs/modelo-autocuidado-y-recordatorios.md} §3.5.
+ * <p>La fecha de nacimiento puede faltar. Solo la usa la edad mínima del registro y no se guarda.
  */
 public record IdentityRecord(
         String nombres,
         String apellidoPaterno,
-        String apellidoMaterno
+        String apellidoMaterno,
+        LocalDate birthDate
 ) {
     private static final Set<String> PARTICLES = Set.of("DE", "DEL", "LA", "LAS", "LOS");
+
+    /** Para los casos en que solo importa el nombre. */
+    public IdentityRecord(String nombres, String apellidoPaterno, String apellidoMaterno) {
+        this(nombres, apellidoPaterno, apellidoMaterno, null);
+    }
 
     /** Nombre completo en el orden en que lo escribe RENIEC. */
     public String fullName() {
