@@ -54,6 +54,34 @@ public class CareSubjectService {
     private final CareAuthorizationDeclarationService declarations;
     private final ObjectMapper objectMapper;
 
+
+    /**
+     * Crea el perfil propio al registrar la cuenta, dentro de la misma transacción.
+     * Usa el alias, cuya longitud ya cumple el contrato de CareSubject, y solo datos proporcionados.
+     * No registra una declaración SELF que la persona no haya confirmado.
+     */
+    public CareSubject ensureSelfProfile(Long userId) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        CareSubject subject = subjectRepo.findByAccountUserId(userId).orElseGet(() ->
+                subjectRepo.save(CareSubject.builder()
+                        .name(user.getName())
+                        .birthDate(user.getBirthDate())
+                        .gender(user.getGender())
+                        .accountUser(user)
+                        .build()));
+        if (relationshipRepo.findByUserIdAndCareSubjectId(userId, subject.getId()).isEmpty()) {
+            relationshipRepo.save(CareRelationship.builder()
+                    .user(user)
+                    .careSubject(subject)
+                    .role(CareRole.PRINCIPAL)
+                    .status(CareStatus.ACTIVE)
+                    .acceptedAt(Instant.now())
+                    .build());
+        }
+        return subject;
+    }
+
     public CareSubjectResponse create(CareSubjectCreateRequest req) {
         if (req.declaration() == null) {
             throw new InvalidCareAuthorizationDeclarationException(
