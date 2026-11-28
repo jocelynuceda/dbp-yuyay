@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <ul>
  *   <li>S1 - un tercero sin relación lee el sujeto                  -> 403</li>
- *   <li>S2 - un tercero lista sus sujetos                           -> 200 con lista vacia</li>
+ *   <li>S2 - un tercero lista sus sujetos                           -> 200 solo con su perfil propio</li>
  *   <li>S3 - un tercero lee un health-entry ajeno                   -> 403</li>
  *   <li>S4 - un cuidador con relación revocada pierde el acceso     -> 403</li>
  *   <li>S5 - un CAREGIVER intenta borrar el sujeto                  -> 403</li>
@@ -117,18 +117,20 @@ class AuthorizationScenariosTest {
     }
 
     /**
-     * S2 - El listado de un tercero sale vacio, no con los sujetos de otros.
+     * S2 - El listado de un tercero contiene solo su perfil, no los sujetos de otros.
      *
      * <p>Este es el escenario que mas facil se rompe: un findAll() en el repositorio
      * devolveria todos los CareSubject de la base y el DTO no lo notaria. Por eso se
      * comprueba el tamanio exacto de la lista y no solo el codigo 200.
      */
     @Test
-    void strangerListReturnsEmptyArray() throws Exception {
+    void strangerListContainsOnlyOwnProfile() throws Exception {
         mvc.perform(get("/api/v1/care-subjects")
                         .header("Authorization", "Bearer " + strangerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].myRole").value("PRINCIPAL"))
+                .andExpect(jsonPath("$[?(@.id == " + subjectId + ")]").doesNotExist());
 
         // El owner si ve el suyo: confirma que el endpoint funciona y filtra por relacion.
         mvc.perform(get("/api/v1/care-subjects")

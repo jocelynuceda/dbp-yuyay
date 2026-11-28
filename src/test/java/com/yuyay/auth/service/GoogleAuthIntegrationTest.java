@@ -1,5 +1,8 @@
 package com.yuyay.auth.service;
 
+import com.yuyay.care.entity.CareRole;
+import com.yuyay.care.repository.CareRelationshipRepository;
+import com.yuyay.care.repository.CareSubjectRepository;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -84,6 +87,8 @@ class GoogleAuthIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired UserRepository users;
+    @Autowired CareSubjectRepository ownProfiles;
+    @Autowired CareRelationshipRepository careRelationships;
     @Autowired PasswordResetCodeRepository resetCodes;
     @Autowired RefreshTokenRepository refreshTokens;
     @Autowired PlatformTransactionManager transactionManager;
@@ -187,6 +192,9 @@ class GoogleAuthIntegrationTest {
         assertFalse(created.path("user").has("passwordHash"));
         assertNull(saved.getPasswordHash());
         assertEquals("Alias", saved.getName());
+        long ownId = ownProfiles.findByAccountUserId(saved.getId()).orElseThrow().getId();
+        assertEquals(CareRole.PRINCIPAL,
+                careRelationships.findByUserIdAndCareSubjectId(saved.getId(), ownId).orElseThrow().getRole());
         assertEquals("Persona Sintética", saved.getFullName());
         assertEquals("1.3", saved.getTermsVersion());
         assertEquals(NOW, saved.getTermsAcceptedAt());
@@ -197,6 +205,8 @@ class GoogleAuthIntegrationTest {
         assertEquals(saved.getId().longValue(), returned.path("user").path("id").asLong());
         assertEquals(email, returned.path("user").path("email").asString());
         assertTrue(users.findByEmailIgnoreCase(changedEmail).isEmpty());
+        assertEquals(ownId, ownProfiles.findByAccountUserId(saved.getId()).orElseThrow().getId());
+        assertEquals(1, careRelationships.findByCareSubjectId(ownId).size());
         assertEquals(NOW, users.findByGoogleSubject(subject).orElseThrow().getTermsAcceptedAt());
         JsonNode withOldVersion = request("/google", Map.of("idToken", idToken, "acceptedTermsVersion", "0.9"), 200);
         assertEquals(saved.getId().longValue(), withOldVersion.path("user").path("id").asLong());
@@ -362,6 +372,8 @@ class GoogleAuthIntegrationTest {
         assertEquals(NOW, saved.getTermsAcceptedAt());
         assertTrue(users.findByEmailIgnoreCase(saved.getEmail().equals(firstEmail) ? secondEmail : firstEmail).isEmpty());
         assertEquals(1L, committedRegistrations.userIds.stream().filter(saved.getId()::equals).count());
+        var own = ownProfiles.findByAccountUserId(saved.getId()).orElseThrow();
+        assertEquals(1, careRelationships.findByCareSubjectId(own.getId()).size());
         verify(emailSender, timeout(10000).times(1)).send(eq(saved.getEmail()), eq("Te damos la bienvenida a Yuyay"), any());
     }
 

@@ -150,10 +150,9 @@ class MedicationScheduleIntegrationTest {
     @Test
     @DisplayName("las tomas del perfil propio vienen marcadas como mías, y para otro cuidador no")
     void ownProfileDosesAreMine() throws Exception {
-        long me = send(post("/api/v1/care-subjects"), ana, Map.of(
-                "requestId", UUID.randomUUID().toString(),
-                "declaration", Map.of("type", "SELF", "textVersion", "1", "confirmed", true),
-                "name", "Ana Torres"), 201).get("id").asLong();
+        long me = send(get("/api/v1/care-subjects"), ana, null, 200).get(0).get("id").asLong();
+        send(post("/api/v1/care-subjects/" + me + "/authorization-declarations"), ana,
+                Map.of("type", "SELF", "textVersion", "1", "confirmed", true), 200);
         long subjectBefore = subject;
         subject = me;
         long vitamin = entry("MEDICATION", "Vitamina D", "1000 UI");

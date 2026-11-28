@@ -1,5 +1,6 @@
 package com.yuyay.care.entity;
 
+import org.hibernate.annotations.ColumnDefault;
 import com.yuyay.audit.entity.AccessLog;
 import com.yuyay.common.Gender;
 import com.yuyay.consultation.entity.Consultation;
@@ -54,13 +55,25 @@ public class CareSubject {
      * La cuenta de la persona a la que pertenece este perfil, cuando existe.
      *
      * <p>Si no es null, ese perfil <b>es</b> esa persona: deja de ser «alguien de quien un cuidador
-     * habla» y pasa a tener titular. Se fija al canjear la entrega y no se vuelve a mover.
+     * habla» y pasa a tener titular. Se fija durante el registro o al canjear una entrega.
+     * Solo se retira de un perfil inicial sin uso para recibir el perfil entregado.
      */
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_user_id")
     private User accountUser;
 
     private Instant claimedAt;
+
+    /** Identifica únicamente perfiles creados al registrarse. Los perfiles anteriores quedan en false. */
+    @ColumnDefault("false")
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean registrationProfile = false;
+
+    @ColumnDefault("false")
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean registrationProfileUsed = false;
 
     @OneToMany(mappedBy = "careSubject", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default

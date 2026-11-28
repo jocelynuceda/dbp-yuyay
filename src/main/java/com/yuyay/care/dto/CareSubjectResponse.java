@@ -13,5 +13,6 @@ public record CareSubjectResponse(
         Gender gender,
         String notes,
         Instant createdAt,
-        CareRole myRole
+        CareRole myRole,
+        boolean ownProfile
 ) {}

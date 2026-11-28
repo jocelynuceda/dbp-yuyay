@@ -1,5 +1,8 @@
 package com.yuyay.user;
 
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import com.yuyay.user.entity.User;
+import com.yuyay.user.repository.UserRepository;
 import com.yuyay.attachment.ocr.TextExtractor;
 import com.yuyay.attachment.storage.FileStorage;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +54,7 @@ class AccountDeletionIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
+    @Autowired UserRepository users;
 
     // Sin almacenamiento ni lectura de texto reales: solo importa qué se borra y cuándo
     @MockitoBean FileStorage fileStorage;
@@ -64,13 +68,15 @@ class AccountDeletionIntegrationTest {
     }
 
     @Test
-    @DisplayName("una cuenta sin perfiles no pierde nada y se puede eliminar")
-    void anAccountWithoutProfilesLosesNothing() throws Exception {
+    @DisplayName("una cuenta nueva solo tiene su perfil inicial vacío para confirmar el borrado")
+    void aNewAccountListsItsEmptyOwnProfile() throws Exception {
         Session account = register();
 
         JsonNode preview = send(get(PREVIEW), account, null, 200);
 
-        assertTrue(preview.get("profilesToDelete").isEmpty());
+        assertEquals(1, preview.get("profilesToDelete").size());
+        assertEquals(ownId(account), preview.get("profilesToDelete").get(0).get("id").asLong());
+        assertFalse(preview.get("profilesToDelete").get(0).get("hasHistory").asBoolean());
         assertTrue(preview.get("profilesKept").isEmpty());
         assertTrue(preview.get("blockers").isEmpty());
         assertEquals(WORD, preview.get("confirmationWord").asText());
@@ -119,7 +125,7 @@ class AccountDeletionIntegrationTest {
                 "dose", "50 mg", "confidenceLevel", "CONFIRMED"), 201);
 
         JsonNode preview = send(get(PREVIEW), account, null, 200);
-        JsonNode profile = preview.get("profilesToDelete").get(0);
+        JsonNode profile = profile(preview, id);
         assertTrue(profile.get("hasHistory").asBoolean());
         assertEquals(1, profile.get("entryCount").asLong());
         assertFalse(preview.get("blockers").isEmpty());
@@ -137,9 +143,9 @@ class AccountDeletionIntegrationTest {
         long id = createSubject(account, "Ana Quispe");
 
         JsonNode preview = send(get(PREVIEW), account, null, 200);
-        assertEquals(1, preview.get("profilesToDelete").size());
+        assertEquals(2, preview.get("profilesToDelete").size());
 
-        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of(id)), 204);
+        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of(ownId(account), id)), 204);
 
         // El perfil ya no existe y el token de acceso que ya tenía deja de servir.
         assertEquals(0, jdbc.queryForObject(
@@ -159,7 +165,7 @@ class AccountDeletionIntegrationTest {
         JsonNode updated = send(patch(DELETE_ME), account, Map.of("name", "Prueba", "birthDate", "1981-05-10"), 200);
         assertEquals("1981-05-10", updated.get("birthDate").asText());
 
-        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of()), 204);
+        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of(ownId(account))), 204);
 
         Map<String, Object> row = jdbc.queryForMap(
                 "select email, name, full_name, password_hash, google_subject, birth_date, deleted_at from users where id = ?",
@@ -182,11 +188,12 @@ class AccountDeletionIntegrationTest {
         invitePrincipal(owner, other, id);
 
         JsonNode preview = send(get(PREVIEW), owner, null, 200);
-        assertTrue(preview.get("profilesToDelete").isEmpty());
+        assertEquals(1, preview.get("profilesToDelete").size());
+        assertEquals(ownId(owner), preview.get("profilesToDelete").get(0).get("id").asLong());
         assertEquals(1, preview.get("profilesKept").size());
         assertEquals(id, preview.get("profilesKept").get(0).get("id").asLong());
 
-        send(delete(DELETE_ME), owner, Map.of("confirmation", WORD, "profileIds", List.of()), 204);
+        send(delete(DELETE_ME), owner, Map.of("confirmation", WORD, "profileIds", List.of(ownId(owner))), 204);
 
         assertEquals(200, statusOf(get(SUBJECTS + "/" + id), other));
     }
@@ -202,7 +209,7 @@ class AccountDeletionIntegrationTest {
         JsonNode preview = send(get(PREVIEW), owner, null, 200);
         assertTrue(preview.get("declarationsKept").asLong() >= 1);
 
-        send(delete(DELETE_ME), owner, Map.of("confirmation", WORD, "profileIds", List.of()), 204);
+        send(delete(DELETE_ME), owner, Map.of("confirmation", WORD, "profileIds", List.of(ownId(owner))), 204);
 
         assertTrue(jdbc.queryForObject(
                 "select count(*) from care_authorization_declarations where declared_by_user_id = ?",
@@ -218,10 +225,10 @@ class AccountDeletionIntegrationTest {
         String storageKey = jdbc.queryForObject("select storage_key from attachments where id = ?", String.class, documentId);
 
         JsonNode preview = send(get(PREVIEW), account, null, 200);
-        assertEquals(1, preview.get("profilesToDelete").get(0).get("documentCount").asLong());
+        assertEquals(1, profile(preview, id).get("documentCount").asLong());
         assertTrue(preview.get("blockers").isEmpty());
 
-        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of(id)), 204);
+        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of(ownId(account), id)), 204);
 
         assertEquals(0, jdbc.queryForObject("select count(*) from attachments where care_subject_id = ?", Integer.class, id));
         assertEquals(0, jdbc.queryForObject("select count(*) from care_subjects where id = ?", Integer.class, id));
@@ -245,6 +252,35 @@ class AccountDeletionIntegrationTest {
         send(get(PREVIEW), account, null, 200);
         assertEquals(1, jdbc.queryForObject("select count(*) from attachments where id = ?", Integer.class, documentId));
         verify(fileStorage, never()).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("una cuenta anterior sin perfiles conserva su vista previa vacía y puede eliminarse")
+    void aLegacyAccountWithoutProfilesCanStillBeDeleted() throws Exception {
+        String email = "legacy-delete." + UUID.randomUUID() + "@example.invalid";
+        var previous = users.save(User.builder().email(email)
+                .name("Cuenta anterior ficticia")
+                .passwordHash(new BCryptPasswordEncoder().encode("Secreta123"))
+                .build());
+        JsonNode auth = send(post("/api/v1/auth/login"), null,
+                Map.of("email", email, "password", "Secreta123"), 200);
+        Session account = new Session(auth.get("accessToken").asText(), previous.getId(), email);
+        JsonNode preview = send(get(PREVIEW), account, null, 200);
+        assertTrue(preview.get("profilesToDelete").isEmpty());
+        assertTrue(preview.get("profilesKept").isEmpty());
+        assertTrue(preview.get("blockers").isEmpty());
+        send(delete(DELETE_ME), account, Map.of("confirmation", WORD, "profileIds", List.of()), 204);
+    }
+
+    private long ownId(Session account) {
+        return jdbc.queryForObject("select id from care_subjects where account_user_id = ?", Long.class, account.id());
+    }
+
+    private JsonNode profile(JsonNode preview, long id) {
+        for (JsonNode candidate : preview.get("profilesToDelete")) {
+            if (candidate.get("id").asLong() == id) return candidate;
+        }
+        throw new AssertionError("El perfil esperado debe figurar en la vista previa");
     }
 
     // --- apoyo ---

@@ -6,6 +6,7 @@ import com.yuyay.auth.dto.LoginRequestDTO;
 import com.yuyay.auth.dto.RegisterRequestDTO;
 import com.yuyay.auth.service.GoogleIdTokenVerifier.GoogleIdentity;
 import com.yuyay.config.AppProperties;
+import com.yuyay.care.service.CareSubjectService;
 import com.yuyay.event.UserRegisteredEvent;
 import com.yuyay.identity.IdentityDirectory;
 import com.yuyay.identity.IdentityLookup;
@@ -62,6 +63,7 @@ public class AuthService {
 
     private final RegistrationDniQuota dniQuota;
     private final TransactionTemplate transactions;
+    private final CareSubjectService careSubjects;
 
     @Value("${app.registration.min-age:16}")
     private int minimumAge;
@@ -194,6 +196,7 @@ public class AuthService {
         user.setTermsVersion(version);
         user.setTermsAcceptedAt(clock.instant());
         userRepository.save(user);
+        careSubjects.ensureSelfProfile(user.getId());
         eventPublisher.publishEvent(new UserRegisteredEvent(user.getId()));
         return issueTokens(user);
     }
