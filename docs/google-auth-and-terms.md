@@ -31,8 +31,8 @@ puede reintentar. La coincidencia no demuestra que la persona sea titular del do
 
 Si el nombre coincide, se exige la edad mínima (`REGISTRATION_MIN_AGE`, 16 años) con la fecha de
 nacimiento que devuelve el proveedor, calculada en la hora de Lima. Un menor recibe 400 en el campo
-`dni`; sin fecha legible se responde 503 `DNI_LOOKUP_UNAVAILABLE`. La fecha no se guarda. Las cuentas
-existentes no se revisan.
+`dni`; sin fecha legible se responde 503 `DNI_LOOKUP_UNAVAILABLE`. La fecha se guarda como `birthDate`
+de la cuenta, que la persona puede corregir o borrar. Las cuentas existentes no se revisan.
 
 El presupuesto del registro por día UTC se comparte entre las instancias mediante la base de datos.
 Por defecto se permiten 5 consultas por origen y 50 en total, configurables con

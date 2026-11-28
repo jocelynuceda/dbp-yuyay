@@ -24,7 +24,7 @@ import java.time.format.ResolverStyle;
  * Directorio de identidad sobre la consulta de DNI de miapi.cloud ({@code GET /v1/dni/{dni}}).
  *
  * <p>La respuesta trae además la dirección y la edad. No se leen: solo los nombres, para
- * contrastarlos, y la fecha de nacimiento, para la edad mínima del registro. Nada se guarda.
+ * contrastarlos, y la fecha de nacimiento, para la edad mínima y el perfil de la cuenta.
  */
 @Slf4j
 @Component

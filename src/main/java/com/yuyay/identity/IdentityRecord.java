@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 /**
  * Datos de identidad de un DNI tal como los devuelve el directorio consultado.
  *
- * <p>La fecha de nacimiento puede faltar. Solo la usa la edad mínima del registro y no se guarda.
+ * <p>La fecha de nacimiento puede faltar. El registro la usa para la edad mínima y la guarda en la cuenta.
  */
 public record IdentityRecord(
         String nombres,

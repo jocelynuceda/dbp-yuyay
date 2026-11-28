@@ -231,6 +231,15 @@ class RegisterDniIntegrationTest {
     }
 
     @Test
+    @DisplayName("la fecha de nacimiento del DNI queda en el perfil")
+    void birthDateFromTheDniIsSavedInTheProfile() throws Exception {
+        String email = email();
+        register(email, "Anita", DNI).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.birthDate").value("1990-01-01"));
+        assertEquals(LocalDate.of(1990, 1, 1), users.findByEmailIgnoreCase(email).orElseThrow().getBirthDate());
+    }
+
+    @Test
     @DisplayName("quien cumple 16 años hoy puede registrarse")
     void sixteenthBirthdayIsAllowed() throws Exception {
         bornOn(todayInLima().minusYears(16));
