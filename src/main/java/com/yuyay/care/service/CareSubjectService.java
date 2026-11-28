@@ -8,6 +8,7 @@ import com.yuyay.care.dto.CareAuthorizationDeclarationRequest;
 import com.yuyay.care.dto.CareAuthorizationPolicyResponse.Option;
 import com.yuyay.care.dto.CareSubjectCreateRequest;
 import com.yuyay.care.dto.CareSubjectResponse;
+import com.yuyay.care.dto.SelfProfileStatusResponse;
 import com.yuyay.care.dto.CareSubjectUpdateRequest;
 import com.yuyay.care.entity.CareRelationship;
 import com.yuyay.care.entity.CareRole;
@@ -62,6 +63,7 @@ public class CareSubjectService {
     private final CareAuthorizationDeclarationRepository declarationRepo;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
+    private final SelfProfileService selfProfiles;
 
     /**
      * Crea el perfil propio al registrar la cuenta, dentro de la misma transacción.
@@ -93,8 +95,14 @@ public class CareSubjectService {
 
     /** Retira solo el perfil inicial sin uso; conserva la fila y la relación como historial. */
     public void prepareSelfProfileReplacement(User actor, Long destinationId) {
-        CareSubject previous = subjectRepo.findByAccountUserId(actor.getId()).orElse(null);
-        if (previous == null || previous.getId().equals(destinationId)) return;
+        List<Long> others = selfProfiles.ownedIds(actor.getId()).stream()
+                .filter(id -> !id.equals(destinationId)).toList();
+        if (others.isEmpty()) return;
+        selfProfiles.requireAccessible(actor.getId(), others);
+        if (others.size() != 1) {
+            throw new InvalidOperationException("Ya existen varios perfiles propios. Revisa su titularidad antes de recibir otra entrega.");
+        }
+        CareSubject previous = subjectRepo.findById(others.getFirst()).orElseThrow();
         // El bloqueo por sí solo no actualiza una instancia que Hibernate ya tenía en memoria.
         entityManager.refresh(previous, LockModeType.PESSIMISTIC_WRITE);
         boolean used = !previous.isRegistrationProfile() || previous.isRegistrationProfileUsed()
@@ -114,10 +122,15 @@ public class CareSubjectService {
         if (relationship.getRole() != CareRole.PRINCIPAL || relationship.getStatus() != CareStatus.ACTIVE) {
             throw new InvalidOperationException("La relación de tu perfil propio cambió. Revisa el estado antes de continuar.");
         }
+        previous.setName("Perfil automático retirado");
+        previous.setBirthDate(null);
+        previous.setGender(null);
+        previous.setNotes(null);
         previous.setAccountUser(null);
         previous.setRegistrationProfileUsed(true);
         relationship.setStatus(CareStatus.REVOKED);
         relationship.setRevokedAt(Instant.now());
+        relationship.setRelationshipLabel(null);
         // Liberar la unicidad antes de asociar el perfil recibido, siempre en la misma transacción.
         subjectRepo.flush();
     }
@@ -141,9 +154,7 @@ public class CareSubjectService {
         }
         Option option = CareAuthorizationPolicy.validate(req.declaration());
         boolean self = option.type() == CareAuthorizationType.SELF;
-        if (self && !subjectRepo.findOwnProfileIds(meId).isEmpty()) {
-            throw new InvalidOperationException("Ya tienes un perfil propio. Abre ese perfil para actualizar tus datos.");
-        }
+        if (self) selfProfiles.requireNoOtherProfile(meId, null);
 
         CareSubject subject = mapper.toEntity(req);
         if (self) subject.setAccountUser(me);
@@ -160,6 +171,11 @@ public class CareSubjectService {
         declarations.append(subject, me, option, requestId, payloadHash);
 
         return mapper.toResponse(subject, CareRole.PRINCIPAL, self);
+    }
+
+    @Transactional(readOnly = true)
+    public SelfProfileStatusResponse selfProfileStatus() {
+        return selfProfiles.status(currentUserService.getCurrentUserId());
     }
 
     @Transactional(readOnly = true)

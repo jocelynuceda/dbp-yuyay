@@ -1,6 +1,9 @@
 package com.yuyay.care;
 
 import java.time.LocalDate;
+import java.time.Instant;
+import com.yuyay.common.Gender;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.yuyay.security.TokenHasher;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -36,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 @SpringBootTest
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
@@ -50,6 +54,7 @@ class SelfCaregiverIntegrationTest {
     @Autowired CareSubjectService service;
     @Autowired PlatformTransactionManager manager;
     @Autowired TermsService terms;
+    @Autowired JdbcTemplate jdbc;
     @MockitoBean EmailSender mail;
 
     record Account(long id, String email, String token) {}
@@ -268,6 +273,194 @@ class SelfCaregiverIntegrationTest {
                 subjects.findById(own.getId()).orElseThrow().setAccountUser(holder));
         assertFalse(send(get("/api/v1/care-subjects/" + own.getId()), legacy, null, 200).path("ownProfile").asBoolean(),
                 "Un titular canónico distinto prevalece sobre la declaración histórica");
+    }
+
+    @Test
+    void retiredAutomaticProfileIsAnonymousAfterClaimAndAccountDeletion() throws Exception {
+        Account owner = register();
+        String email = email();
+        Map<String, Object> registration = new HashMap<>(registration(email));
+        registration.put("gender", "FEMALE");
+        JsonNode auth = send(post("/api/v1/auth/register"), null, registration, 201);
+        Account recipient = new Account(auth.path("user").path("id").asLong(), email, auth.path("accessToken").asString());
+        long retired = subjects.findByAccountUserId(recipient.id()).orElseThrow().getId();
+        assertEquals(LocalDate.of(1990, 1, 1), subjects.findById(retired).orElseThrow().getBirthDate());
+        assertEquals(Gender.FEMALE, subjects.findById(retired).orElseThrow().getGender());
+        jdbc.update("update care_relationships set relationship_label = ? where user_id = ? and care_subject_id = ?",
+                "Etiqueta personal ficticia", recipient.id(), retired);
+        long destination = send(post("/api/v1/care-subjects"), owner, person("LEGAL_REPRESENTATION"), 201).path("id").asLong();
+        String token = invitation(owner, recipient, destination);
+        send(post("/api/v1/claim-invitations/exchange"), recipient, Map.of("token", token), 200);
+        JsonNode received = send(get("/api/v1/care-subjects/" + destination), recipient, null, 200);
+        assertEquals("Persona ficticia", received.path("name").asString());
+        assertEquals("2000-01-01", received.path("birthDate").asString());
+        assertEquals("Perfil automático retirado", jdbc.queryForObject("select name from care_subjects where id = ?", String.class, retired));
+        send(delete("/api/v1/users/me"), recipient,
+                Map.of("confirmation", "ELIMINAR", "profileIds", List.of(destination)), 204);
+        Map<String, Object> row = jdbc.queryForMap("select name, birth_date, gender, notes, account_user_id from care_subjects where id = ?", retired);
+        assertEquals("Perfil automático retirado", row.get("name"));
+        assertNull(row.get("birth_date"));
+        assertNull(row.get("gender"));
+        assertNull(row.get("notes"));
+        assertNull(row.get("account_user_id"));
+        Map<String, Object> link = jdbc.queryForMap("select status, relationship_label, revoked_at from care_relationships where user_id = ? and care_subject_id = ?", recipient.id(), retired);
+        assertEquals("REVOKED", link.get("status"));
+        assertNull(link.get("relationship_label"));
+        assertNotNull(link.get("revoked_at"));
+        Map<String, Object> tombstone = jdbc.queryForMap("select name, email, full_name, birth_date, gender, deleted_at from users where id = ?", recipient.id());
+        assertEquals("Cuenta eliminada", tombstone.get("name"));
+        assertNotEquals(email, tombstone.get("email"));
+        assertNull(tombstone.get("full_name"));
+        assertNull(tombstone.get("birth_date"));
+        assertNull(tombstone.get("gender"));
+        assertNotNull(tombstone.get("deleted_at"));
+    }
+
+    @Test
+    void legacySelfWithHistoryRejectsClaimWithoutConsumingInvitationOrChangingEitherProfile() throws Exception {
+        Account owner = register(), recipient = legacyAccount();
+        long old = legacySelf(recipient, true);
+        long destination = target(owner);
+        JsonNode before = send(get("/api/v1/care-subjects/" + old), recipient, null, 200);
+        JsonNode history = send(get("/api/v1/care-subjects/" + old + "/health-entries"), recipient, null, 200);
+        JsonNode targetBefore = send(get("/api/v1/care-subjects/" + destination), owner, null, 200);
+        String token = invitation(owner, recipient, destination);
+        send(post("/api/v1/claim-invitations/exchange"), recipient, Map.of("token", token), 409);
+        assertEquals(before, send(get("/api/v1/care-subjects/" + old), recipient, null, 200));
+        assertEquals(history, send(get("/api/v1/care-subjects/" + old + "/health-entries"), recipient, null, 200));
+        assertEquals(targetBefore, send(get("/api/v1/care-subjects/" + destination), owner, null, 200));
+        assertNull(subjects.findById(destination).orElseThrow().getAccountUser());
+        assertTrue(invitations.findByTokenHash(TokenHasher.sha256(token)).orElseThrow().isValidNow());
+        assertNull(invitations.findByTokenHash(TokenHasher.sha256(token)).orElseThrow().getExchangedAt());
+        assertEquals(List.of(old), subjects.findOwnProfileIds(recipient.id()));
+        assertEquals(CareRole.PRINCIPAL, relationships.findByUserIdAndCareSubjectId(recipient.id(), old).orElseThrow().getRole());
+    }
+
+    @Test
+    void declaringSelfOnAnotherProfileIsRejectedAndOtherAuthorizationModesRemainAvailable() throws Exception {
+        Account actor = register();
+        long own = subjects.findByAccountUserId(actor.id()).orElseThrow().getId();
+        long other = send(post("/api/v1/care-subjects"), actor, person("FICTITIOUS"), 201).path("id").asLong();
+        String historyUrl = "/api/v1/care-subjects/" + other + "/authorization-declarations";
+        JsonNode before = send(get(historyUrl), actor, null, 200);
+        long previousId = before.get(0).path("id").asLong();
+        send(post(historyUrl), actor, Map.of("type", "SELF", "textVersion", "1", "confirmed", true, "previousDeclarationId", previousId), 409);
+        assertEquals(before, send(get(historyUrl), actor, null, 200));
+        assertEquals(List.of(own), subjects.findOwnProfileIds(actor.id()));
+        send(post(historyUrl), actor, Map.of("type", "HOLDER_PERMISSION", "textVersion", "1", "confirmed", true, "previousDeclarationId", previousId), 200);
+        assertEquals("HOLDER_PERMISSION", send(get(historyUrl), actor, null, 200).get(0).path("type").asString());
+    }
+
+    @Test
+    void selfCanBeConfirmedOnTheCorrectCurrentOrLegacyProfile() throws Exception {
+        for (Account actor : List.of(register(), legacyAccount())) {
+            long own = subjects.findByAccountUserId(actor.id()).map(CareSubject::getId).orElseGet(() -> bareLegacySubject(actor));
+            String url = "/api/v1/care-subjects/" + own + "/authorization-declarations";
+            Map<String, Object> declaration = Map.of("type", "SELF", "textVersion", "1", "confirmed", true);
+            JsonNode confirmed = send(post(url), actor, declaration, 200);
+            assertEquals(confirmed, send(post(url), actor, declaration, 200));
+            assertEquals(1, send(get(url), actor, null, 200).size());
+            assertEquals("ACCESSIBLE", send(get("/api/v1/care-subjects/self-profile-status"), actor, null, 200).path("status").asString());
+            assertEquals(List.of(own), subjects.findOwnProfileIds(actor.id()));
+        }
+    }
+
+    @Test
+    void revokedLegacySelfReturnsOnlyAnInaccessibleStatusAndCannotBeDuplicated() throws Exception {
+        Account actor = legacyAccount();
+        JsonNode none = send(get("/api/v1/care-subjects/self-profile-status"), actor, null, 200);
+        assertEquals("NONE", none.path("status").asString());
+        assertEquals(1, none.size());
+        long own = legacySelf(actor, true);
+        var relation = relationships.findByUserIdAndCareSubjectId(actor.id(), own).orElseThrow();
+        relation.setStatus(CareStatus.REVOKED);
+        relation.setRevokedAt(Instant.now());
+        relationships.saveAndFlush(relation);
+        assertEquals(0, send(get("/api/v1/care-subjects"), actor, null, 200).size());
+        JsonNode state = send(get("/api/v1/care-subjects/self-profile-status"), actor, null, 200);
+        assertEquals("INACCESSIBLE", state.path("status").asString());
+        assertEquals(1, state.size());
+        JsonNode error = send(post("/api/v1/care-subjects"), actor, person("SELF"), 409);
+        assertEquals("Ya existe un perfil asociado a ti, pero actualmente no tienes acceso. No es posible crear otro perfil propio.", error.path("message").asString());
+        send(get("/api/v1/care-subjects/" + own), actor, null, 403);
+        long family = send(post("/api/v1/care-subjects"), actor, person("FICTITIOUS"), 201).path("id").asLong();
+        assertNotEquals(own, family);
+        assertEquals(CareStatus.REVOKED, relationships.findByUserIdAndCareSubjectId(actor.id(), own).orElseThrow().getStatus());
+        mvc.perform(get("/api/v1/care-subjects/self-profile-status").header("Authorization", "Bearer " + actor.token()))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+    }
+
+    @Test
+    void simultaneousSelfDeclarationsOnDifferentProfilesProduceOnlyOneOwnProfile() throws Exception {
+        Account actor = legacyAccount();
+        long first = bareLegacySubject(actor), second = bareLegacySubject(actor);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            List<Future<Integer>> tasks = new ArrayList<>();
+            for (long id : List.of(first, second)) tasks.add(executor.submit(() -> {
+                start.await();
+                return declarationStatus(actor, id);
+            }));
+            start.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            for (var task : tasks) statuses.add(task.get(30, TimeUnit.SECONDS));
+            Collections.sort(statuses);
+            assertEquals(List.of(200, 409), statuses);
+            assertEquals(1, subjects.findOwnProfileIds(actor.id()).size());
+        }
+    }
+
+    @Test
+    void claimAndSelfDeclarationForTheSameAccountCannotBothCreateOwnership() throws Exception {
+        Account owner = register(), actor = legacyAccount();
+        long candidate = bareLegacySubject(actor), destination = target(owner);
+        String token = invitation(owner, actor, destination);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var declaring = executor.submit(() -> { start.await(); return declarationStatus(actor, candidate); });
+            var claiming = executor.submit(() -> {
+                start.await();
+                return mvc.perform(post("/api/v1/claim-invitations/exchange").header("Authorization", "Bearer " + actor.token())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("token", token))))
+                        .andReturn().getResponse().getStatus();
+            });
+            start.countDown();
+            int declarationStatus = declaring.get(30, TimeUnit.SECONDS), claimStatus = claiming.get(30, TimeUnit.SECONDS);
+            assertTrue((declarationStatus == 200 && claimStatus == 409) || (declarationStatus == 409 && claimStatus == 200));
+            assertEquals(1, subjects.findOwnProfileIds(actor.id()).size());
+            var invitation = invitations.findByTokenHash(TokenHasher.sha256(token)).orElseThrow();
+            assertEquals(claimStatus == 200, invitation.getExchangedAt() != null);
+        }
+    }
+
+    private Account legacyAccount() throws Exception {
+        User user = users.save(User.builder().email(email()).name("Cuenta anterior ficticia")
+                .passwordHash(new BCryptPasswordEncoder().encode("Ficticia123")).build());
+        JsonNode auth = send(post("/api/v1/auth/login"), null, Map.of("email", user.getEmail(), "password", "Ficticia123"), 200);
+        return new Account(user.getId(), user.getEmail(), auth.path("accessToken").asString());
+    }
+
+    private long bareLegacySubject(Account actor) {
+        CareSubject subject = subjects.save(CareSubject.builder().name("Perfil anterior ficticio").birthDate(LocalDate.of(1980, 1, 1)).build());
+        relationships.save(CareRelationship.builder().user(users.getReferenceById(actor.id())).careSubject(subject)
+                .role(CareRole.PRINCIPAL).status(CareStatus.ACTIVE).build());
+        return subject.getId();
+    }
+
+    private long legacySelf(Account actor, boolean history) throws Exception {
+        long own = bareLegacySubject(actor);
+        send(post("/api/v1/care-subjects/" + own + "/authorization-declarations"), actor,
+                Map.of("type", "SELF", "textVersion", "1", "confirmed", true), 200);
+        if (history) send(post("/api/v1/care-subjects/" + own + "/health-entries"), actor,
+                Map.of("categoryCode", "ALLERGY", "title", "Historial anterior ficticio", "confidenceLevel", "CONFIRMED"), 201);
+        return own;
+    }
+
+    private int declarationStatus(Account actor, long subjectId) throws Exception {
+        return mvc.perform(post("/api/v1/care-subjects/" + subjectId + "/authorization-declarations")
+                .header("Authorization", "Bearer " + actor.token()).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("type", "SELF", "textVersion", "1", "confirmed", true))))
+                .andReturn().getResponse().getStatus();
     }
 
     private Account register() throws Exception {

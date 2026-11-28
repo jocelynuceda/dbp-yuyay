@@ -11,6 +11,7 @@ import com.yuyay.care.entity.CareSubject;
 import com.yuyay.care.mapper.CareAuthorizationDeclarationMapper;
 import com.yuyay.care.repository.CareAuthorizationDeclarationRepository;
 import com.yuyay.exception.InvalidOperationException;
+import com.yuyay.exception.ResourceNotFoundException;
 import com.yuyay.security.AuthorizationService;
 import com.yuyay.security.CurrentUserService;
 import com.yuyay.user.entity.User;
@@ -33,6 +34,7 @@ public class CareAuthorizationDeclarationService {
     private final CareAuthorizationDeclarationMapper mapper;
     private final AuthorizationService authorizationService;
     private final CurrentUserService currentUserService;
+    private final SelfProfileService selfProfiles;
 
     public CareAuthorizationPolicyResponse getPolicy() {
         return CareAuthorizationPolicy.CURRENT;
@@ -50,8 +52,17 @@ public class CareAuthorizationDeclarationService {
     @Transactional
     public CareAuthorizationDeclarationResponse declare(Long subjectId, CareAuthorizationUpdateRequest request) {
         Long actorId = currentUserService.getCurrentUserId();
+        // Mismo orden que alta y canje: usuario antes de perfil, también para declaraciones concurrentes.
+        User actor = userRepo.findForUpdateById(actorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         CareSubject subject = authorizationService.requireRoleForUpdate(actorId, subjectId, CareRole.PRINCIPAL);
         Option option = CareAuthorizationPolicy.validate(request.declaration());
+        if (option.type() == CareAuthorizationType.SELF) {
+            selfProfiles.requireNoOtherProfile(actorId, subjectId);
+            if (subject.getAccountUser() != null && !subject.getAccountUser().getId().equals(actorId)) {
+                throw new InvalidOperationException("Este perfil ya tiene otro titular. No es posible declararlo como propio.");
+            }
+        }
         CareAuthorizationDeclaration latest = declarationRepo.findFirstByCareSubjectIdOrderByIdDesc(subjectId)
                 .orElse(null);
         if (latest != null && latest.getDeclaredBy().getId().equals(actorId)
@@ -62,7 +73,6 @@ public class CareAuthorizationDeclarationService {
         if (!Objects.equals(latestId, request.previousDeclarationId())) {
             throw new InvalidOperationException("La declaración de esta persona cambió. Consulta el historial e inténtalo de nuevo");
         }
-        User actor = userRepo.getReferenceById(actorId);
         return mapper.toResponse(append(subject, actor, option, null, null));
     }
 

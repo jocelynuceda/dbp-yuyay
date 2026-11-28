@@ -5,6 +5,7 @@ import com.yuyay.care.dto.CareAuthorizationPolicyResponse;
 import com.yuyay.care.dto.CareAuthorizationUpdateRequest;
 import com.yuyay.care.dto.CareSubjectCreateRequest;
 import com.yuyay.care.dto.CareSubjectResponse;
+import com.yuyay.care.dto.SelfProfileStatusResponse;
 import com.yuyay.care.dto.CareSubjectUpdateRequest;
 import com.yuyay.care.dto.ClaimInvitationCreateRequest;
 import com.yuyay.care.dto.ClaimInvitationResponse;
@@ -16,6 +17,7 @@ import com.yuyay.care.service.ClaimInvitationService;
 import com.yuyay.care.service.CareSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -40,6 +42,11 @@ public class CareSubjectController {
     @GetMapping
     public List<CareSubjectResponse> listMine() {
         return service.listMine();
+    }
+
+    @GetMapping("/self-profile-status")
+    public ResponseEntity<SelfProfileStatusResponse> selfProfileStatus() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.selfProfileStatus());
     }
 
     @GetMapping("/authorization-policy")

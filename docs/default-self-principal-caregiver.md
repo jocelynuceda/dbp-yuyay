@@ -59,3 +59,17 @@ Manual: registrar, listar /care-subjects, abrir el perfil, agregar datos/familia
 ## Observaciones de revisión
 Se sustituyeron nombres completos de clases por imports y se retiraron separaciones duplicadas. El contrato ownProfile se validó con registro, legado, familiares y entrega. La suite completa ejecutó 461 casos: 460 correctos y un 401 tras una pausa prolongada del entorno; el único caso fallido se repitió sin cambios y aprobó, y Maven generó el JAR correctamente. PostgreSQL real no pudo confirmarse (Docker CLI presente, daemon no confirmado; psql fuera de PATH). Las columnas conservan DEFAULT false y NOT NULL.
 Validar e integrar conjuntamente Backend #97 y Frontend #103 después de la exposición, sin despliegues previos ni integración aislada.
+
+- src/main/java/com/yuyay/care/controller/CareSubjectController.java
+- src/main/java/com/yuyay/care/dto/SelfProfileStatusResponse.java
+- src/main/java/com/yuyay/care/service/CareAuthorizationDeclarationService.java
+- src/main/java/com/yuyay/care/service/SelfProfileService.java
+
+## Privacidad y titularidad
+Al retirar el perfil automático vacío se anonimizan nombre, fecha de nacimiento, género, notas y etiqueta de la relación histórica. Se conservan ids, estados y fechas de auditoría; el borrado de cuenta existente elimina los datos personales de la cuenta vinculada. El canje y SELF validan la misma titularidad bajo bloqueo del usuario antes del perfil; los conflictos conservan perfiles e invitación.
+GET /api/v1/care-subjects/self-profile-status devuelve solo {status: NONE|ACCESSIBLE|INACCESSIBLE}, sin ids ni datos privados, con Cache-Control: no-store. No restablece permisos; el duplicado inaccesible responde 409 con explicación específica.
+
+## Validación de las últimas observaciones (28/11/2026)
+- Suite completa: 468/468 correctas y JAR generado, sin reproducir el 401 anterior.
+- Regresiones de SelfCaregiverIntegrationTest: 18/18 correctas también en PostgreSQL 16.15 local aislado; el contenedor temporal se eliminó al terminar. Este resultado actualiza la limitación PostgreSQL de las ejecuciones anteriores.
+- Integración HTTP real conjunta: correcta, incluidos estado inaccesible, 409, lectura 403, familiares y conservación de permisos. Google real y dispositivos nativos siguen pendientes.
