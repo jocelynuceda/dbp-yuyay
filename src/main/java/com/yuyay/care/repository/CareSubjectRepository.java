@@ -13,6 +13,18 @@ public interface CareSubjectRepository extends JpaRepository<CareSubject, Long> 
     Optional<CareSubject> findByAccountUserId(Long userId);
     boolean existsByIdAndRegistrationProfileTrue(Long id);
 
+    /** Titularidad por id; conserva el criterio SELF explícito de los perfiles anteriores sin titular. */
+    @Query("""
+            select cs.id from CareSubject cs left join cs.accountUser holder
+            where holder.id = :userId or (holder.id is null and exists (
+                select d.id from CareAuthorizationDeclaration d
+                where d.careSubject = cs and d.declaredBy.id = :userId
+                  and d.type = com.yuyay.care.entity.CareAuthorizationType.SELF
+                  and d.id = (select max(latest.id) from CareAuthorizationDeclaration latest where latest.careSubject = cs)
+            ))
+            """)
+    List<Long> findOwnProfileIds(Long userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select cs from CareSubject cs where cs.id = :id")
     Optional<CareSubject> findForUpdateById(Long id);

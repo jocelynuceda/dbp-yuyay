@@ -1,5 +1,10 @@
 package com.yuyay.care;
 
+import java.time.LocalDate;
+import com.yuyay.security.TokenHasher;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import com.yuyay.auth.service.TermsService;
 import com.yuyay.care.entity.*;
 import com.yuyay.care.repository.*;
 import com.yuyay.care.service.CareSubjectService;
@@ -44,7 +49,7 @@ class SelfCaregiverIntegrationTest {
     @Autowired ClaimInvitationRepository invitations;
     @Autowired CareSubjectService service;
     @Autowired PlatformTransactionManager manager;
-    @Autowired com.yuyay.auth.service.TermsService terms;
+    @Autowired TermsService terms;
     @MockitoBean EmailSender mail;
 
     record Account(long id, String email, String token) {}
@@ -58,6 +63,8 @@ class SelfCaregiverIntegrationTest {
         assertEquals("Alias ficticio", own.path("name").asString());
         assertEquals("PRINCIPAL", own.path("myRole").asString());
         var expectedBirthDate = users.findById(account.id()).orElseThrow().getBirthDate();
+        assertEquals(LocalDate.of(1990, 1, 1), expectedBirthDate);
+        assertTrue(own.path("ownProfile").asBoolean());
         assertEquals(expectedBirthDate == null ? null : expectedBirthDate.toString(),
                 own.path("birthDate").isNull() ? null : own.path("birthDate").asString());
         assertTrue(own.path("notes").isNull());
@@ -141,7 +148,7 @@ class SelfCaregiverIntegrationTest {
     @Test
     void existingAccountsAreNotBackfilledOnLoginOrMatchedByName() throws Exception {
         User legacy = users.save(User.builder().email(email()).name("Alias ficticio")
-                .passwordHash(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("Ficticia123")).build());
+                .passwordHash(new BCryptPasswordEncoder().encode("Ficticia123")).build());
         send(post("/api/v1/auth/login"), null, Map.of("email", legacy.getEmail(), "password", "Ficticia123"), 200);
         assertTrue(subjects.findByAccountUserId(legacy.getId()).isEmpty());
         Account another = register();
@@ -161,6 +168,8 @@ class SelfCaregiverIntegrationTest {
         JsonNode network = send(get("/api/v1/care-subjects"), recipient, null, 200);
         assertEquals(1, network.size());
         assertEquals(destination, network.get(0).path("id").asLong());
+        assertTrue(network.get(0).path("ownProfile").asBoolean());
+        assertFalse(send(get("/api/v1/care-subjects/" + destination), owner, null, 200).path("ownProfile").asBoolean());
         assertEquals(destination, subjects.findByAccountUserId(recipient.id()).orElseThrow().getId());
         assertEquals(1, send(get("/api/v1/care-subjects/" + destination + "/health-entries"), recipient, null, 200).path("totalElements").asInt());
         send(post("/api/v1/claim-invitations/exchange"), recipient, Map.of("token", token), 409);
@@ -176,7 +185,7 @@ class SelfCaregiverIntegrationTest {
         String token = invitation(owner, recipient, destination);
         send(post("/api/v1/claim-invitations/exchange"), recipient, Map.of("token", token), 409);
         assertEquals(own, subjects.findByAccountUserId(recipient.id()).orElseThrow().getId());
-        var rejected = invitations.findByTokenHash(com.yuyay.security.TokenHasher.sha256(token)).orElseThrow();
+        var rejected = invitations.findByTokenHash(TokenHasher.sha256(token)).orElseThrow();
         assertNull(rejected.getExchangedAt());
         assertNull(rejected.getExchangedBy());
         assertTrue(rejected.isValidNow());
@@ -208,7 +217,7 @@ class SelfCaregiverIntegrationTest {
         new TransactionTemplate(manager).executeWithoutResult(outer -> {
             assertFalse(subjects.findById(own).orElseThrow().isRegistrationProfileUsed());
             var writer = new TransactionTemplate(manager);
-            writer.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            writer.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
             writer.executeWithoutResult(inner -> {
                 try {
                     send(patch("/api/v1/care-subjects/" + own), recipient,
@@ -220,12 +229,45 @@ class SelfCaregiverIntegrationTest {
             } catch (Exception error) { throw new IllegalStateException(error); }
             outer.setRollbackOnly();
         });
-        var invitation = invitations.findByTokenHash(com.yuyay.security.TokenHasher.sha256(token)).orElseThrow();
+        var invitation = invitations.findByTokenHash(TokenHasher.sha256(token)).orElseThrow();
         assertNull(invitation.getExchangedAt());
         assertNull(invitation.getExchangedBy());
         assertNull(subjects.findById(destination).orElseThrow().getAccountUser());
         assertEquals(own, subjects.findByAccountUserId(recipient.id()).orElseThrow().getId());
         assertEquals("Nota ficticia conservada", subjects.findById(own).orElseThrow().getNotes());
+    }
+
+    @Test
+    void ownershipRecognizesLegacySelfDeclarationsWithoutMatchingNamesOrPrincipalRoles() throws Exception {
+        User user = users.save(User.builder().email(email()).name("Alias ficticio")
+                .passwordHash(new BCryptPasswordEncoder().encode("Ficticia123")).build());
+        JsonNode auth = send(post("/api/v1/auth/login"), null,
+                Map.of("email", user.getEmail(), "password", "Ficticia123"), 200);
+        Account legacy = new Account(user.getId(), user.getEmail(), auth.path("accessToken").asString());
+        assertEquals(0, send(get("/api/v1/care-subjects"), legacy, null, 200).size());
+        CareSubject own = subjects.save(CareSubject.builder().name("Alias ficticio").build());
+        relationships.save(CareRelationship.builder().user(user).careSubject(own)
+                .role(CareRole.PRINCIPAL).status(CareStatus.ACTIVE).build());
+        long family = send(post("/api/v1/care-subjects"), legacy, person("FICTITIOUS"), 201).path("id").asLong();
+        assertFalse(send(get("/api/v1/care-subjects/" + own.getId()), legacy, null, 200).path("ownProfile").asBoolean());
+        send(post("/api/v1/care-subjects/" + own.getId() + "/authorization-declarations"), legacy,
+                Map.of("type", "SELF", "textVersion", "1", "confirmed", true), 200);
+        JsonNode network = send(get("/api/v1/care-subjects"), legacy, null, 200);
+        assertEquals(2, network.size());
+        for (JsonNode subject : network) {
+            assertEquals(subject.path("id").asLong() == own.getId(), subject.path("ownProfile").asBoolean());
+            assertEquals("PRINCIPAL", subject.path("myRole").asString());
+        }
+        send(post("/api/v1/care-subjects"), legacy, person("SELF"), 409);
+        assertEquals(2, send(get("/api/v1/care-subjects"), legacy, null, 200).size());
+        assertFalse(send(get("/api/v1/care-subjects/" + family), legacy, null, 200).path("ownProfile").asBoolean());
+        assertTrue(subjects.findByAccountUserId(legacy.id()).isEmpty(), "No se hace backfill ni se altera el perfil anterior");
+
+        User holder = users.save(User.builder().email(email()).name("Otro titular ficticio").build());
+        new TransactionTemplate(manager).executeWithoutResult(tx ->
+                subjects.findById(own.getId()).orElseThrow().setAccountUser(holder));
+        assertFalse(send(get("/api/v1/care-subjects/" + own.getId()), legacy, null, 200).path("ownProfile").asBoolean(),
+                "Un titular canónico distinto prevalece sobre la declaración histórica");
     }
 
     private Account register() throws Exception {

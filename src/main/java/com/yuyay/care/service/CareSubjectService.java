@@ -1,5 +1,8 @@
 package com.yuyay.care.service;
 
+import com.yuyay.care.entity.CareAuthorizationType;
+import com.yuyay.care.repository.CareAuthorizationDeclarationRepository;
+import com.yuyay.attachment.repository.AttachmentRepository;
 import com.yuyay.attachment.service.AttachmentService;
 import com.yuyay.care.dto.CareAuthorizationDeclarationRequest;
 import com.yuyay.care.dto.CareAuthorizationPolicyResponse.Option;
@@ -34,6 +37,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -54,11 +58,10 @@ public class CareSubjectService {
     private final CurrentUserService currentUserService;
     private final AuthorizationService authorizationService;
     private final CareAuthorizationDeclarationService declarations;
-    private final com.yuyay.attachment.repository.AttachmentRepository attachmentRepo;
-    private final com.yuyay.care.repository.CareAuthorizationDeclarationRepository declarationRepo;
+    private final AttachmentRepository attachmentRepo;
+    private final CareAuthorizationDeclarationRepository declarationRepo;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
-
 
     /**
      * Crea el perfil propio al registrar la cuenta, dentro de la misma transacción.
@@ -87,7 +90,6 @@ public class CareSubjectService {
         }
         return subject;
     }
-
 
     /** Retira solo el perfil inicial sin uso; conserva la fila y la relación como historial. */
     public void prepareSelfProfileReplacement(User actor, Long destinationId) {
@@ -138,8 +140,8 @@ public class CareSubjectService {
             return get(previous.getId());
         }
         Option option = CareAuthorizationPolicy.validate(req.declaration());
-        boolean self = option.type() == com.yuyay.care.entity.CareAuthorizationType.SELF;
-        if (self && subjectRepo.findByAccountUserId(meId).isPresent()) {
+        boolean self = option.type() == CareAuthorizationType.SELF;
+        if (self && !subjectRepo.findOwnProfileIds(meId).isEmpty()) {
             throw new InvalidOperationException("Ya tienes un perfil propio. Abre ese perfil para actualizar tus datos.");
         }
 
@@ -157,7 +159,7 @@ public class CareSubjectService {
         relationshipRepo.save(ownerRelationship);
         declarations.append(subject, me, option, requestId, payloadHash);
 
-        return mapper.toResponse(subject, CareRole.PRINCIPAL);
+        return mapper.toResponse(subject, CareRole.PRINCIPAL, self);
     }
 
     @Transactional(readOnly = true)
@@ -168,8 +170,9 @@ public class CareSubjectService {
         Map<Long, CareRole> roles = relationshipRepo.findByUserIdAndStatus(meId, CareStatus.ACTIVE).stream()
                 .collect(Collectors.toMap(rel -> rel.getCareSubject().getId(), CareRelationship::getRole));
 
+        Set<Long> ownProfiles = Set.copyOf(subjectRepo.findOwnProfileIds(meId));
         return subjectRepo.findAllAccessibleBy(meId).stream()
-                .map(cs -> mapper.toResponse(cs, roles.get(cs.getId())))
+                .map(cs -> mapper.toResponse(cs, roles.get(cs.getId()), ownProfiles.contains(cs.getId())))
                 .toList();
     }
 
@@ -185,7 +188,7 @@ public class CareSubjectService {
                 .map(CareRelationship::getRole)
                 .orElse(null);
 
-        return mapper.toResponse(cs, role);
+        return mapper.toResponse(cs, role, subjectRepo.findOwnProfileIds(meId).contains(cs.getId()));
     }
 
     public CareSubjectResponse update(Long subjectId, CareSubjectUpdateRequest req) {
@@ -204,7 +207,7 @@ public class CareSubjectService {
                 .map(CareRelationship::getRole)
                 .orElse(null);
 
-        return mapper.toResponse(cs, role);
+        return mapper.toResponse(cs, role, subjectRepo.findOwnProfileIds(meId).contains(cs.getId()));
     }
 
     public void delete(Long subjectId) {

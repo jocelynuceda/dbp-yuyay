@@ -22,5 +22,6 @@ public interface CareSubjectMapper {
     CareSubject toEntity(CareSubjectCreateRequest request);
 
     @Mapping(target = "myRole", source = "myRole")
-    CareSubjectResponse toResponse(CareSubject subject, CareRole myRole);
+    @Mapping(target = "ownProfile", source = "ownProfile")
+    CareSubjectResponse toResponse(CareSubject subject, CareRole myRole, boolean ownProfile);
 }
