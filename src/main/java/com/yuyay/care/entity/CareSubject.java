@@ -54,7 +54,8 @@ public class CareSubject {
      * La cuenta de la persona a la que pertenece este perfil, cuando existe.
      *
      * <p>Si no es null, ese perfil <b>es</b> esa persona: deja de ser «alguien de quien un cuidador
-     * habla» y pasa a tener titular. Se fija al canjear la entrega y no se vuelve a mover.
+     * habla» y pasa a tener titular. Se fija durante el registro o al canjear una entrega.
+     * Solo se retira de un perfil inicial sin uso para recibir el perfil entregado.
      */
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_user_id")

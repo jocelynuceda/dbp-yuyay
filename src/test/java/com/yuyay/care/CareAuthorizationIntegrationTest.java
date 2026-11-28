@@ -69,9 +69,16 @@ class CareAuthorizationIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"SELF", "FICTITIOUS", "HOLDER_PERMISSION", "LEGAL_REPRESENTATION"})
-    void creationPersistsActorAndExactServerTextAtomically(String type) throws Exception {
+    void explicitDeclarationPersistsActorAndExactServerTextAtomically(String type) throws Exception {
         Instant before = Instant.now();
-        long id = create(type);
+        long id;
+        if ("SELF".equals(type)) {
+            id = subjects.findByAccountUserId(owner.id()).orElseThrow().getId();
+            assertEquals(0, history(id, owner).size());
+            send(post(eventsUrl(id)), owner, declaration(type), 200);
+        } else {
+            id = create(type);
+        }
         JsonNode events = history(id, owner);
         assertEquals(1, events.size());
         JsonNode event = events.get(0);
