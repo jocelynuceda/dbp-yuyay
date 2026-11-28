@@ -24,6 +24,8 @@ import com.yuyay.security.CurrentUserService;
 import com.yuyay.security.TokenHasher;
 import com.yuyay.user.entity.User;
 import com.yuyay.user.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +57,7 @@ public class CareSubjectService {
     private final com.yuyay.attachment.repository.AttachmentRepository attachmentRepo;
     private final com.yuyay.care.repository.CareAuthorizationDeclarationRepository declarationRepo;
     private final ObjectMapper objectMapper;
+    private final EntityManager entityManager;
 
 
     /**
@@ -90,7 +93,8 @@ public class CareSubjectService {
     public void prepareSelfProfileReplacement(User actor, Long destinationId) {
         CareSubject previous = subjectRepo.findByAccountUserId(actor.getId()).orElse(null);
         if (previous == null || previous.getId().equals(destinationId)) return;
-        previous = subjectRepo.findForUpdateById(previous.getId()).orElseThrow();
+        // El bloqueo por sí solo no actualiza una instancia que Hibernate ya tenía en memoria.
+        entityManager.refresh(previous, LockModeType.PESSIMISTIC_WRITE);
         boolean used = !previous.isRegistrationProfile() || previous.isRegistrationProfileUsed()
                 || !previous.getHealthEntries().isEmpty()
                 || !previous.getConsultations().isEmpty()

@@ -41,8 +41,10 @@ class SelfCaregiverIntegrationTest {
     @Autowired UserRepository users;
     @Autowired CareSubjectRepository subjects;
     @Autowired CareRelationshipRepository relationships;
+    @Autowired ClaimInvitationRepository invitations;
     @Autowired CareSubjectService service;
     @Autowired PlatformTransactionManager manager;
+    @Autowired com.yuyay.auth.service.TermsService terms;
     @MockitoBean EmailSender mail;
 
     record Account(long id, String email, String token) {}
@@ -55,7 +57,9 @@ class SelfCaregiverIntegrationTest {
         JsonNode own = list.get(0);
         assertEquals("Alias ficticio", own.path("name").asString());
         assertEquals("PRINCIPAL", own.path("myRole").asString());
-        assertTrue(own.path("birthDate").isNull());
+        var expectedBirthDate = users.findById(account.id()).orElseThrow().getBirthDate();
+        assertEquals(expectedBirthDate == null ? null : expectedBirthDate.toString(),
+                own.path("birthDate").isNull() ? null : own.path("birthDate").asString());
         assertTrue(own.path("notes").isNull());
         CareSubject stored = subjects.findByAccountUserId(account.id()).orElseThrow();
         assertEquals(own.path("id").asLong(), stored.getId());
@@ -172,6 +176,11 @@ class SelfCaregiverIntegrationTest {
         String token = invitation(owner, recipient, destination);
         send(post("/api/v1/claim-invitations/exchange"), recipient, Map.of("token", token), 409);
         assertEquals(own, subjects.findByAccountUserId(recipient.id()).orElseThrow().getId());
+        var rejected = invitations.findByTokenHash(com.yuyay.security.TokenHasher.sha256(token)).orElseThrow();
+        assertNull(rejected.getExchangedAt());
+        assertNull(rejected.getExchangedBy());
+        assertTrue(rejected.isValidNow());
+        assertNull(subjects.findById(destination).orElseThrow().getAccountUser());
         assertEquals(CareStatus.ACTIVE, relationships.findByUserIdAndCareSubjectId(recipient.id(), own).orElseThrow().getStatus());
         send(get("/api/v1/care-subjects/" + destination), recipient, null, 403);
     }
@@ -190,6 +199,35 @@ class SelfCaregiverIntegrationTest {
         assertEquals(1, relationships.findByCareSubjectId(own).size());
     }
 
+    @Test
+    void replacementRechecksCommittedActivityEvenWhenTheOwnProfileWasAlreadyManaged() throws Exception {
+        Account owner = register(), recipient = register();
+        long own = subjects.findByAccountUserId(recipient.id()).orElseThrow().getId();
+        long destination = target(owner);
+        String token = invitation(owner, recipient, destination);
+        new TransactionTemplate(manager).executeWithoutResult(outer -> {
+            assertFalse(subjects.findById(own).orElseThrow().isRegistrationProfileUsed());
+            var writer = new TransactionTemplate(manager);
+            writer.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            writer.executeWithoutResult(inner -> {
+                try {
+                    send(patch("/api/v1/care-subjects/" + own), recipient,
+                            Map.of("name", "Perfil actualizado", "notes", "Nota ficticia conservada"), 200);
+                } catch (Exception error) { throw new IllegalStateException(error); }
+            });
+            try {
+                send(post("/api/v1/claim-invitations/exchange"), recipient, Map.of("token", token), 409);
+            } catch (Exception error) { throw new IllegalStateException(error); }
+            outer.setRollbackOnly();
+        });
+        var invitation = invitations.findByTokenHash(com.yuyay.security.TokenHasher.sha256(token)).orElseThrow();
+        assertNull(invitation.getExchangedAt());
+        assertNull(invitation.getExchangedBy());
+        assertNull(subjects.findById(destination).orElseThrow().getAccountUser());
+        assertEquals(own, subjects.findByAccountUserId(recipient.id()).orElseThrow().getId());
+        assertEquals("Nota ficticia conservada", subjects.findById(own).orElseThrow().getNotes());
+    }
+
     private Account register() throws Exception {
         String email = email();
         JsonNode result = send(post("/api/v1/auth/register"), null, registration(email), 201);
@@ -198,7 +236,7 @@ class SelfCaregiverIntegrationTest {
     private String email() { return "self." + UUID.randomUUID() + "@example.invalid"; }
     private Map<String, Object> registration(String email) {
         return Map.of("email", email, "password", "Ficticia123", "name", "Alias ficticio",
-                "fullName", "Persona Sintetica", "dni", "12345678", "termsAccepted", true, "termsVersion", "1.2");
+                "fullName", "Persona Sintetica", "dni", "12345678", "termsAccepted", true, "termsVersion", terms.current().version());
     }
     private Map<String, Object> person(String type) {
         return Map.of("requestId", UUID.randomUUID().toString(), "name", "Persona ficticia",
