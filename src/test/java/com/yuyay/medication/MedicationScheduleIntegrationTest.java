@@ -219,12 +219,13 @@ class MedicationScheduleIntegrationTest {
     private record Session(String token) {}
 
     private Session register(String name) throws Exception {
+        String termsVersion = send(get("/api/v1/auth/terms"), null, null, 200).get("version").asText();
         return new Session(send(post("/api/v1/auth/register"), null, Map.of(
                 "email", "med." + UUID.randomUUID() + "@yuyay.app",
                 "password", "Secreta123",
                 "name", name,
                 "termsAccepted", true,
-                "termsVersion", "1.2",
+                "termsVersion", termsVersion,
                 // El registro contrasta el DNI; en pruebas responde el directorio sintético
                 "dni", "12345678",
                 "fullName", "Persona Sintetica"), 201).get("accessToken").asText());
