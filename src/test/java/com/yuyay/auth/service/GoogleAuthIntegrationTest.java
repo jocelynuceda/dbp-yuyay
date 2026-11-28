@@ -1,5 +1,8 @@
 package com.yuyay.auth.service;
 
+import com.yuyay.care.entity.CareRole;
+import com.yuyay.care.repository.CareRelationshipRepository;
+import com.yuyay.care.repository.CareSubjectRepository;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -84,8 +87,8 @@ class GoogleAuthIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired UserRepository users;
-    @Autowired com.yuyay.care.repository.CareSubjectRepository ownProfiles;
-    @Autowired com.yuyay.care.repository.CareRelationshipRepository careRelationships;
+    @Autowired CareSubjectRepository ownProfiles;
+    @Autowired CareRelationshipRepository careRelationships;
     @Autowired PasswordResetCodeRepository resetCodes;
     @Autowired RefreshTokenRepository refreshTokens;
     @Autowired PlatformTransactionManager transactionManager;
@@ -190,7 +193,7 @@ class GoogleAuthIntegrationTest {
         assertNull(saved.getPasswordHash());
         assertEquals("Alias", saved.getName());
         long ownId = ownProfiles.findByAccountUserId(saved.getId()).orElseThrow().getId();
-        assertEquals(com.yuyay.care.entity.CareRole.PRINCIPAL,
+        assertEquals(CareRole.PRINCIPAL,
                 careRelationships.findByUserIdAndCareSubjectId(saved.getId(), ownId).orElseThrow().getRole());
         assertEquals("Persona Sintética", saved.getFullName());
         assertEquals("1.3", saved.getTermsVersion());

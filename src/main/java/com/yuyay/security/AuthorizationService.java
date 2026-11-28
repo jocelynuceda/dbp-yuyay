@@ -1,5 +1,6 @@
 package com.yuyay.security;
 
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.yuyay.care.entity.CareRole;
 import com.yuyay.care.entity.CareStatus;
 import com.yuyay.care.entity.CareSubject;
@@ -41,10 +42,9 @@ public class AuthorizationService {
         protectRegistrationProfileWrite(userId, careSubjectId, role);
     }
 
-
     private void protectRegistrationProfileWrite(Long userId, Long subjectId, CareRole requiredRole) {
-        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
-                || org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly()
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || TransactionSynchronizationManager.isCurrentTransactionReadOnly()
                 || !careSubjects.existsByIdAndRegistrationProfileTrue(subjectId)) return;
         CareSubject subject = careSubjects.findForUpdateById(subjectId)
                 .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));

@@ -1,5 +1,6 @@
 package com.yuyay.auth;
 
+import com.yuyay.auth.service.TermsService;
 import com.yuyay.care.service.CareSubjectService;
 import com.yuyay.care.repository.CareSubjectRepository;
 import com.yuyay.care.repository.CareRelationshipRepository;
@@ -26,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SelfCaregiverRollbackTest {
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
-    @Autowired com.yuyay.auth.service.TermsService terms;
+    @Autowired TermsService terms;
     @Autowired CareSubjectRepository subjects;
     @Autowired CareRelationshipRepository relationships;
     @MockitoSpyBean CareSubjectService careSubjects;

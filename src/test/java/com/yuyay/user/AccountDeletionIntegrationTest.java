@@ -1,5 +1,8 @@
 package com.yuyay.user;
 
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import com.yuyay.user.entity.User;
+import com.yuyay.user.repository.UserRepository;
 import com.yuyay.attachment.ocr.TextExtractor;
 import com.yuyay.attachment.storage.FileStorage;
 import org.junit.jupiter.api.DisplayName;
@@ -51,7 +54,7 @@ class AccountDeletionIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
-    @Autowired com.yuyay.user.repository.UserRepository users;
+    @Autowired UserRepository users;
 
     // Sin almacenamiento ni lectura de texto reales: solo importa qué se borra y cuándo
     @MockitoBean FileStorage fileStorage;
@@ -255,9 +258,9 @@ class AccountDeletionIntegrationTest {
     @DisplayName("una cuenta anterior sin perfiles conserva su vista previa vacía y puede eliminarse")
     void aLegacyAccountWithoutProfilesCanStillBeDeleted() throws Exception {
         String email = "legacy-delete." + UUID.randomUUID() + "@example.invalid";
-        var previous = users.save(com.yuyay.user.entity.User.builder().email(email)
+        var previous = users.save(User.builder().email(email)
                 .name("Cuenta anterior ficticia")
-                .passwordHash(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("Secreta123"))
+                .passwordHash(new BCryptPasswordEncoder().encode("Secreta123"))
                 .build());
         JsonNode auth = send(post("/api/v1/auth/login"), null,
                 Map.of("email", email, "password", "Secreta123"), 200);
