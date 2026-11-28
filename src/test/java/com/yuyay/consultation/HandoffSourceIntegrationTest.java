@@ -207,7 +207,9 @@ class HandoffSourceIntegrationTest {
             assertEquals("es-PE", document.getDocumentCatalog().getLanguage());
             assertTrue(text.contains("Resumen de Paciente ficticio"));
             assertTrue(text.contains("Informe revisado"));
-            assertTrue(text.contains("Condición · Confirmado"));
+            assertTrue(text.contains("Condiciones"));
+            assertTrue(text.contains("Confirmado"));
+            assertTrue(text.contains("Actualizado el "));
             assertEquals(170, text.split("Texto revisado: presión, dosis y antecedentes\\.", -1).length - 1);
             assertTrue(text.contains("Medición β ≥ 3,5 µg/L"));
             assertTrue(text.contains("FIN REVISADO"));
