@@ -139,6 +139,31 @@ public class CareRelationshipService {
         return mapper.toResponse(rel);
     }
 
+    /**
+     * El invitado rechaza una invitación pendiente. La relación se borra (no se marca REVOKED) para
+     * que el principal pueda volver a invitar a esa persona: invite() rechaza cualquier relación
+     * existente con ella, incluso una revocada.
+     */
+    public void decline(Long relationshipId) {
+        Long meId = currentUserService.getCurrentUserId();
+        // El mismo bloqueo que accept: un rechazo y una aceptación simultáneos no se pisan.
+        Long subjectId = relationshipRepo.findCareSubjectIdById(relationshipId)
+                .orElseThrow(() -> new CareRelationshipNotFoundException(relationshipId));
+        subjectRepo.findForUpdateById(subjectId)
+                .orElseThrow(() -> new CareSubjectNotFoundException(subjectId));
+        CareRelationship rel = loadRelationship(relationshipId);
+
+        if (!rel.getUser().getId().equals(meId)) {
+            throw new ForbiddenCareSubjectAccessException("Esta invitación no es tuya");
+        }
+        if (rel.getStatus() != CareStatus.PENDING) {
+            throw new InvalidCareRelationshipException("La invitación no está pendiente");
+        }
+
+        markInvitationNoticesRead(meId, subjectId, Instant.now());
+        relationshipRepo.delete(rel);
+    }
+
     public void revoke(Long subjectId, Long relationshipId) {
         Long meId = currentUserService.getCurrentUserId();
         authorizationService.requireRoleForUpdate(meId, subjectId, CareRole.PRINCIPAL);
