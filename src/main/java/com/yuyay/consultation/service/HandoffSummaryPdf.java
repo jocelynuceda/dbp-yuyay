@@ -1,6 +1,8 @@
 package com.yuyay.consultation.service;
 
 import com.yuyay.consultation.entity.Handoff;
+import com.yuyay.consultation.entity.HandoffItem;
+import com.yuyay.health.entity.HealthCategory;
 import com.yuyay.health.entity.ConfidenceLevel;
 import com.yuyay.health.entity.HealthEntryVersion;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -36,6 +38,21 @@ class HandoffSummaryPdf {
     private static final Color INK = new Color(30, 33, 88);
     private static final Color SECONDARY = new Color(71, 79, 124);
     private static final Color RULE = new Color(193, 193, 222);
+    private static final Color ACCENT = new Color(106, 100, 194);
+    private static final Color ALERT = new Color(176, 42, 99);
+    private static final Color CONFIRMED_FILL = new Color(219, 230, 243);
+    private static final Color CONFIRMED_TEXT = new Color(31, 79, 122);
+    private static final Color UNCERTAIN_FILL = new Color(196, 232, 239);
+    private static final Color UNCERTAIN_TEXT = new Color(46, 44, 126);
+    private static final float INDENT = 13;
+    // Mismo orden y mismos títulos que el resumen compartido en la web.
+    private static final List<Group> GROUPS = List.of(
+            new Group(HealthCategory.ALLERGY, "Alergias"),
+            new Group(HealthCategory.CONDITION, "Condiciones"),
+            new Group(HealthCategory.MEDICATION, "Medicación"),
+            new Group(HealthCategory.IMMUNIZATION, "Vacunas"),
+            new Group(HealthCategory.EPISODE, "Episodios"),
+            new Group(HealthCategory.EXAM_RESULT, "Exámenes"));
     private static final Locale PERU = Locale.forLanguageTag("es-PE");
     private static final ZoneId LIMA = ZoneId.of("America/Lima");
     private static final DateTimeFormatter LIMA_TIME = DateTimeFormatter.ofPattern("dd/MM/uuuu, HH:mm:ss", PERU)
@@ -144,6 +161,24 @@ class HandoffSummaryPdf {
         stream.stroke();
     }
 
+    private static void pill(PDPageContentStream stream, Color color, float x, float y, float width, float height)
+            throws IOException {
+        float radius = height / 2;
+        float curve = radius * 0.5523f;
+        float right = x + width;
+        float top = y + height;
+        stream.setNonStrokingColor(color);
+        stream.moveTo(x + radius, y);
+        stream.lineTo(right - radius, y);
+        stream.curveTo(right - radius + curve, y, right, y + radius - curve, right, y + radius);
+        stream.curveTo(right, y + radius + curve, right - radius + curve, top, right - radius, top);
+        stream.lineTo(x + radius, top);
+        stream.curveTo(x + radius - curve, top, x, y + radius + curve, x, y + radius);
+        stream.curveTo(x, y + radius - curve, x + radius - curve, y, x + radius, y);
+        stream.closePath();
+        stream.fill();
+    }
+
     private static void text(PDPageContentStream stream, Style style, String value, float x, float y) throws IOException {
         if (value.isEmpty()) return;
         stream.beginText();
@@ -221,6 +256,8 @@ class HandoffSummaryPdf {
 
     private record Style(PDFont font, float size, float leading, Color color) {}
 
+    private record Group(String code, String label) {}
+
     private static final class Layout implements AutoCloseable {
         private final PDDocument document;
         private final Style title;
@@ -228,6 +265,10 @@ class HandoffSummaryPdf {
         private final Style itemTitle;
         private final Style body;
         private final Style meta;
+        private final Style fact;
+        private final Style note;
+        private final Style badge;
+        private Color bar;
         private PDPageContentStream stream;
         private float y;
 
@@ -241,6 +282,9 @@ class HandoffSummaryPdf {
                 itemTitle = new Style(strong, 11, 17, INK);
                 body = new Style(normal, 10.5f, 16, INK);
                 meta = new Style(normal, 9, 14, SECONDARY);
+                fact = new Style(strong, 10.5f, 16, INK);
+                note = new Style(normal, 10.5f, 16, SECONDARY);
+                badge = new Style(strong, 8.5f, 17, CONFIRMED_TEXT);
             }
         }
 
@@ -256,46 +300,85 @@ class HandoffSummaryPdf {
         }
 
         void records(Handoff handoff) throws IOException {
-            if (!handoff.getItems().isEmpty()) {
-                HealthEntryVersion first = handoff.getItems().getFirst().getHealthEntryVersion();
-                ensureSpace(12 + heading.leading() + recordStartHeight(recordTitle(first)));
+            if (handoff.getItems().isEmpty()) {
+                section("Registros seleccionados", "Este resumen no incluye registros.");
+                return;
             }
-            heading("Registros seleccionados");
-            for (var item : handoff.getItems()) {
-                record(item.getHealthEntryVersion());
+            List<HealthEntryVersion> versions = handoff.getItems().stream()
+                    .map(HandoffItem::getHealthEntryVersion)
+                    .toList();
+            for (Group group : GROUPS) {
+                group(group.label(), group.code(), versions.stream()
+                        .filter(version -> group.code().equals(categoryCode(version)))
+                        .toList());
             }
+            // Una categoría nueva no debe desaparecer del documento.
+            group("Otros registros", "", versions.stream()
+                    .filter(version -> GROUPS.stream().noneMatch(group -> group.code().equals(categoryCode(version))))
+                    .toList());
+        }
+
+        private static String categoryCode(HealthEntryVersion version) {
+            return version.getHealthEntry().getCategory().getCode();
+        }
+
+        private void group(String label, String code, List<HealthEntryVersion> versions) throws IOException {
+            if (versions.isEmpty()) return;
+            boolean alert = HealthCategory.ALLERGY.equals(code);
+            // El título de la categoría nunca queda solo al pie de una página.
+            ensureSpace(12 + heading.leading() + recordStartHeight(recordTitle(versions.getFirst())));
+            y -= 12;
+            paragraph(label, alert ? new Style(heading.font(), heading.size(), heading.leading(), ALERT) : heading, LEFT);
+            for (HealthEntryVersion version : versions) {
+                record(version, alert ? ALERT : ACCENT);
+            }
+        }
+
+        private static String confidence(HealthEntryVersion version) {
+            return version.getConfidenceLevel() == ConfidenceLevel.CONFIRMED ? "Confirmado" : "Por confirmar";
         }
 
         private List<String> recordTitle(HealthEntryVersion version) throws IOException {
-            return wrap(version.getTitle(), itemTitle, RIGHT - LEFT - 11);
+            return wrap(version.getTitle(), itemTitle, RIGHT - LEFT - INDENT - badgeWidth(version) - 10);
+        }
+
+        private float badgeWidth(HealthEntryVersion version) throws IOException {
+            return width(badge, confidence(version)) + 14;
         }
 
         private float recordStartHeight(List<String> name) {
-            return name.size() * itemTitle.leading() + meta.leading() * 2 + body.leading() + 5;
+            return name.size() * itemTitle.leading() + body.leading() * 2 + meta.leading();
         }
 
-        void record(HealthEntryVersion version) throws IOException {
-            float x = LEFT + 11;
+        private void record(HealthEntryVersion version, Color color) throws IOException {
+            float x = LEFT + INDENT;
             List<String> name = recordTitle(version);
             ensureSpace(recordStartHeight(name));
-            rule(stream, y + 12);
+            bar = color;
+            badge(version);
             for (String line : name) {
                 line(line, itemTitle, x);
             }
-            String confidence = version.getConfidenceLevel() == ConfidenceLevel.CONFIRMED ? "Confirmado" : "Por confirmar";
-            String category = version.getHealthEntry().getCategory().getName();
-            String date = version.getOccurredOn() == null ? "" : " · " + DATE.format(version.getOccurredOn());
-            paragraph(category + " · " + confidence + date, meta, x);
-            paragraph("Registrado el " + DATE.format(version.getDeclaredAt()) + " · Versión " + version.getVersionNumber(), meta, x);
-            if (hasText(version.getDose())) paragraph("Dosis · " + version.getDose(), body, x);
-            if (hasText(version.getFrequency())) paragraph("Frecuencia · " + version.getFrequency(), body, x);
+            List<String> facts = new ArrayList<>();
+            if (hasText(version.getDose())) facts.add("Dosis: " + version.getDose());
+            if (hasText(version.getFrequency())) facts.add("Frecuencia: " + version.getFrequency());
+            if (!facts.isEmpty()) paragraph(String.join(" · ", facts), fact, x);
             if (hasText(version.getDetails())) paragraph(version.getDetails(), body, x);
-            if (hasText(version.getNotes())) {
-                ensureSpace(itemTitle.leading() + body.leading());
-                paragraph("Notas", itemTitle, x);
-                paragraph(version.getNotes(), body, x);
-            }
-            y -= 10;
+            if (hasText(version.getNotes())) paragraph("Notas: " + version.getNotes(), note, x);
+            String date = version.getOccurredOn() == null ? "" : "Fecha: " + DATE.format(version.getOccurredOn()) + " · ";
+            paragraph(date + "Actualizado el " + DATE.format(version.getDeclaredAt()), meta, x);
+            bar = null;
+            y -= 12;
+        }
+
+        private void badge(HealthEntryVersion version) throws IOException {
+            boolean confirmed = version.getConfidenceLevel() == ConfidenceLevel.CONFIRMED;
+            float width = badgeWidth(version);
+            float left = RIGHT - width;
+            pill(stream, confirmed ? CONFIRMED_FILL : UNCERTAIN_FILL, left, y - 4, width, 15);
+            Style style = new Style(badge.font(), badge.size(), badge.leading(),
+                    confirmed ? CONFIRMED_TEXT : UNCERTAIN_TEXT);
+            text(stream, style, confidence(version), left + 7, y + 0.5f);
         }
 
         void paragraph(String value, Style style, float x) throws IOException {
@@ -306,6 +389,12 @@ class HandoffSummaryPdf {
 
         private void line(String value, Style style, float x) throws IOException {
             ensureSpace(style.leading());
+            if (bar != null) {
+                // Se dibuja línea a línea para que la barra continúe en la página siguiente.
+                stream.setNonStrokingColor(bar);
+                stream.addRect(LEFT, y + 11 - style.leading(), 2.5f, style.leading());
+                stream.fill();
+            }
             text(stream, style, value, x, y);
             y -= style.leading();
         }
